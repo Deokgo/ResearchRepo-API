@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
 from flask_migrate import Migrate #install this module in your terminal
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from models import Account
+
 
 app = Flask(__name__)
 CORS(app)
@@ -23,117 +26,34 @@ migrate = Migrate(app, db)
 #flask db upgrade
 #if you want to delete all the migrations, use this: rm -rf migrations/
 
-#college Table
-class College(db.Model):
-    __tablename__ = 'college'
-    college_id = db.Column(db.String(6), primary_key=True)
-    college_name = db.Column(db.String(50))
+# function that checks db if existing or not
+def check_db(db_name, user, password, host='localhost', port='5432'):
+    try:
+        # Connect to the default 'postgres' database
+        connection = psycopg2.connect(user=user, password=password, host=host, port=port, dbname='postgres')
+        connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cursor = connection.cursor()
 
-#program Table
-class Program(db.Model):
-    __tablename__ = 'program'
-    program_id = db.Column(db.String(5), primary_key=True)
-    college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
-    program_name = db.Column(db.String(50))
-    college = db.relationship('College', backref=db.backref('programs', lazy=True))
+        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+        exists = cursor.fetchone()
 
-#roles Table
-class Role(db.Model):
-    __tablename__ = 'roles'
-    role_id = db.Column(db.String(2), primary_key=True)
-    role_name = db.Column(db.String(50))
+        if not exists:
+            cursor.execute(f'CREATE DATABASE "{db_name}"')
+            print(f"Database '{db_name}' created successfully.")
+        else:
+            print(f"Database '{db_name}' already exists.")
+    except Exception as error:
+        print(f"Error while creating database: {error}")
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
 
-#SDG Table
-class SDG(db.Model):
-    __tablename__ = 'sdg'
-    sdg_id = db.Column(db.String(6), primary_key=True)
-    sdg_desc = db.Column(db.String(50))
+check_db('Research_Data_Integration_System', 'postgres', 'Papasa01!')
 
-#account table
-class Account(db.Model):
-    __tablename__ = 'account'
-    user_id = db.Column(db.String(15), primary_key=True)
-    live_account = db.Column(db.String(80))
-    user_pw = db.Column(db.String(64))  #store the hashed password
-    acc_status = db.Column(db.String(20), server_default=text("'ACTIVATED'"))  #default value in the database
-    role_id = db.Column(db.String(2), db.ForeignKey('roles.role_id'))
-    role = db.relationship('Role', backref=db.backref('accounts', lazy=True))
-
-
-#researchers Table
-class Researcher(db.Model):
-    __tablename__ = 'researchers'
-    researcher_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
-    college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
-    program_id = db.Column(db.String(5), db.ForeignKey('program.program_id'))
-    first_name = db.Column(db.String(30))
-    middle_name = db.Column(db.String(2))
-    last_name = db.Column(db.String(30))
-    suffix = db.Column(db.String(10))
-
-#research Outputs Table
-class ResearchOutput(db.Model):
-    __tablename__ = 'research_outputs'
-    research_id = db.Column(db.String(15), primary_key=True)
-    college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
-    program_id = db.Column(db.String(5), db.ForeignKey('program.program_id'))
-    title = db.Column(db.String(100))
-    abstract = db.Column(db.String(1000))
-    sdg_id = db.Column(db.String(6), db.ForeignKey('sdg.sdg_id'))
-    keywords = db.Column(db.String(50))
-    pdf = db.Column(db.String(100))
-    date_submitted = db.Column(db.TIMESTAMP)
-    date_modified = db.Column(db.TIMESTAMP)
-    user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
-
-#research Output Authors Table
-class ResearchOutputAuthor(db.Model):
-    __tablename__ = 'research_output_authors'
-    research_id = db.Column(db.String(15), db.ForeignKey('research_outputs.research_id'), primary_key=True)
-    author_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
-    author_order = db.Column(db.Integer)
-
-#audit Trail Table
-class AuditTrail(db.Model):
-    __tablename__ = 'audit_trail'
-    audit_id = db.Column(db.String(16), primary_key=True)
-    user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
-    table_name = db.Column(db.String(50))
-    record_id = db.Column(db.String(16))
-    operation = db.Column(db.String(50))
-    change_datetime = db.Column(db.TIMESTAMP)
-    action_desc = db.Column(db.String(100))
-
-#publisher Table
-class Publisher(db.Model):
-    __tablename__ = 'publisher'
-    publisher_id = db.Column(db.String(16), primary_key=True)
-    publisher_name = db.Column(db.String(70))
-
-#conference Table
-class Conference(db.Model):
-    __tablename__ = 'conference'
-    conference_id = db.Column(db.String(15), primary_key=True)
-    conference_title = db.Column(db.String(100))
-    location = db.Column(db.String(100))
-    country = db.Column(db.String(30))
-    conference_date = db.Column(db.Date)
-    date_added = db.Column(db.TIMESTAMP)
-    date_modified = db.Column(db.TIMESTAMP)
-
-#publication Table
-class Publication(db.Model):
-    __tablename__ = 'publications'
-    publication_id = db.Column(db.String(16), primary_key=True)
-    research_id = db.Column(db.String(15), db.ForeignKey('research_outputs.research_id'))
-    publication_format = db.Column(db.String(20))
-    conference_id = db.Column(db.String(15), db.ForeignKey('conference.conference_id'))
-    publisher_id = db.Column(db.String(16), db.ForeignKey('publisher.publisher_id'))
-    publication_name = db.Column(db.String(100))
-    status = db.Column(db.String(20))
-    date_submitted = db.Column(db.TIMESTAMP)
-    date_modified = db.Column(db.TIMESTAMP)
-    user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
+with app.app_context():
+    db.create_all()
+    print("Tables created successfully.")
 
 @app.route('/login', methods=['POST']) #created Nicole Cabansag (Sept. 29, 2024)
 def login():
