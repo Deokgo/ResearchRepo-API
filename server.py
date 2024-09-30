@@ -52,48 +52,34 @@ with app.app_context():
     print("Tables created successfully.")
 
 #created by Nicole Cabansag, this method is for generating ID (for PK)
-def formatting_id(indicator):
+def formatting_id(indicator, model_class, id_field):
     #get the current date in the format YYYYMMDD
     current_date_str = datetime.datetime.now().strftime('%Y%m%d')
 
-    #query the last audit entry for the current date to get the latest audit_id
-    if indicator == 'AUD':
-        last_audit = AuditTrail.query.filter(AuditTrail.audit_id.like(f'{indicator}-{current_date_str}-%')) \
-                                        .order_by(AuditTrail.audit_id.desc()) \
-                                        .first()
-        
-        #determine the next sequence number (XXX)
-        if last_audit:
-            #extract the last sequence number and increment it by 1
-            last_sequence = int(last_audit.audit_id.split('-')[-1])
-            next_sequence = f"{last_sequence + 1:03d}"
-        else:
-            #if no previous audit log exists for today, start with 001
-            next_sequence = "001"
+    #query the last entry for the current date to get the latest ID
+    last_entry = model_class.query.filter(getattr(model_class, id_field).like(f'{indicator}-{current_date_str}-%')) \
+                                  .order_by(getattr(model_class, id_field).desc()) \
+                                  .first()
 
-    #query the last user entry for the current date to get the latest user_id
-    elif indicator == 'US':
-        last_user = Account.query.filter(Account.user_id.like(f'{indicator}-{current_date_str}-%')) \
-                                        .order_by(Account.user_id.desc()) \
-                                        .first()
-        #determine the next sequence number (XXX)
-        if last_user:
-            #extract the last sequence number and increment it by 1
-            last_sequence = int(last_user.user_id.split('-')[-1])
-            next_sequence = f"{last_sequence + 1:03d}"
-        else:
-            #if no previous user log exists for today, start with 001
-            next_sequence = "001"
-    
-    
+    #determine the next sequence number (XXX)
+    if last_entry:
+        # Extract the last sequence number and increment it by 1
+        last_sequence = int(getattr(last_entry, id_field).split('-')[-1])
+        next_sequence = f"{last_sequence + 1:03d}"
+    else:
+        #if no previous entry exists for today, start with 001
+        next_sequence = "001"
+
+    #generate the new ID
     generated_id = f"{indicator}-{current_date_str}-{next_sequence}"
 
     return generated_id
 
+
 #created by Nicole Cabansag, for audit logs
 def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
     try:
-        audit_id = formatting_id('AUD')
+        audit_id = formatting_id('AUD', AuditTrail, 'audit_id')
 
         #create the audit trail entry
         new_audit = AuditTrail(
@@ -164,7 +150,7 @@ def add_user():
             return jsonify({"message": f"{field} is required."}), 400
         
     #generate the new user_id with the incremented sequence number
-    user_id = formatting_id('US')
+    user_id = formatting_id('US', Researcher, 'researcher_id')
 
     try:
         # Insert data into the Account table
