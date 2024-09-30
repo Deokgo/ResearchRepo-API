@@ -57,18 +57,34 @@ def formatting_id(indicator):
     current_date_str = datetime.datetime.now().strftime('%Y%m%d')
 
     #query the last audit entry for the current date to get the latest audit_id
-    last_audit = AuditTrail.query.filter(AuditTrail.audit_id.like(f'{indicator}-{current_date_str}-%')) \
-                                     .order_by(AuditTrail.audit_id.desc()) \
-                                     .first()
+    if indicator == 'AUD':
+        last_audit = AuditTrail.query.filter(AuditTrail.audit_id.like(f'{indicator}-{current_date_str}-%')) \
+                                        .order_by(AuditTrail.audit_id.desc()) \
+                                        .first()
+        
+        #determine the next sequence number (XXX)
+        if last_audit:
+            #extract the last sequence number and increment it by 1
+            last_sequence = int(last_audit.audit_id.split('-')[-1])
+            next_sequence = f"{last_sequence + 1:03d}"
+        else:
+            #if no previous audit log exists for today, start with 001
+            next_sequence = "001"
 
-    #determine the next sequence number (XXX)
-    if last_audit:
-        #extract the last sequence number and increment it by 1
-        last_sequence = int(last_audit.audit_id.split('-')[-1])
-        next_sequence = f"{last_sequence + 1:03d}"
-    else:
-        #if no previous audit log exists for today, start with 001
-        next_sequence = "001"
+    #query the last user entry for the current date to get the latest user_id
+    elif indicator == 'US':
+        last_user = Account.query.filter(Account.user_id.like(f'{indicator}-{current_date_str}-%')) \
+                                        .order_by(Account.user_id.desc()) \
+                                        .first()
+        #determine the next sequence number (XXX)
+        if last_user:
+            #extract the last sequence number and increment it by 1
+            last_sequence = int(last_user.user_id.split('-')[-1])
+            next_sequence = f"{last_sequence + 1:03d}"
+        else:
+            #if no previous user log exists for today, start with 001
+            next_sequence = "001"
+    
     
     generated_id = f"{indicator}-{current_date_str}-{next_sequence}"
 
@@ -142,7 +158,7 @@ def add_user():
     data = request.json
 
     #ensure all required fields are present
-    required_fields = ['firstName', 'lastName', 'email', 'password', 'department', 'program', 'role']
+    required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program', 'role_id']
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
@@ -179,7 +195,10 @@ def add_user():
         #log the account creation in the Audit_Trail
         log_audit_trail(user_id=new_account.user_id, table_name='Account', record_id=None,
                         operation='CREATE', action_desc='New account created')
-        return jsonify({"message": "User added successfully."}), 201
+        return jsonify({
+                    "message": "Signup successful",
+                    "user_id": user_id
+                }), 200
 
     except Exception as e:
         db.session.rollback()  #rollback in case of error
