@@ -4,7 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate #install this module in your terminal
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from models import Account
+
+from models import db
 
 
 app = Flask(__name__)
@@ -14,7 +15,9 @@ CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Papasa01!@localhost:5432/Research_Data_Integration_System'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+# Initialize SQLAlchemy
+# Initialize the database
+db.init_app(app)
 migrate = Migrate(app, db)
 
 #created by Nicole Cabansag (Sept. 29, 2024)
@@ -54,6 +57,8 @@ check_db('Research_Data_Integration_System', 'postgres', 'Papasa01!')
 with app.app_context():
     db.create_all()
     print("Tables created successfully.")
+
+from models import Account
 
 @app.route('/login', methods=['POST']) #created Nicole Cabansag (Sept. 29, 2024)
 def login():
