@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate #install this module in your terminal
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
+from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
 
 
@@ -20,14 +20,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
-#created by Nicole Cabansag (Sept. 29, 2024)
-#added table models to import db schema to the db through the following codes
-#run this to your terminal before running the following codes
-#export FLASK_APP=server.py
-#flask db init
-#flask db migrate -m "Initial migration."
-#flask db upgrade
-#if you want to delete all the migrations, use this: rm -rf migrations/
 
 # function that checks db if existing or not
 def check_db(db_name, user, password, host='localhost', port='5432'):
@@ -58,9 +50,10 @@ with app.app_context():
     db.create_all()
     print("Tables created successfully.")
 
-from models import Account
+from models import Account, Researcher
 
-@app.route('/login', methods=['POST']) #created Nicole Cabansag (Sept. 29, 2024)
+#modified by Nicole Cabansag, added comparing hashed values for user_pw
+@app.route('/login', methods=['POST']) 
 def login():
     data = request.json
     if data:
@@ -74,9 +67,9 @@ def login():
             #retrieve user from the database
             user = Account.query.filter_by(live_account=live_account).one()
 
-            #compare plain passwords
-            if user.user_pw == password:
-                #login successful
+            #compare hashed password with the provided plain password
+            if check_password_hash(user.user_pw, password):
+                #if login successful...
                 return jsonify({
                     "message": "Login successful",
                     "user_id": user.user_id,
@@ -87,6 +80,53 @@ def login():
 
         except:
             return jsonify({"message": "User not found"}), 404
+
+#created by Nicole Cabansag, for signup API
+@app.route('/signup', methods=['POST']) 
+def add_user():
+    data = request.json
+
+    #ensure data contains both researcher and account information
+    data1 = data.get('researcher')
+    data2 = data.get('account')
+
+    if not data1 or not data2:
+        return jsonify({"message": "Both researcher and account data are required."}), 400
+
+    try:
+        #insert data into the Account table
+        new_account = Account(
+            user_id = data2['user_id'],
+            live_account=data2['live_account'],
+            user_pw=generate_password_hash(data2['user_pw']),
+            acc_status=data2['acc_status'],
+            role_id=data2['role_id'],
+        )
+        db.session.add(new_account)
+
+        #insert data into the Researcher table
+        new_researcher = Researcher(
+            researcher_id=new_account.user_id,
+            college_id=data1['college_id'],
+            program_id=data1['program_id'],
+            first_name=data1['first_name'],
+            middle_name=data1.get('middle_name'),  #used .get() to allow optional fields
+            last_name=data1['last_name'],
+            suffix=data1.get('suffix')
+        )
+        db.session.add(new_researcher)
+
+
+        #commit both operations
+        db.session.commit()
+        return jsonify({"message": "User added successfully."}), 201
+
+    except Exception as e:
+        db.session.rollback()  #rollback in case of error
+        return jsonify({"message": f"Failed to add user: {e}"}), 500
+
+    finally:
+        db.session.close()  #close the session
 
 if __name__ == "__main__":
     app.run(debug=True)
