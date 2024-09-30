@@ -51,28 +51,33 @@ with app.app_context():
     db.create_all()
     print("Tables created successfully.")
 
-#created by Nicole Cabansag, for audit logs
-def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
-    try:
-        #get the current date in the format YYYYMMDD
-        current_date_str = datetime.datetime.now().strftime('%Y%m%d')
+#created by Nicole Cabansag, this method is for generating ID (for PK)
+def formatting_id(indicator):
+    #get the current date in the format YYYYMMDD
+    current_date_str = datetime.datetime.now().strftime('%Y%m%d')
 
-        #query the last audit entry for the current date to get the latest audit_id
-        last_audit = AuditTrail.query.filter(AuditTrail.audit_id.like(f'AUD-{current_date_str}-%')) \
+    #query the last audit entry for the current date to get the latest audit_id
+    last_audit = AuditTrail.query.filter(AuditTrail.audit_id.like(f'{indicator}-{current_date_str}-%')) \
                                      .order_by(AuditTrail.audit_id.desc()) \
                                      .first()
 
-        #determine the next sequence number (XXX)
-        if last_audit:
-            #extract the last sequence number and increment it by 1
-            last_sequence = int(last_audit.audit_id.split('-')[-1])
-            next_sequence = f"{last_sequence + 1:03d}"
-        else:
-            #if no previous audit log exists for today, start with 001
-            next_sequence = "001"
+    #determine the next sequence number (XXX)
+    if last_audit:
+        #extract the last sequence number and increment it by 1
+        last_sequence = int(last_audit.audit_id.split('-')[-1])
+        next_sequence = f"{last_sequence + 1:03d}"
+    else:
+        #if no previous audit log exists for today, start with 001
+        next_sequence = "001"
+    
+    generated_id = f"{indicator}-{current_date_str}-{next_sequence}"
 
-        #generate the new audit_id with the incremented sequence number
-        audit_id = f"AUD-{current_date_str}-{next_sequence}"
+    return generated_id
+
+#created by Nicole Cabansag, for audit logs
+def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
+    try:
+        audit_id = formatting_id('AUD')
 
         #create the audit trail entry
         new_audit = AuditTrail(
@@ -136,36 +141,37 @@ def login():
 def add_user():
     data = request.json
 
-    #ensure data contains both researcher and account information
-    data1 = data.get('researcher')
-    data2 = data.get('account')
-
-    if not data1 or not data2:
-        return jsonify({"message": "Both researcher and account data are required."}), 400
+    #ensure all required fields are present
+    required_fields = ['firstName', 'lastName', 'email', 'password', 'department', 'program', 'role']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"message": f"{field} is required."}), 400
+        
+    #generate the new user_id with the incremented sequence number
+    user_id = formatting_id('US')
 
     try:
-        #insert data into the Account table
+        # Insert data into the Account table
         new_account = Account(
-            user_id = data2['user_id'],
-            live_account=data2['live_account'],
-            user_pw=generate_password_hash(data2['user_pw']),
-            acc_status=data2['acc_status'],
-            role_id=data2['role_id'],
+            user_id=user_id,  #assuming email is used as the user_id
+            live_account=data['email'],  #mapúa MCL live account
+            user_pw=generate_password_hash(data['password']),
+            acc_status='ACTIVATED',  #assuming account is actived by default, change as needed
+            role_id=data.get('role_id'),  
         )
         db.session.add(new_account)
 
         #insert data into the Researcher table
         new_researcher = Researcher(
-            researcher_id=new_account.user_id,
-            college_id=data1['college_id'],
-            program_id=data1['program_id'],
-            first_name=data1['first_name'],
-            middle_name=data1.get('middle_name'),  #used .get() to allow optional fields
-            last_name=data1['last_name'],
-            suffix=data1.get('suffix')
+            researcher_id=new_account.user_id,  #use the user_id from Account
+            college_id=data['department'],  #department corresponds to college_id
+            program_id=data['program'],  #program corresponds to program_id
+            first_name=data['firstName'],
+            middle_name=data.get('middleName'),  #allowing optional fields
+            last_name=data['lastName'],
+            suffix=data.get('suffix')  #allowing optional suffix
         )
         db.session.add(new_researcher)
-
 
         #commit both operations
         db.session.commit()
@@ -181,6 +187,7 @@ def add_user():
 
     finally:
         db.session.close()  #close the session
+
 
 #created by Nicole Cabansag, for retrieving all users API
 @app.route('/users', methods=['GET']) 
