@@ -6,13 +6,16 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
+import jwt
 import datetime
+import os
 
 
 app = Flask(__name__)
 CORS(app)
 
 #database Configuration
+app.config['SECRET_KEY']=os.environ.get('SECRET_KEY', "b'\x06F\x83X\xe1\x94\xd6\x1f\x89bU\xf5\xbfd\xa4\xda\xb2T\xf7\x0b{\xc0\xaf\xc2'")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Papasa01!@localhost:5432/Research_Data_Integration_System'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -123,6 +126,12 @@ def login():
             if check_password_hash(user.user_pw, password):
                 #if login successful...
 
+                # Send this token to client to authenticate user
+                token = jwt.encode({
+                    'user_id': user.user_id,
+                    'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
+                }, app.config['SECRET_KEY'], algorithm='HS256')
+
                 #log the successful login in the Audit_Trail
                 log_audit_trail(user_id=user.user_id, table_name='Account', record_id=None,
                                 operation='LOGIN', action_desc='User logged in')
@@ -130,7 +139,8 @@ def login():
                 return jsonify({
                     "message": "Login successful",
                     "user_id": user.user_id,
-                    "role": user.role.role_name
+                    "role": user.role.role_name,
+                    "token": token
                 }), 200
             else:
                 return jsonify({"message": "Invalid password"}), 401
@@ -181,9 +191,17 @@ def add_user():
         #log the account creation in the Audit_Trail
         log_audit_trail(user_id=new_account.user_id, table_name='Account', record_id=None,
                         operation='CREATE', action_desc='New account created')
+        
+         # Generate JWT token for immediate login
+        token = jwt.encode({
+            'user_id': new_account.user_id,
+            'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+
         return jsonify({
                     "message": "Signup successful",
-                    "user_id": user_id
+                    "user_id": user_id,
+                    "token": token
                 }), 200
 
     except Exception as e:
