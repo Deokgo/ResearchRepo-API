@@ -1,4 +1,6 @@
 from . import db
+import datetime
+from services import auth_services
 
 class AuditTrail(db.Model):
     __tablename__ = 'audit_trail'
@@ -9,3 +11,6 @@ class AuditTrail(db.Model):
     operation = db.Column(db.String(50))
     change_datetime = db.Column(db.TIMESTAMP)
     action_desc = db.Column(db.String(100))
+
+
+
