@@ -58,7 +58,7 @@ def generate_token(user_id):
     # Define the token payload
     payload = {
         'user_id': user_id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)  # Token expiry time
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expiry time
     }
 
     # Encode the token using the secret key

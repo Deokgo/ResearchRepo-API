@@ -30,10 +30,7 @@ def login():
                 #if login successful...
 
                 # Send this token to client to authenticate user
-                token = jwt.encode({
-                    'user_id': user.user_id,
-                    'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
-                }, current_app.config['SECRET_KEY'], algorithm='HS256')
+                token = auth_services.generate_token(user.user_id)
 
                 #log the successful login in the Audit_Trail
                 auth_services.log_audit_trail(user_id=user.user_id, table_name='Account', record_id=None,
