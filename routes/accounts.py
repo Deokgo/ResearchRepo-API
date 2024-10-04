@@ -1,5 +1,7 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, request, jsonify
 from models import Account, Researcher, db
+from services import auth_services
+from werkzeug.security import generate_password_hash, check_password_hash
 
 accounts = Blueprint('account', __name__)
 
@@ -59,3 +61,73 @@ def get_user_acc_by_id(user_id):
     except Exception as e:
         return jsonify({"message": f"Error retrieving user profile: {str(e)}"}), 404
 
+# created by Jelly Mallari for Updating Account API
+@accounts.route('/update_account/<user_id>', methods=['PUT'])
+def update_account(user_id):
+    data = request.json
+
+    try:
+        # Retrieve the user's account and researcher information
+        user_acc = Account.query.filter_by(user_id=user_id).first()
+        researcher_info = Researcher.query.filter_by(researcher_id=user_id).first()
+
+        if not user_acc or not researcher_info:
+            return jsonify({"message": "User not found"}), 404
+
+        # Update account fields if provided in the request
+        if data.get('password'):
+            user_acc.user_pw = generate_password_hash(data['password'])
+        if data.get('acc_status'):
+            user_acc.acc_status = data['acc_status']
+
+        # live_account and role_id cannot be updated
+        if 'live_account' in data or 'role_id' in data:
+            return jsonify({"message": "live_account and role_id cannot be updated."}), 400
+
+        # Update researcher fields if provided in the request
+        if data.get('college_id'):
+            researcher_info.college_id = data['college_id']
+        if data.get('program_id'):
+            researcher_info.program_id = data['program_id']
+        if data.get('first_name'):
+            researcher_info.first_name = data['first_name']
+        if data.get('middle_name'):
+            researcher_info.middle_name = data.get('middle_name')  # Optional
+        if data.get('last_name'):
+            researcher_info.last_name = data['last_name']
+        if data.get('suffix'):
+            researcher_info.suffix = data.get('suffix')  # Optional
+
+        # Commit changes to the database
+        db.session.commit()
+
+        # Log the update event in the Audit_Trail
+        auth_services.log_audit_trail(user_id=user_acc.user_id, table_name='Account', record_id=None,
+                                      operation='UPDATE', action_desc='Account information updated')
+
+        # Return the updated account and researcher data
+        return jsonify({
+            "account": {
+                "user_id": user_acc.user_id,
+                "live_account": user_acc.live_account,
+                "user_pw": user_acc.user_pw,
+                "acc_status": user_acc.acc_status,
+                "role": user_acc.role.role_name  
+            },
+            "researcher": {
+                "researcher_id": researcher_info.researcher_id,
+                "college_id": researcher_info.college_id,
+                "program_id": researcher_info.program_id,
+                "first_name": researcher_info.first_name,
+                "middle_name": researcher_info.middle_name,
+                "last_name": researcher_info.last_name,
+                "suffix": researcher_info.suffix
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of any error
+        return jsonify({"message": f"Failed to update account: {e}"}), 500
+
+    finally:
+        db.session.close()  # Ensure the session is closed
