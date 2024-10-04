@@ -6,20 +6,17 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
-import jwt
-import datetime
+from config import Config
 import os
 
-
+#Initialize the app
 app = Flask(__name__)
 CORS(app)
 
 #database Configuration
-app.config['SECRET_KEY']=os.environ.get('SECRET_KEY', "b'\x06F\x83X\xe1\x94\xd6\x1f\x89bU\xf5\xbfd\xa4\xda\xb2T\xf7\x0b{\xc0\xaf\xc2'")
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Papasa01!@localhost:5432/Research_Data_Integration_System'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(Config)
 
-# Initialize SQLAlchemy
+
 # Initialize the database
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -28,7 +25,6 @@ migrate = Migrate(app, db)
 # function that checks db if existing or not
 def check_db(db_name, user, password, host='localhost', port='5432'):
     try:
-        # Connect to the default 'postgres' database
         connection = psycopg2.connect(user=user, password=password, host=host, port=port, dbname='postgres')
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
@@ -48,269 +44,23 @@ def check_db(db_name, user, password, host='localhost', port='5432'):
             cursor.close()
             connection.close()
 
+#
 check_db('Research_Data_Integration_System', 'postgres', 'Papasa01!')
 
 with app.app_context():
     db.create_all()
     print("Tables created successfully.")
 
-#created by Nicole Cabansag, this method is for generating ID (for PK)
-def formatting_id(indicator, model_class, id_field):
-    #get the current date in the format YYYYMMDD
-    current_date_str = datetime.datetime.now().strftime('%Y%m%d')
 
-    #query the last entry for the current date to get the latest ID
-    last_entry = model_class.query.filter(getattr(model_class, id_field).like(f'{indicator}-{current_date_str}-%')) \
-                                  .order_by(getattr(model_class, id_field).desc()) \
-                                  .first()
-
-    #determine the next sequence number (XXX)
-    if last_entry:
-        # Extract the last sequence number and increment it by 1
-        last_sequence = int(getattr(last_entry, id_field).split('-')[-1])
-        next_sequence = f"{last_sequence + 1:03d}"
-    else:
-        #if no previous entry exists for today, start with 001
-        next_sequence = "001"
-
-    #generate the new ID
-    generated_id = f"{indicator}-{current_date_str}-{next_sequence}"
-
-    return generated_id
+from routes.auth import auth
+from routes.accounts import accounts
+from routes.dept_prog import deptprogs
 
 
-#created by Nicole Cabansag, for audit logs
-def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
-    try:
-        audit_id = formatting_id('AUD', AuditTrail, 'audit_id')
+# Register the blueprint for routes
+app.register_blueprint(auth, url_prefix='/auth')
+app.register_blueprint(accounts, url_prefix='/accounts')
+app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 
-        #create the audit trail entry
-        new_audit = AuditTrail(
-            audit_id=audit_id,
-            user_id=user_id,
-            table_name=table_name,
-            record_id=record_id,
-            operation=operation,
-            change_datetime=datetime.datetime.now(),
-            action_desc=action_desc
-        )
-
-        #add and commit the new audit log
-        db.session.add(new_audit)
-        db.session.commit()
-
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error logging audit trail: {e}")
-
-
-########################################################################### APIs FOR ACCOUNT MANAGEMENT MODULE ###########################################################################
-from models import Account, Researcher, AuditTrail, College, Program
-
-#modified by Nicole Cabansag, added comparing hashed values for user_pw
-@app.route('/login', methods=['POST']) 
-def login():
-    data = request.json
-    if data:
-        live_account = data.get('email')
-        password = data.get('password')
-
-        if not live_account or not password:
-            return jsonify({"message": "Email and password are required"}), 400
-
-        try:
-            #retrieve user from the database
-            user = Account.query.filter_by(live_account=live_account).one()
-
-            #compare hashed password with the provided plain password
-            if check_password_hash(user.user_pw, password):
-                #if login successful...
-
-                # Send this token to client to authenticate user
-                token = jwt.encode({
-                    'user_id': user.user_id,
-                    'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
-                }, app.config['SECRET_KEY'], algorithm='HS256')
-
-                #log the successful login in the Audit_Trail
-                log_audit_trail(user_id=user.user_id, table_name='Account', record_id=None,
-                                operation='LOGIN', action_desc='User logged in')
-                
-                return jsonify({
-                    "message": "Login successful",
-                    "user_id": user.user_id,
-                    "role": user.role.role_name,
-                    "token": token
-                }), 200
-            else:
-                return jsonify({"message": "Invalid password"}), 401
-
-        except:
-            return jsonify({"message": "User not found"}), 404
-
-#created by Nicole Cabansag, for signup API
-@app.route('/signup', methods=['POST']) 
-def add_user():
-    data = request.json
-
-    #ensure all required fields are present
-    required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program', 'role_id']
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"message": f"{field} is required."}), 400
-        
-    #generate the new user_id with the incremented sequence number
-    user_id = formatting_id('US', Researcher, 'researcher_id')
-
-    try:
-        # Insert data into the Account table
-        new_account = Account(
-            user_id=user_id,  #assuming email is used as the user_id
-            live_account=data['email'],  #mapúa MCL live account
-            user_pw=generate_password_hash(data['password']),
-            acc_status='ACTIVATED',  #assuming account is actived by default, change as needed
-            role_id=data.get('role_id'),  
-        )
-        db.session.add(new_account)
-
-        #insert data into the Researcher table
-        new_researcher = Researcher(
-            researcher_id=new_account.user_id,  #use the user_id from Account
-            college_id=data['department'],  #department corresponds to college_id
-            program_id=data['program'],  #program corresponds to program_id
-            first_name=data['firstName'],
-            middle_name=data.get('middleName'),  #allowing optional fields
-            last_name=data['lastName'],
-            suffix=data.get('suffix')  #allowing optional suffix
-        )
-        db.session.add(new_researcher)
-
-        #commit both operations
-        db.session.commit()
-
-        #log the account creation in the Audit_Trail
-        log_audit_trail(user_id=new_account.user_id, table_name='Account', record_id=None,
-                        operation='CREATE', action_desc='New account created')
-        
-         # Generate JWT token for immediate login
-        token = jwt.encode({
-            'user_id': new_account.user_id,
-            'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
-        }, app.config['SECRET_KEY'], algorithm='HS256')
-
-        return jsonify({
-                    "message": "Signup successful",
-                    "user_id": user_id,
-                    "token": token
-                }), 200
-
-    except Exception as e:
-        db.session.rollback()  #rollback in case of error
-        return jsonify({"message": f"Failed to add user: {e}"}), 500
-
-    finally:
-        db.session.close()  #close the session
-
-
-#created by Nicole Cabansag, for retrieving all users API
-@app.route('/users', methods=['GET']) 
-def get_all_users():
-    try:
-        researchers = Researcher.query.order_by(Researcher.researcher_id.asc()).all()
-
-        researchers_list = []
-        for researcher in researchers:
-            researchers_list.append({
-                "researcher_id": researcher.researcher_id,
-                "college_id": researcher.college_id,
-                "program_id": researcher.program_id,
-                "first_name": researcher.first_name,
-                "middle_name": researcher.middle_name,
-                "last_name": researcher.last_name,
-                "suffix": researcher.suffix
-            })
-
-        #return the list of researchers in JSON format
-        return jsonify({"researchers": researchers_list}), 200
-
-    except Exception as e:
-        return jsonify({"message": f"Error retrieving all users: {str(e)}"}), 404
-
-#created by Nicole Cabansag, for retrieving all user's acc and info by user_id API
-@app.route('/users/<user_id>', methods=['GET']) 
-def get_user_acc_by_id(user_id):
-    try:
-        user_acc = Account.query.filter_by(user_id=user_id).one()
-        researcher_info = Researcher.query.filter_by(researcher_id=user_id).one()
-
-        #construct the response in JSON format
-        return jsonify({
-            "account": {
-                "user_id": user_acc.user_id,
-                "live_account": user_acc.live_account,
-                "user_pw": user_acc.user_pw,
-                "acc_status": user_acc.acc_status,
-                "role": user_acc.role.role_name  
-            },
-            "researcher": {
-                "researcher_id": researcher_info.researcher_id,
-                "college_id": researcher_info.college_id,
-                "program_id": researcher_info.program_id,
-                "first_name": researcher_info.first_name,
-                "middle_name": researcher_info.middle_name,
-                "last_name": researcher_info.last_name,
-                "suffix": researcher_info.suffix
-            }
-        }), 200
-
-    except Exception as e:
-        return jsonify({"message": f"Error retrieving user profile: {str(e)}"}), 404
-
-    # Route to get all college departments
-@app.route('/college_depts', methods=['GET'])
-def get_all_college_depts():
-    try:
-        # Retrieve all colleges from the database
-        depts = College.query.order_by(College.college_id.asc()).all()
-        dept_list = [{
-            "college_id": dept.college_id,
-            "college_name": dept.college_name
-        } for dept in depts]
-
-        # Return the list of colleges
-        return jsonify({"colleges": dept_list}), 200
-
-    except Exception as e:
-        return jsonify({"message": f"Error retrieving all college departments: {str(e)}"}), 404
-
-
-@app.route('/programs', methods=['GET']) 
-def get_programs_by_college():
-    try:
-        #get the department from the request query parameters
-        department = request.args.get('department')
-
-        if not department:
-            return jsonify({"message": "department parameter is required"}), 400
-
-        #retrieve programs by the provided college_id
-        progs = Program.query.filter_by(college_id=department).all()
-
-        if not progs:
-            return jsonify({"message": "No programs found for this college_id"}), 404
-
-        #prepare a list of programs
-        prog_list = [{
-            "program_id": prog.program_id,
-            "college_id": prog.college_id,
-            "program_name": prog.program_name
-        } for prog in progs]
-
-        #return the list of programs
-        return jsonify({"programs": prog_list}), 200
-
-    except Exception as e:
-        return jsonify({"message": f"Error retrieving all programs: {str(e)}"}), 500
-    
 if __name__ == "__main__":
     app.run(debug=True)
