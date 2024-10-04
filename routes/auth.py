@@ -61,7 +61,7 @@ def add_user():
         
     user_id = auth_services.formatting_id('US', Researcher, 'researcher_id')
 
-    response, status_code=user_srv.add_new_user(user_id,data)
+    response, status_code=user_srv.add_new_user(user_id,data) #role_id assigned to Researcher by default
     
     if status_code == 201:
         # Generate a token for the user
@@ -76,7 +76,7 @@ def add_user():
     return response, status_code
     
 
-# Created by Jelly Anne Mallari
+# Created by Jelly Anne Mallari, for adding user (admin side)
 @auth.route('/create_account', methods=['POST']) 
 def create_account():
     data = request.json
