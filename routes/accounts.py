@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import Account, Researcher, db
+from models import Account, Researcher, Role, db
 from services import auth_services
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -9,11 +9,12 @@ accounts = Blueprint('account', __name__)
 @accounts.route('/users', methods=['GET']) 
 def get_all_users():
     try:
-        # Join Account and Researcher table
-        researchers = db.session.query(Researcher, Account).join(Account, Researcher.researcher_id == Account.user_id).order_by(Researcher.researcher_id.asc()).all()
+        # Join Account, Researcher, and Role tables
+        researchers = db.session.query(Researcher, Account, Role).join(Account, Researcher.researcher_id == Account.user_id) \
+            .join(Role, Account.role_id == Role.role_id).order_by(Researcher.researcher_id.asc()).all()
 
         researchers_list = []
-        for researcher,account in researchers:
+        for researcher, account, role in researchers:
             researchers_list.append({
                 "researcher_id": researcher.researcher_id,
                 "college_id": researcher.college_id,
@@ -22,10 +23,11 @@ def get_all_users():
                 "middle_name": researcher.middle_name,
                 "last_name": researcher.last_name,
                 "suffix": researcher.suffix,
-                "email": account.live_account  # Adding email from Account table
+                "email": account.live_account,  # Adding email from Account table
+                "role": role.role_name  # Adding role from Role table
             })
 
-        #return the list of researchers in JSON format
+        # Return the list of researchers in JSON format
         return jsonify({"researchers": researchers_list}), 200
 
     except Exception as e:
