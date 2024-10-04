@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from models import Account, Researcher
+from models import Account, Researcher, db
 
 accounts = Blueprint('account', __name__)
 
@@ -7,10 +7,11 @@ accounts = Blueprint('account', __name__)
 @accounts.route('/users', methods=['GET']) 
 def get_all_users():
     try:
-        researchers = Researcher.query.order_by(Researcher.researcher_id.asc()).all()
+        # Join Account and Researcher table
+        researchers = db.session.query(Researcher, Account).join(Account, Researcher.researcher_id == Account.user_id).order_by(Researcher.researcher_id.asc()).all()
 
         researchers_list = []
-        for researcher in researchers:
+        for researcher,account in researchers:
             researchers_list.append({
                 "researcher_id": researcher.researcher_id,
                 "college_id": researcher.college_id,
@@ -18,7 +19,8 @@ def get_all_users():
                 "first_name": researcher.first_name,
                 "middle_name": researcher.middle_name,
                 "last_name": researcher.last_name,
-                "suffix": researcher.suffix
+                "suffix": researcher.suffix,
+                "email": account.live_account  # Adding email from Account table
             })
 
         #return the list of researchers in JSON format
