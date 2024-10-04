@@ -105,7 +105,7 @@ def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
 
 
 ########################################################################### APIs FOR ACCOUNT MANAGEMENT MODULE ###########################################################################
-from models import Account, Researcher, AuditTrail
+from models import Account, Researcher, AuditTrail, College, Program
 
 #modified by Nicole Cabansag, added comparing hashed values for user_pw
 @app.route('/login', methods=['POST']) 
@@ -266,6 +266,51 @@ def get_user_acc_by_id(user_id):
     except Exception as e:
         return jsonify({"message": f"Error retrieving user profile: {str(e)}"}), 404
 
+    # Route to get all college departments
+@app.route('/college_depts', methods=['GET'])
+def get_all_college_depts():
+    try:
+        # Retrieve all colleges from the database
+        depts = College.query.order_by(College.college_id.asc()).all()
+        dept_list = [{
+            "college_id": dept.college_id,
+            "college_name": dept.college_name
+        } for dept in depts]
 
+        # Return the list of colleges
+        return jsonify({"colleges": dept_list}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving all college departments: {str(e)}"}), 404
+
+
+@app.route('/programs', methods=['GET']) 
+def get_programs_by_college():
+    try:
+        #get the department from the request query parameters
+        department = request.args.get('department')
+
+        if not department:
+            return jsonify({"message": "department parameter is required"}), 400
+
+        #retrieve programs by the provided college_id
+        progs = Program.query.filter_by(college_id=department).all()
+
+        if not progs:
+            return jsonify({"message": "No programs found for this college_id"}), 404
+
+        #prepare a list of programs
+        prog_list = [{
+            "program_id": prog.program_id,
+            "college_id": prog.college_id,
+            "program_name": prog.program_name
+        } for prog in progs]
+
+        #return the list of programs
+        return jsonify({"programs": prog_list}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving all programs: {str(e)}"}), 500
+    
 if __name__ == "__main__":
     app.run(debug=True)
