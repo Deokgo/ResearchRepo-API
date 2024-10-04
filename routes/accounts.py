@@ -133,3 +133,4 @@ def update_account(user_id):
 
     finally:
         db.session.close()  # Ensure the session is closed
+

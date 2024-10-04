@@ -7,7 +7,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
 from config import Config
-import os
+from flask_mail import Mail
 
 #Initialize the app
 app = Flask(__name__)
@@ -19,6 +19,7 @@ app.config.from_object(Config)
 
 # Initialize the database
 db.init_app(app)
+mail = Mail(app)
 migrate = Migrate(app, db)
 
 

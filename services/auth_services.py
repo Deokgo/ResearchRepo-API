@@ -1,6 +1,7 @@
 import datetime
+from flask import Blueprint, request, jsonify,current_app
 from models import db
-
+import jwt
 
 #created by Nicole Cabansag, this method is for generating ID (for PK)
 def formatting_id(indicator, model_class, id_field):
@@ -50,3 +51,16 @@ def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
     except Exception as e:
         db.session.rollback()
         print(f"Error logging audit trail: {e}")
+
+
+def generate_token(user_id):
+    """Generate a JWT token for the user with a 24-hour expiration."""
+    # Define the token payload
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)  # Token expiry time
+    }
+
+    # Encode the token using the secret key
+    token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    return token

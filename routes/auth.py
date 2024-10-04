@@ -1,13 +1,10 @@
 from flask import Blueprint, request, jsonify, current_app
 from models.account import Account
 from models.researchers import Researcher
-from models.roles import Role
-
-from models import db
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash
 import jwt
 import datetime
-from services import auth_services
+from services import auth_services,user_srv
 
 
 auth = Blueprint('auth', __name__)
@@ -54,9 +51,37 @@ def login():
         except:
             return jsonify({"message": "User not found"}), 404
         
-#created by Nicole Cabansag, for signup API
+#created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
 @auth.route('/signup', methods=['POST']) 
 def add_user():
+    data = request.json
+
+    #ensure all required fields are present
+    required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"message": f"{field} is required."}), 400
+        
+    user_id = auth_services.formatting_id('US', Researcher, 'researcher_id')
+
+    response, status_code=user_srv.add_new_user(user_id,data)
+    
+    if status_code == 201:
+        # Generate a token for the user
+        token = auth_services.generate_token(user_id)
+
+        # Modify the response to include the token
+        response_data = response.get_json()  # Extract the JSON data from the original response
+        response_data['token'] = token  # Add the token
+
+        return jsonify(response_data), status_code
+
+    return response, status_code
+    
+
+# Created by Jelly Anne Mallari
+@auth.route('/create_account', methods=['POST']) 
+def create_account():
     data = request.json
 
     #ensure all required fields are present
@@ -65,54 +90,19 @@ def add_user():
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
         
-    #generate the new user_id with the incremented sequence number
     user_id = auth_services.formatting_id('US', Researcher, 'researcher_id')
 
-    try:
-        # Insert data into the Account table
-        new_account = Account(
-            user_id=user_id,  #assuming email is used as the user_id
-            live_account=data['email'],  #mapúa MCL live account
-            user_pw=generate_password_hash(data['password']),
-            acc_status='ACTIVATED',  #assuming account is actived by default, change as needed
-            role_id=data.get('role_id'),  
-        )
-        db.session.add(new_account)
+    response, status_code=user_srv.add_new_user(user_id,data,assigned=data.get('role_id'))
+    
+    if status_code == 201:
+        # Generate a token for the user
+        token = auth_services.generate_token(user_id)
 
-        #insert data into the Researcher table
-        new_researcher = Researcher(
-            researcher_id=new_account.user_id,  #use the user_id from Account
-            college_id=data['department'],  #department corresponds to college_id
-            program_id=data['program'],  #program corresponds to program_id
-            first_name=data['firstName'],
-            middle_name=data.get('middleName'),  #allowing optional fields
-            last_name=data['lastName'],
-            suffix=data.get('suffix')  #allowing optional suffix
-        )
-        db.session.add(new_researcher)
+        # Modify the response to include the token
+        response_data = response.get_json()  # Extract the JSON data from the original response
+        response_data['token'] = token  # Add the token
 
-        #commit both operations
-        db.session.commit()
+        return jsonify(response_data), status_code
 
-        #log the account creation in the Audit_Trail
-        auth_services.log_audit_trail(user_id=new_account.user_id, table_name='Account', record_id=None,
-                        operation='CREATE', action_desc='New account created')
-        
-         # Generate JWT token for immediate login
-        token = jwt.encode({
-            'user_id': new_account.user_id,
-            'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expires in 1 day
-        }, current_app.config['SECRET_KEY'], algorithm='HS256')
+    return response, status_code
 
-        return jsonify({
-                    "message": "Signup successful",
-                    "user_id": user_id,
-                    "token": token
-                }), 200
-
-    except Exception as e:
-        db.session.rollback()  #rollback in case of error
-        return jsonify({"message": f"Failed to add user: {e}"}), 500
-
-    finally:
-        db.session.close()  #close the session
