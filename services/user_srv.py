@@ -13,7 +13,7 @@ def add_new_user(user_id,data, assigned='04'):
         # Insert data into the Account table
         new_account = Account(
             user_id=user_id,  # assuming email is used as the user_id
-            email=data['email'],  # Mapúa MCL live account
+            live_account=data['email'],  # Mapúa MCL live account
             user_pw=generate_password_hash(data['password']),
             acc_status='ACTIVATED',  # assuming account is activated by default
             role_id=assigned,  
@@ -28,10 +28,7 @@ def add_new_user(user_id,data, assigned='04'):
             first_name=data['firstName'],
             middle_name=data.get('middleName'),  # allowing optional fields
             last_name=data['lastName'],
-            suffix=data.get('suffix'), # allowing optional suffix
-            user_role = data['userRole'],
-            reason=data['reason']
-                
+            suffix=data.get('suffix')  # allowing optional suffix
         )
         db.session.add(new_researcher)
 
