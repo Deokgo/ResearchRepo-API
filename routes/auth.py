@@ -48,21 +48,28 @@ def login():
         except Exception as e:
             return jsonify({"message": str(e)}), 404
         
-#created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
-@auth.route('/signup', methods=['POST']) 
+from flask import jsonify, request
+from . import auth, user_srv, auth_services
+
+# Created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
+@auth.route('/signup', methods=['POST'])
 def add_user():
     data = request.json
 
-    #ensure all required fields are present
+    # Ensure all required fields are present
     required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program']
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
-        
+
+    # Ensure passwords match
+    if data['password'] != data['confirmPassword']:
+        return jsonify({"message": "Passwords do not match."}), 400
+
     user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
 
-    response, status_code=user_srv.add_new_user(user_id,data) #role_id assigned to Researcher by default
-    
+    response, status_code = user_srv.add_new_user(user_id, data)  # role_id assigned to Researcher by default
+
     if status_code == 201:
         # Generate a token for the user
         token = auth_services.generate_token(user_id)
@@ -74,23 +81,26 @@ def add_user():
         return jsonify(response_data), status_code
 
     return response, status_code
-    
 
 # Created by Jelly Anne Mallari, for adding user (admin side)
-@auth.route('/create_account', methods=['POST']) 
+@auth.route('/create_account', methods=['POST'])
 def create_account():
     data = request.json
 
-    #ensure all required fields are present
+    # Ensure all required fields are present
     required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program', 'role_id']
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
-        
+
+    # Ensure passwords match
+    if data['password'] != data['confirmPassword']:
+        return jsonify({"message": "Passwords do not match."}), 400
+
     user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
 
-    response, status_code=user_srv.add_new_user(user_id,data,assigned=data.get('role_id'))
-    
+    response, status_code = user_srv.add_new_user(user_id, data, assigned=data.get('role_id'))
+
     if status_code == 201:
         # Generate a token for the user
         token = auth_services.generate_token(user_id)
