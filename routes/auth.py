@@ -15,15 +15,15 @@ auth = Blueprint('auth', __name__)
 def login():
     data = request.json
     if data:
-        live_account = data.get('email')
+        email = data.get('email')
         password = data.get('password')
 
-        if not live_account or not password:
+        if not email or not password:
             return jsonify({"message": "Email and password are required"}), 400
 
         try:
             #retrieve user from the database
-            user = Account.query.filter_by(live_account=live_account).one()
+            user = Account.query.filter_by(email=email).one()
 
             #compare hashed password with the provided plain password
             if check_password_hash(user.user_pw, password):
@@ -45,8 +45,8 @@ def login():
             else:
                 return jsonify({"message": "Invalid password"}), 401
 
-        except:
-            return jsonify({"message": "User not found"}), 404
+        except Exception as e:
+            return jsonify({"message": str(e)}), 404
         
 #created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
 @auth.route('/signup', methods=['POST']) 

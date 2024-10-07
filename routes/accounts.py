@@ -23,7 +23,7 @@ def get_all_users():
                 "middle_name": researcher.middle_name,
                 "last_name": researcher.last_name,
                 "suffix": researcher.suffix,
-                "email": account.live_account,  # Adding email from Account table
+                "email": account.email,  # Adding email from Account table
                 "role": role.role_name  # Adding role from Role table
             })
 
@@ -44,7 +44,7 @@ def get_user_acc_by_id(user_id):
         return jsonify({
             "account": {
                 "user_id": user_acc.user_id,
-                "live_account": user_acc.live_account,
+                "email": user_acc.email,
                 "user_pw": user_acc.user_pw,
                 "acc_status": user_acc.acc_status,
                 "role": user_acc.role.role_name  
@@ -82,9 +82,9 @@ def update_account(user_id):
         if data.get('acc_status'):
             user_acc.acc_status = data['acc_status']
 
-        # live_account and role_id cannot be updated
-        if 'live_account' in data or 'role_id' in data:
-            return jsonify({"message": "live_account and role_id cannot be updated."}), 400
+        # email and role_id cannot be updated
+        if 'email' in data or 'role_id' in data:
+            return jsonify({"message": "email and role_id cannot be updated."}), 400
 
         # Update researcher fields if provided in the request
         if data.get('college_id'):
@@ -111,7 +111,7 @@ def update_account(user_id):
         return jsonify({
             "account": {
                 "user_id": user_acc.user_id,
-                "live_account": user_acc.live_account,
+                "email": user_acc.email,
                 "user_pw": user_acc.user_pw,
                 "acc_status": user_acc.acc_status,
                 "role": user_acc.role.role_name  
