@@ -1,4 +1,6 @@
-from flask import Blueprint, jsonify, request
+#created by Nicole Cabansag (Oct. 7, 2024)
+
+from flask import Blueprint, jsonify
 from sqlalchemy import func, desc
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, db
 
@@ -6,7 +8,7 @@ dataset = Blueprint('dataset', __name__)
 
 @dataset.route('/fetch_dataset', methods=['GET'])
 def retrieve_dataset():
-    # Subquery to get the latest status for each publication
+    #subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
         Status.publication_id,
         Status.status,
@@ -16,7 +18,7 @@ def retrieve_dataset():
         ).label('rn')
     ).subquery()
 
-    # Subquery to concatenate authors
+    #subquery to concatenate authors
     authors_subquery = db.session.query(
         ResearchOutputAuthor.research_id,
         func.string_agg(
@@ -27,7 +29,7 @@ def retrieve_dataset():
      .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
      .group_by(ResearchOutputAuthor.research_id).subquery()
 
-    # Main query
+    #main query
     query = db.session.query(
         College.college_id,
         Program.program_name,
@@ -50,7 +52,7 @@ def retrieve_dataset():
 
     result = query.all()
 
-    # Format results into a list of dictionaries
+    #formatting results into a list of dictionaries
     data = [{
         'college_id': row.college_id,
         'program_name': row.program_name,
