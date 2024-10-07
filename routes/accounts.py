@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import Account, Researcher, Role, db
+from models import Account, UserProfile, Role, db
 from services import auth_services
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -10,8 +10,8 @@ accounts = Blueprint('account', __name__)
 def get_all_users():
     try:
         # Join Account, Researcher, and Role tables
-        researchers = db.session.query(Researcher, Account, Role).join(Account, Researcher.researcher_id == Account.user_id) \
-            .join(Role, Account.role_id == Role.role_id).order_by(Researcher.researcher_id.asc()).all()
+        researchers = db.session.query(UserProfile, Account, Role).join(Account, UserProfile.researcher_id == Account.user_id) \
+            .join(Role, Account.role_id == Role.role_id).order_by(UserProfile.researcher_id.asc()).all()
 
         researchers_list = []
         for researcher, account, role in researchers:
@@ -38,7 +38,7 @@ def get_all_users():
 def get_user_acc_by_id(user_id):
     try:
         user_acc = Account.query.filter_by(user_id=user_id).one()
-        researcher_info = Researcher.query.filter_by(researcher_id=user_id).one()
+        researcher_info = UserProfile.query.filter_by(researcher_id=user_id).one()
 
         #construct the response in JSON format
         return jsonify({
@@ -71,7 +71,7 @@ def update_account(user_id):
     try:
         # Retrieve the user's account and researcher information
         user_acc = Account.query.filter_by(user_id=user_id).first()
-        researcher_info = Researcher.query.filter_by(researcher_id=user_id).first()
+        researcher_info = UserProfile.query.filter_by(researcher_id=user_id).first()
 
         if not user_acc or not researcher_info:
             return jsonify({"message": "User not found"}), 404

@@ -1,7 +1,7 @@
 import datetime
 import jwt
 from flask import Blueprint, request, jsonify, current_app
-from models import db, Researcher, Account
+from models import db, UserProfile, Account
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -21,7 +21,7 @@ def add_new_user(user_id,data, assigned='04'):
         db.session.add(new_account)
 
         # Insert data into the Researcher table
-        new_researcher = Researcher(
+        new_researcher = UserProfile(
             researcher_id=new_account.user_id,  # use the user_id from Account
             college_id=data['department'],  # department corresponds to college_id
             program_id=data['program'],  # program corresponds to program_id

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from models.account import Account
-from models.researchers import Researcher
+from models.user_profile import UserProfile
 from werkzeug.security import check_password_hash
 import jwt
 import datetime
@@ -59,7 +59,7 @@ def add_user():
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
         
-    user_id = auth_services.formatting_id('US', Researcher, 'researcher_id')
+    user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
 
     response, status_code=user_srv.add_new_user(user_id,data) #role_id assigned to Researcher by default
     
@@ -87,7 +87,7 @@ def create_account():
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
         
-    user_id = auth_services.formatting_id('US', Researcher, 'researcher_id')
+    user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
 
     response, status_code=user_srv.add_new_user(user_id,data,assigned=data.get('role_id'))
     

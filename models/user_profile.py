@@ -1,7 +1,7 @@
 from . import db
 
-class Researcher(db.Model):
-    __tablename__ = 'researchers'
+class UserProfile(db.Model):
+    __tablename__ = 'user_profile'
     researcher_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
     college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
     program_id = db.Column(db.String(5), db.ForeignKey('program.program_id'))
@@ -9,3 +9,5 @@ class Researcher(db.Model):
     middle_name = db.Column(db.String(2))
     last_name = db.Column(db.String(30))
     suffix = db.Column(db.String(10))
+    user_role = db.Column(db.String(50))
+    reason = db.Column(db.String(100))

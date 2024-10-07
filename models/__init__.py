@@ -7,9 +7,9 @@ from .college import College
 from .conference import Conference
 from .program import Program
 from .publication import Publication
-from .publisher import Publisher
-from .researchers import Researcher
+from .user_profile import UserProfile
 from .research_outputs import ResearchOutput
 from .research_output_author import ResearchOutputAuthor
 from .roles import Role
-from .sdg import SDG
+from .status import Status
+from .keywords import Keywords
