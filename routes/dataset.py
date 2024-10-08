@@ -20,10 +20,17 @@ def retrieve_dataset():
     ).subquery()
 
     #subquery to concatenate authors
+    middle_name = ''
+    suffix = ''
+    if UserProfile.middle_name:
+        middle_name = UserProfile.middle_name+' '
+    if UserProfile.suffix:
+        suffix = ' '+UserProfile.suffix
+
     authors_subquery = db.session.query(
         ResearchOutputAuthor.research_id,
         func.string_agg(
-            func.concat(UserProfile.first_name, ' ', UserProfile.last_name),
+            func.concat(UserProfile.first_name, ' ', middle_name, UserProfile.last_name, suffix),
             '; '
         ).label('concatenated_authors')
     ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
