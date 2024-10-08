@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
 from config import Config
 from flask_mail import Mail
+from dash_app import create_dash_app
 
 #Initialize the app
 app = Flask(__name__)
@@ -64,6 +65,11 @@ app.register_blueprint(auth, url_prefix='/auth')
 app.register_blueprint(accounts, url_prefix='/accounts')
 app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
+
+
+# Create and register Dash app
+dash_app = create_dash_app(app)  # Pass the Flask app to the Dash app
+
 
 if __name__ == "__main__":
     app.run(debug=True)
