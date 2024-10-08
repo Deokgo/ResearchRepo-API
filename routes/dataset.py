@@ -1,8 +1,9 @@
+#dataset.py code (modified to include Keyword)
 #created by Nicole Cabansag (Oct. 7, 2024)
 
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, db
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, db
 
 dataset = Blueprint('dataset', __name__)
 
@@ -29,6 +30,12 @@ def retrieve_dataset():
      .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
      .group_by(ResearchOutputAuthor.research_id).subquery()
 
+    #subquery to concatenate keywords
+    keywords_subquery = db.session.query(
+        Keywords.research_id,
+        func.string_agg(Keywords.keyword, '; ').label('concatenated_keywords')
+    ).group_by(Keywords.research_id).subquery()
+
     #main query
     query = db.session.query(
         College.college_id,
@@ -36,6 +43,7 @@ def retrieve_dataset():
         ResearchOutput.sdg,
         ResearchOutput.title,
         authors_subquery.c.concatenated_authors,
+        keywords_subquery.c.concatenated_keywords,
         Publication.journal,
         Publication.date_published,
         Conference.conference_venue,
@@ -48,6 +56,7 @@ def retrieve_dataset():
      .outerjoin(Conference, Publication.conference_id == Conference.conference_id) \
      .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
      .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
+     .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
      .distinct()
 
     result = query.all()
@@ -59,6 +68,7 @@ def retrieve_dataset():
         'sdg': row.sdg,
         'title': row.title,
         'concatenated_authors': row.concatenated_authors,
+        'concatenated_keywords': row.concatenated_keywords,
         'journal': row.journal,
         'date_published': row.date_published,
         'conference_venue': row.conference_venue,
