@@ -7,6 +7,7 @@ class DatabaseManager:
     def __init__(self, database_uri):
         self.engine = create_engine(database_uri)
         self.Session = sessionmaker(bind=self.engine)
+        self.df = None
 
     def get_all_data(self):
         session = self.Session()
@@ -26,10 +27,9 @@ class DatabaseManager:
                 ResearchOutputAuthor.research_id,
                 func.string_agg(
                     func.concat(
-                        UserProfile.first_name, ' ',
-                        func.coalesce(UserProfile.middle_name + ' ', ''),  # Handle middle name if present
-                        UserProfile.last_name,
-                        func.coalesce(' ' + UserProfile.suffix, '')  # Handle suffix if present
+                        UserProfile.last_name, ', ',  # Surname first
+                        func.substring(UserProfile.first_name, 1, 1), '. ',  # First name initial
+                        func.coalesce(func.substring(UserProfile.middle_name, 1, 1) + '.', '') 
                     ), '; '
                 ).label('concatenated_authors')
             ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
@@ -86,9 +86,47 @@ class DatabaseManager:
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame
-            df = pd.DataFrame(data)
+            self.df = pd.DataFrame(data)
 
         finally:
             session.close()
 
-        return df
+        return self.df
+
+    def get_unique_values(self, column_name):
+        if column_name in self.df.columns:
+            return self.df[column_name].unique()
+        else:
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+    
+    def filter_data(self, column_name, value, invert):
+        if self.df is not None:
+            if invert:
+                return self.df[self.df[column_name] != value]
+            else:
+                return self.df[self.df[column_name] == value]
+        else:
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+        
+    def filter_data_by_list(self, column_name, values, invert):
+        if self.df is not None:
+            if invert:
+                return self.df[~self.df[column_name].isin(values)]
+            else:
+                return self.df[self.df[column_name].isin(values)]
+        else:
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+    
+    def get_min_value(self, column_name):
+        if self.df is not None:
+            return self.df[column_name].min()
+        else:
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+    
+    def get_max_value(self, column_name):
+        if self.df is not None:
+            return self.df[column_name].max()
+        else:
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+
+
