@@ -8,10 +8,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
 from config import Config
 from flask_mail import Mail
-from dash_app import create_dash_app
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.sdg_dashboard import create_sdg_dashboard
-
+from dash import Dash
+import dash_bootstrap_components as dbc
 #Initialize the app
 app = Flask(__name__)
 CORS(app)
@@ -69,9 +69,12 @@ app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
 
 
-create_main_dashboard(app)       # Adds /dashboard
-create_sdg_dashboard(app)        # Adds /dashboard/sdg
 
+# Created by Jelly Mallari | Create Dash apps and link them to Flask app
+def create_dash_apps(app):
+    create_main_dashboard(app)
+    create_sdg_dashboard(app)  
 
 if __name__ == "__main__":
+    create_dash_apps(app)
     app.run(debug=True)
