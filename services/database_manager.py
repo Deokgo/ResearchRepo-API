@@ -1,3 +1,5 @@
+#Created by Jelly Mallari
+
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
@@ -8,6 +10,8 @@ class DatabaseManager:
         self.engine = create_engine(database_uri)
         self.Session = sessionmaker(bind=self.engine)
         self.df = None
+
+        self.get_all_data()
 
     def get_all_data(self):
         session = self.Session()
@@ -74,6 +78,7 @@ class DatabaseManager:
                 'program_name': row.program_name,
                 'sdg': row.sdg,
                 'title': row.title,
+                'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors,
                 'concatenated_keywords': row.concatenated_keywords,
@@ -82,22 +87,31 @@ class DatabaseManager:
                 'conference_venue': row.conference_venue,
                 'conference_title': row.conference_title,
                 'conference_date': row.conference_date,
-                'status': row.status
+                'status': row.status if pd.notnull(row.status) else "UPLOADED"
+
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame
             self.df = pd.DataFrame(data)
+        
+
 
         finally:
             session.close()
-
+        
+        
         return self.df
+    
 
     def get_unique_values(self, column_name):
+        
         if column_name in self.df.columns:
             return self.df[column_name].unique()
         else:
             raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+    def get_columns(self):
+        return self.df.columns.tolist()
+
     
     def filter_data(self, column_name, value, invert):
         if self.df is not None:
@@ -117,16 +131,30 @@ class DatabaseManager:
         else:
             raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
     
+    
     def get_min_value(self, column_name):
         if self.df is not None:
             return self.df[column_name].min()
         else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+            raise ValueError("Data not loaded. Please call 'connect()' first.")
     
     def get_max_value(self, column_name):
         if self.df is not None:
             return self.df[column_name].max()
         else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+            raise ValueError("Data not loaded. Please call 'connect()' first.")
+        
+    def get_filtered_data(self, selected_colleges, selected_status, selected_years):
+        if self.df is not None:
+            print(self.df.head())
+            filtered_df = self.df[
+                (self.df['college_id'].isin(selected_colleges)) & 
+                (self.df['status'].isin(selected_status)) & 
+                (self.df['year'].between(selected_years[0], selected_years[1]))
+            ]
+            return filtered_df
+        else:
+            raise ValueError("Data not loaded. Please call 'connect()' first.")
+
 
 
