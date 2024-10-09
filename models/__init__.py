@@ -13,3 +13,4 @@ from .research_output_author import ResearchOutputAuthor
 from .roles import Role
 from .status import Status
 from .keywords import Keywords
+from .panels import Panel

@@ -1,15 +1,15 @@
-#dataset.py code (modified to include Keyword)
-#created by Nicole Cabansag (Oct. 7, 2024)
+# dataset.py code (modified to include Keyword)
+# created by Nicole Cabansag (Oct. 7, 2024)
 
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, db
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, db
 
 dataset = Blueprint('dataset', __name__)
 
 @dataset.route('/fetch_dataset', methods=['GET'])
 def retrieve_dataset():
-    #subquery to get the latest status for each publication
+    # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
         Status.publication_id,
         Status.status,
@@ -19,41 +19,77 @@ def retrieve_dataset():
         ).label('rn')
     ).subquery()
 
-    #subquery to concatenate authors
-    middle_name = ''
-    suffix = ''
-    if UserProfile.middle_name:
-        middle_name = UserProfile.middle_name+' '
-    if UserProfile.suffix:
-        suffix = ' '+UserProfile.suffix
-
+    # Subquery to concatenate authors
     authors_subquery = db.session.query(
         ResearchOutputAuthor.research_id,
         func.string_agg(
-            func.concat(UserProfile.first_name, ' ', middle_name, UserProfile.last_name, suffix),
-            '; '
+            func.concat(
+                UserProfile.first_name,
+                ' ',
+                func.coalesce(UserProfile.middle_name, ''),
+                ' ',
+                UserProfile.last_name,
+                ' ',
+                func.coalesce(UserProfile.suffix, '')
+            ), '; '
         ).label('concatenated_authors')
     ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
      .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
      .group_by(ResearchOutputAuthor.research_id).subquery()
+    
+    adviser_subquery = db.session.query(
+        ResearchOutput.research_id,
+        func.concat(
+            UserProfile.first_name,
+            ' ',
+            func.coalesce(UserProfile.middle_name, ''),
+            ' ',
+            UserProfile.last_name,
+            ' ',
+            func.coalesce(UserProfile.suffix, '')
+        ).label('adviser_name')
+    ).join(Account, ResearchOutput.adviser_id == Account.user_id) \
+     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
+     .group_by(ResearchOutput.research_id, UserProfile.first_name, UserProfile.middle_name, UserProfile.last_name, UserProfile.suffix).subquery()
+    
+    # Adjusted panels_subquery
+    panels_subquery = db.session.query(
+        Panel.research_id,
+        func.string_agg(
+            func.concat(
+                UserProfile.first_name,
+                ' ',
+                func.coalesce(UserProfile.middle_name, ''),
+                ' ',
+                UserProfile.last_name,
+                ' ',
+                func.coalesce(UserProfile.suffix, '')
+            ), '; '
+        ).label('concatenated_panels')
+    ).join(Account, Panel.panel_id == Account.user_id) \
+     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
+     .group_by(Panel.research_id).subquery()
 
-    #subquery to concatenate keywords
+    # Subquery to concatenate keywords
     keywords_subquery = db.session.query(
         Keywords.research_id,
         func.string_agg(Keywords.keyword, '; ').label('concatenated_keywords')
     ).group_by(Keywords.research_id).subquery()
 
-    #main query
+    # Main query
     query = db.session.query(
         College.college_id,
         Program.program_name,
         ResearchOutput.sdg,
         ResearchOutput.title,
+        adviser_subquery.c.adviser_name,
+        panels_subquery.c.concatenated_panels,
         ResearchOutput.date_approved,
         authors_subquery.c.concatenated_authors,
         keywords_subquery.c.concatenated_keywords,
         Publication.journal,
         Publication.date_published,
+        Publication.scopus,
         Conference.conference_venue,
         Conference.conference_title,
         Conference.conference_date,
@@ -65,20 +101,24 @@ def retrieve_dataset():
      .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
      .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
      .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
-     .distinct()
+     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
+     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id)
 
     result = query.all()
 
-    #formatting results into a list of dictionaries
+    # Formatting results into a list of dictionaries
     data = [{
         'college_id': row.college_id,
         'program_name': row.program_name,
         'sdg': row.sdg,
         'title': row.title,
+        'adviser_name': row.adviser_name,
+        'concatenated_panels': row.concatenated_panels,
         'date_approved': row.date_approved,
         'concatenated_authors': row.concatenated_authors,
         'concatenated_keywords': row.concatenated_keywords,
         'journal': row.journal,
+        'scopus': row.scopus,
         'date_published': row.date_published,
         'conference_venue': row.conference_venue,
         'conference_title': row.conference_title,
