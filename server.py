@@ -10,6 +10,7 @@ from config import Config
 from flask_mail import Mail
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.sdg_dashboard import create_sdg_dashboard
+from knowledgegraph.knowledgegraph import create_kg_sdg
 from dash import Dash
 import dash_bootstrap_components as dbc
 #Initialize the app
@@ -74,6 +75,7 @@ app.register_blueprint(dataset, url_prefix='/dataset')
 def create_dash_apps(app):
     create_main_dashboard(app)
     create_sdg_dashboard(app)  
+    create_kg_sdg(app)
 
 if __name__ == "__main__":
     create_dash_apps(app)
