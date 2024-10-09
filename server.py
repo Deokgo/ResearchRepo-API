@@ -9,6 +9,8 @@ from models import db
 from config import Config
 from flask_mail import Mail
 from dash_app import create_dash_app
+from dashboards.main_dashboard import create_main_dashboard
+from dashboards.sdg_dashboard import create_sdg_dashboard
 
 #Initialize the app
 app = Flask(__name__)
@@ -67,8 +69,8 @@ app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
 
 
-# Create and register Dash app
-dash_app = create_dash_app(app)  # Pass the Flask app to the Dash app
+create_main_dashboard(app)       # Adds /dashboard
+create_sdg_dashboard(app)        # Adds /dashboard/sdg
 
 
 if __name__ == "__main__":
