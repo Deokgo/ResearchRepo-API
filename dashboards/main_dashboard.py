@@ -1,3 +1,6 @@
+# created by Jelly Mallari (Oct 9)
+# continued by Nicole Cabansag (UI, Oct 9)
+
 from dash import Dash, html, dcc
 import dash_bootstrap_components as dbc
 from dash import dash_table 
