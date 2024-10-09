@@ -7,12 +7,12 @@ from . import db_manager
 import plotly.graph_objects as go
 import plotly.express as px
 
-class MainDashboard:
+class PublicationDash:
     def __init__(self, flask_app):
         """
         Initialize the MainDashboard class and set up the Dash app.
         """
-        self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/dashboard/overview/', 
+        self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/dashboard/publication/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
         self.palette_dict = {
             'MITL': 'red',
@@ -88,21 +88,14 @@ class MainDashboard:
             style={"height": "95vh", "display": "flex", "flexDirection": "column"}
         )
 
-        text_display = dbc.Container([
-                dbc.Row([
-                    dbc.Col(
-                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                        width=3
-                    ) for _ in range(4)  # Creates 4 identical columns for demonstration
-                ])
-            ],style={"transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
-
-        main_dash = dbc.Container([
-                dbc.Row([  # Row for the line and pie charts
-                    dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden"})
-                ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
+        main_dash = dbc.Container([     
+            dbc.Row([  # Row for the world map chart
+                dbc.Col(
+                    html.Div(id='world_map_chart', children=[], style={"border": "2px solid #007bff","borderRadius": "5px","height": "400px", "width": "100%"}),  # Set height and width
+                    width=12
+                )
+            ], style={"margin": "10px"})
+        ], fluid=True)
 
         """sub_dash = dbc.Container([
                 dbc.Row([
@@ -117,7 +110,6 @@ class MainDashboard:
                         dbc.Row([
                             dbc.Col(controls, width=2),
                             dbc.Col([
-                                text_display,
                                 main_dash,
                                 #sub_dash
                             ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
@@ -159,38 +151,36 @@ class MainDashboard:
                         }))
         ])
     
-    def update_line_plot(self, selected_colleges, selected_status, selected_years):
+    def update_world_map(self, selected_colleges, selected_status, selected_years): # Added by Nicole Cabansag
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        
-        if len(selected_colleges) == 1:
-            grouped_df = df.groupby(['program_name', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_name'
-            title = f'Number of Publications for {selected_colleges[0]}'
-        else:
-            grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'college_id'
-            title = 'Number of Publications per College'
+        df = df.dropna()
+        print(df)
 
-        fig_line = px.line(
-            grouped_df, 
-            x='year', 
-            y='TitleCount', 
-            color=color_column, 
-            markers=True,
-            color_discrete_map=self.palette_dict
-        )
-        
-        fig_line.update_layout(
-            title=title,
-            xaxis_title='Academic Year',
-            yaxis_title='Number of Publications',
-            template='plotly_white',
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=400,
-            showlegend=False  
+        if 'country' not in df.columns or df['country'].isnull().all():
+            return dcc.Graph()  
+
+        country_counts = df.groupby('country').size().reset_index(name='Count')
+
+        fig = px.choropleth(
+            country_counts,
+            locations='country',  
+            locationmode='country names', 
+            color='Count',  
+            hover_name='country',  
+            color_continuous_scale=px.colors.sequential.Plasma,  
+            title="International Conference Distribution"
         )
 
-        return fig_line
+        fig.update_layout(
+            width=1300,  # Adjust width
+            height=600,  # Adjust height
+            geo=dict(showframe=False, showcoastlines=False),
+            title_x=0.5
+        )
+
+
+        return dcc.Graph(figure=fig)
+    
     
     def update_pie_chart(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
@@ -244,16 +234,15 @@ class MainDashboard:
         def update_table_callback(n):
             return self.update_table()
         
-        @self.dash_app.callback(
-            Output('college_line_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value')
-            ]
+        @self.dash_app.callback( # Added by Nicole Cabansag
+            Output('world_map_chart', 'children'),
+            [Input('college', 'value'),
+             Input('status', 'value'),
+             Input('years', 'value')]
         )
-        def update_lineplot(selected_colleges, selected_status, selected_years):
-            return self.update_line_plot(selected_colleges, selected_status, selected_years)
+        def update_map(selected_colleges, selected_status, selected_years):
+            return self.update_world_map(selected_colleges, selected_status, selected_years)
+        
         
         @self.dash_app.callback(
             Output('college_pie_chart', 'figure'),

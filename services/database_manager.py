@@ -87,7 +87,8 @@ class DatabaseManager:
                 'conference_venue': row.conference_venue,
                 'conference_title': row.conference_title,
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "UPLOADED"
+                'status': row.status if pd.notnull(row.status) else "UPLOADED",
+                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else None  # Extract country
 
             } for row in result]
 
