@@ -3,33 +3,34 @@ from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objs as go
 import networkx as nx
-import numpy as np
 from collections import defaultdict
 from flask import Flask
 from . import db_manager
 
 def create_kg_sdg(flask_app):
     df = db_manager.get_all_data()
+
     G = nx.Graph()
     connected_nodes = defaultdict(list)
 
-
     for index, row in df.iterrows():
-        study = row['title']  
-        authors = row['concatenated_authors']  
-        sdgs = row['sdg']
-        
-        G.add_node(study, label=authors, title=row['title'], type='study', year=row['date_published'])
-        
-        for sdg in sdgs:
-            sdg = sdg.strip()
-            if not G.has_node(sdg):
-                G.add_node(sdg, type='sdg')
-            connected_nodes[sdg].append(study)
-            G.add_edge(study, sdg, weight=2 if len(sdgs) > 1 else 1)
+        study = row['title']
+        sdg = row['sdg']
 
-    pos = nx.spring_layout(G, k=1.0, weight='weight', iterations=100)
+        G.add_node(study, type='study')
 
+        sdg = sdg.strip()
+        if not G.has_node(sdg):
+            G.add_node(sdg, type='sdg')
+
+        # Track which studies are connected to which sdg
+        connected_nodes[sdg].append(study)
+        G.add_edge(sdg, study)  
+
+    sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
+    pos = nx.spring_layout(G.subgraph(sdg_nodes), k=1.0, weight='weight')
+
+    # Node attributes (initially, only SDG nodes are shown)
     node_x = []
     node_y = []
     hover_text = []
@@ -37,32 +38,17 @@ def create_kg_sdg(flask_app):
     node_color = []
     node_size = []
 
-    for node in G.nodes():
+    for node in sdg_nodes:
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
-        hover_text.append(G.nodes[node].get('title', node))
-        
-        if G.nodes[node]['type'] == 'sdg':
-            node_color.append('green')
-            node_size.append(20)
-            node_labels.append(G.nodes[node].get('label', node))
-        else:
-            node_color.append('red')
-            node_size.append(10)
-            node_labels.append(f"{G.nodes[node].get('label')} ({G.nodes[node].get('year')})")
+        hover_text.append(f"{len(connected_nodes[node])} studies connected")
+        node_color.append('green')
+        node_size.append(20 + len(connected_nodes[node]))  
+        node_labels.append(node)  
 
     edge_x = []
     edge_y = []
-    for edge in G.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
 
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y,
@@ -89,9 +75,9 @@ def create_kg_sdg(flask_app):
         dcc.Graph(
             id='network-graph',
             figure={
-                'data': [edge_trace, node_trace],
+                'data': [node_trace],  
                 'layout': go.Layout(
-                    title='<br>Research Studies Knowledge Graph',
+                    title='<br>Research Studies Knowledge Graph (sdg nodes)',
                     titlefont=dict(size=16),
                     showlegend=False,
                     hovermode='closest',
@@ -105,17 +91,81 @@ def create_kg_sdg(flask_app):
         )
     ])
 
-    # Callback for hover interaction
     @dash_app.callback(
         Output('network-graph', 'figure'),
-        [Input('network-graph', 'hoverData')]
+        [Input('network-graph', 'hoverData'),
+         Input('network-graph', 'clickData')]
     )
-    def update_nodes_on_hover(hoverData):
-        if hoverData is None:
+    def update_graph_on_hover_and_click(hoverData, clickData):
+        hovered_node = None
+        clicked_node = None
+
+        if hoverData and 'points' in hoverData:
+            hovered_node = hoverData['points'][0]['text']
+
+        if clickData and 'points' in clickData:
+            clicked_node = clickData['points'][0]['text']
+
+        if clicked_node and clicked_node in G.nodes and G.nodes[clicked_node]['type'] == 'sdg':
+            new_node_x = []
+            new_node_y = []
+            new_hover_text = []
+            new_node_labels = []
+            new_node_color = []
+            new_node_size = []
+
+            subgraph = G.subgraph([clicked_node] + connected_nodes[clicked_node])
+            new_pos = nx.spring_layout(subgraph, k=1.0)
+
+            for node in subgraph:
+                x, y = new_pos[node]
+                new_node_x.append(x)
+                new_node_y.append(y)
+                new_hover_text.append(node)
+                if G.nodes[node].get('type') == 'sdg':
+                    new_node_color.append('blue')  # Center SDG node
+                    new_node_size.append(30)
+                else:
+                    new_node_color.append('red')
+                    new_node_size.append(15)
+                new_node_labels.append(node)
+
+            new_edge_x = []
+            new_edge_y = []
+            for edge in subgraph.edges():
+                x0, y0 = new_pos[edge[0]]
+                x1, y1 = new_pos[edge[1]]
+                new_edge_x.append(x0)
+                new_edge_x.append(x1)
+                new_edge_x.append(None)
+                new_edge_y.append(y0)
+                new_edge_y.append(y1)
+                new_edge_y.append(None)
+
+            # Create traces for edges and nodes after clicking
+            clicked_edge_trace = go.Scatter(
+                x=new_edge_x, y=new_edge_y,
+                line=dict(width=0.5, color='#888'),
+                hoverinfo='none',
+                mode='lines'
+            )
+
+            clicked_node_trace = go.Scatter(
+                x=new_node_x, y=new_node_y,
+                mode='markers+text',
+                text=new_node_labels,
+                hovertext=new_hover_text,
+                marker=dict(
+                    color=new_node_color,
+                    size=new_node_size,
+                ),
+                hoverinfo='text'
+            )
+
             return {
-                'data': [edge_trace, node_trace],
+                'data': [clicked_edge_trace, clicked_node_trace],
                 'layout': go.Layout(
-                    title='<br>Research Studies Knowledge Graph',
+                    title=f"<br>Research Studies Knowledge Graph - {clicked_node}",
                     titlefont=dict(size=16),
                     showlegend=False,
                     hovermode='closest',
@@ -126,35 +176,11 @@ def create_kg_sdg(flask_app):
                     yaxis=dict(showgrid=False, zeroline=False)
                 )
             }
-        
-        hovered_node = hoverData['points'][0]['text']
-        new_node_color = []
-        new_node_size = []
-        
-        for node in G.nodes():
-            if node == hovered_node or node in connected_nodes.get(hovered_node, []):
-                new_node_color.append('blue')  
-                new_node_size.append(15)
-            else:
-                new_node_color.append('red' if G.nodes[node]['type'] == 'study' else 'green')
-                new_node_size.append(10 if G.nodes[node]['type'] == 'study' else 20)
-        
-        updated_node_trace = go.Scatter(
-            x=node_x, y=node_y,
-            mode='markers+text',
-            text=node_labels,
-            hovertext=hover_text,
-            marker=dict(
-                color=new_node_color,
-                size=new_node_size,
-            ),
-            hoverinfo='text'
-        )
-        
+
         return {
-            'data': [edge_trace, updated_node_trace],
+            'data': [node_trace],  
             'layout': go.Layout(
-                title='<br>Research Studies Knowledge Graph',
+                title='<br>Research Studies Knowledge Graph (sdg nodes)',
                 titlefont=dict(size=16),
                 showlegend=False,
                 hovermode='closest',
@@ -166,3 +192,4 @@ def create_kg_sdg(flask_app):
             )
         }
 
+    return dash_app
