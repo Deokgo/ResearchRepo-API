@@ -1,6 +1,6 @@
 import dash
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 import networkx as nx
 from collections import defaultdict
@@ -13,23 +13,24 @@ def create_kg_sdg(flask_app):
     G = nx.Graph()
     connected_nodes = defaultdict(list)
 
+    # Build the graph
     for index, row in df.iterrows():
         study = row['title']
         sdg = row['sdg']
 
         G.add_node(study, type='study')
-
         sdg = sdg.strip()
+
         if not G.has_node(sdg):
             G.add_node(sdg, type='sdg')
 
         connected_nodes[sdg].append(study)
-        G.add_edge(sdg, study)  
+        G.add_edge(sdg, study)
 
     pos = nx.spring_layout(G, k=1.0, weight='weight')
-    
     fixed_pos = {node: pos[node] for node in G.nodes()}
 
+    # Function to create traces for graph
     def build_traces(nodes_to_show, edges_to_show):
         node_x = []
         node_y = []
@@ -46,12 +47,12 @@ def create_kg_sdg(flask_app):
             if G.nodes[node]['type'] == 'sdg':
                 hover_text.append(f"{len(connected_nodes[node])} studies connected")
                 node_color.append('green')
-                node_size.append(20 + len(connected_nodes[node]))  
+                node_size.append(50 + len(connected_nodes[node]))
                 node_labels.append(node)
             else:
-                hover_text.append(node)  
+                hover_text.append(node)
                 node_color.append('red')
-                node_size.append(10)
+                node_size.append(20)
                 node_labels.append(node)
 
         edge_x = []
@@ -87,18 +88,20 @@ def create_kg_sdg(flask_app):
 
         return edge_trace, node_trace
 
+    # Initialize Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
 
     sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
     edge_trace, node_trace = build_traces(sdg_nodes, [])
 
+    # Layout for Dash app
     dash_app.layout = html.Div([
         dcc.Graph(
-            id='network-graph',
+            id='knowledge-graph',
             figure={
-                'data': [node_trace],  
+                'data': [node_trace],
                 'layout': go.Layout(
-                    title='<br>Research Studies Knowledge Graph (sdg nodes)',
+                    title='<br>Research Studies Knowledge Graph (SDG nodes)',
                     titlefont=dict(size=16),
                     showlegend=False,
                     hovermode='closest',
@@ -109,51 +112,47 @@ def create_kg_sdg(flask_app):
                     yaxis=dict(showgrid=False, zeroline=False)
                 )
             }
-        )
+        ),
+        dcc.Store(id='clicked-node', data=None)
     ])
 
+    # Callback to update graph based on user interactions
     @dash_app.callback(
-        Output('network-graph', 'figure'),
-        [Input('network-graph', 'hoverData'),
-         Input('network-graph', 'clickData')]
+        [Output('knowledge-graph', 'figure'),
+         Output('clicked-node', 'data')],
+        [Input('knowledge-graph', 'clickData')],
+        [State('clicked-node', 'data')]
     )
-    def update_graph_on_hover_and_click(hoverData, clickData):
-        hovered_node = None
-        clicked_node = None
-
-        if hoverData and 'points' in hoverData:
-            hovered_node = hoverData['points'][0]['text']
-
+    def update_graph_on_click(clickData, stored_clicked_node):
+        new_clicked_node = None
+        nodes_to_show = sdg_nodes  
+        edges_to_show = []  
+        new_stored_clicked_node = None  
         if clickData and 'points' in clickData:
-            clicked_node = clickData['points'][0]['text']
+            new_clicked_node = clickData['points'][0]['text']
 
-
-        if clicked_node and clicked_node in G.nodes and G.nodes[clicked_node]['type'] == 'sdg':
-            subgraph = G.subgraph([clicked_node] + connected_nodes[clicked_node])
+        # Toggle logic: If the same node is clicked again, reset to SDG nodes
+        if new_clicked_node == stored_clicked_node:
+            nodes_to_show = sdg_nodes
+            edges_to_show = []
+            new_stored_clicked_node = None
+        elif new_clicked_node and new_clicked_node in G.nodes and G.nodes[new_clicked_node]['type'] == 'sdg':
+            subgraph = G.subgraph([new_clicked_node] + connected_nodes[new_clicked_node])
             nodes_to_show = list(subgraph.nodes)
             edges_to_show = list(subgraph.edges)
+            new_stored_clicked_node = new_clicked_node
+        else:
+        # If no valid node was clicked, return the current state without any change
+            return dash.no_update, stored_clicked_node
+        # Build the traces based on nodes and edges to show
+        edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show)
 
-            edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show)
-
-            return {
-                'data': [edge_trace, node_trace],
-                'layout': go.Layout(
-                    title=f"<br>Research Studies Knowledge Graph - {clicked_node}",
-                    titlefont=dict(size=16),
-                    showlegend=False,
-                    hovermode='closest',
-                    margin=dict(b=0, l=0, r=0, t=50),
-                    width=1200,
-                    height=800,
-                    xaxis=dict(showgrid=False, zeroline=False),
-                    yaxis=dict(showgrid=False, zeroline=False)
-                )
-            }
-
+        # Return updated figure and the new clicked node state
         return {
-            'data': [node_trace], 
+            'data': [edge_trace, node_trace],
             'layout': go.Layout(
-                title='<br>Research Studies Knowledge Graph (sdg nodes)',
+                title='<br>Research Studies Knowledge Graph (SDG nodes)' if new_stored_clicked_node is None
+                else f"<br>Research Studies Knowledge Graph - {new_stored_clicked_node}",
                 titlefont=dict(size=16),
                 showlegend=False,
                 hovermode='closest',
@@ -163,6 +162,6 @@ def create_kg_sdg(flask_app):
                 xaxis=dict(showgrid=False, zeroline=False),
                 yaxis=dict(showgrid=False, zeroline=False)
             )
-        }
+        }, new_stored_clicked_node
 
     return dash_app
