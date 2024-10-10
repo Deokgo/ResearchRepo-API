@@ -316,30 +316,16 @@ class MainDashboard:
         """
         Set up the callback functions for the dashboard.
         """
-
-        #reset filters when the reset button is clicked
         @self.dash_app.callback(
-            [
-                Output('college', 'value'),
-                Output('status', 'value'),
-                Output('years', 'value')
-            ],
-            [Input('reset_button', 'n_clicks')],
-            [
-                State('college', 'options'),
-                State('status', 'options'),
-                State('years', 'min'),
-                State('years', 'max')
-            ]
+        [Output('college', 'value'),
+         Output('status', 'value'),
+         Output('years', 'value')],
+        [Input('reset_button', 'n_clicks')],
+        prevent_initial_call=True
         )
-        def reset_filters(n_clicks, college_options, status_options, years_min, years_max):
-            if n_clicks:
-                #reset the values of all filters
-                all_colleges = [option['value'] for option in college_options]
-                all_statuses = [option['value'] for option in status_options]
-                return all_colleges, all_statuses, [years_min, years_max]
-            #default return when the page first loads
-            return dash.no_update, dash.no_update, dash.no_update
+        def reset_filters(n_clicks):
+            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+
 
         @self.dash_app.callback(
             [Output('research-table', 'data'), Output('research-table', 'columns')],
