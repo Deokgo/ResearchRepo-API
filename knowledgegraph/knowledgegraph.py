@@ -109,7 +109,8 @@ def create_kg_sdg(flask_app):
                     width=1200,
                     height=800,
                     xaxis=dict(showgrid=False, zeroline=False),
-                    yaxis=dict(showgrid=False, zeroline=False)
+                    yaxis=dict(showgrid=False, zeroline=False),
+                    transition=dict(duration=500),  # Add transition for animation
                 )
             }
         ),
@@ -125,9 +126,10 @@ def create_kg_sdg(flask_app):
     )
     def update_graph_on_click(clickData, stored_clicked_node):
         new_clicked_node = None
-        nodes_to_show = sdg_nodes  
-        edges_to_show = []  
-        new_stored_clicked_node = None  
+        nodes_to_show = sdg_nodes
+        edges_to_show = []
+        new_stored_clicked_node = None
+
         if clickData and 'points' in clickData:
             new_clicked_node = clickData['points'][0]['text']
 
@@ -142,8 +144,8 @@ def create_kg_sdg(flask_app):
             edges_to_show = list(subgraph.edges)
             new_stored_clicked_node = new_clicked_node
         else:
-        # If no valid node was clicked, return the current state without any change
             return dash.no_update, stored_clicked_node
+
         # Build the traces based on nodes and edges to show
         edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show)
 
@@ -160,7 +162,8 @@ def create_kg_sdg(flask_app):
                 width=1200,
                 height=800,
                 xaxis=dict(showgrid=False, zeroline=False),
-                yaxis=dict(showgrid=False, zeroline=False)
+                yaxis=dict(showgrid=False, zeroline=False),
+                transition=dict(duration=500),  # Add transition for animation
             )
         }, new_stored_clicked_node
 
