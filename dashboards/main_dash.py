@@ -316,6 +316,7 @@ class MainDashboard:
         """
         Set up the callback functions for the dashboard.
         """
+        
         @self.dash_app.callback(
         [Output('college', 'value'),
          Output('status', 'value'),
