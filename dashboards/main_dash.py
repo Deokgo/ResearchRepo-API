@@ -1,8 +1,10 @@
 # created by Jelly Mallari
+# continued by Nicole Cabansag
 
-from dash import Dash, html, dcc,dash_table
+import dash
+from dash import Dash, html, dcc, dash_table
 import dash_bootstrap_components as dbc
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from . import db_manager
 import plotly.graph_objects as go
 import plotly.express as px
@@ -89,13 +91,25 @@ class MainDashboard:
         )
 
         text_display = dbc.Container([
-                dbc.Row([
-                    dbc.Col(
-                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                        width=3
-                    ) for _ in range(4)  # Creates 4 identical columns for demonstration
-                ])
-            ],style={"transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            dbc.Row([
+                dbc.Col(
+                    self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
+                    width=3
+                ),
+                dbc.Col(
+                    self.create_display_card("Published Papers", str(len(db_manager.filter_data_by_list('status', ['PUBLISHED', 'INDEXED'], invert=False)))),
+                    width=3
+                ),
+                dbc.Col(
+                    self.create_display_card("Ongoing Papers", str(len(db_manager.filter_data_by_list('status', ['PUBLISHED', 'INDEXED', 'UPLOADED'], invert=True)))),
+                    width=3
+                ),
+                dbc.Col(
+                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                    width=3
+                )
+            ])
+        ], style={"transform": "scale(0.9)", "transform-origin": "0 0"})
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
@@ -104,23 +118,23 @@ class MainDashboard:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        """sub_dash = dbc.Container([
+        sub_dash = dbc.Container([
                 dbc.Row([
-                dbc.Col(dcc.Graph(id='scopus_bar_plot', width=6, style={"height": "auto", "overflow": "hidden", "border": "1px solid #ddd"})),
-                dbc.Col(dcc.Graph(id='publication_format_bar_plot', width=6, style={"height": "auto", "overflow": "hidden", "border": "1px solid #ddd"})),
-            ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed"""
-        
+                    dbc.Col(dcc.Graph(id='publication_format_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                ], style={"margin": "10px"})
+            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
+
         self.dash_app.layout = html.Div([
                 dbc.Container(
                     [
                         dbc.Row([
-                            dbc.Col(controls, width=2),
                             dbc.Col([
                                 text_display,
                                 main_dash,
-                                #sub_dash
+                                sub_dash
                             ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
+                            dbc.Col(controls, width=2)
                         ])
                     ],
                     fluid=True,
@@ -141,7 +155,6 @@ class MainDashboard:
                     n_intervals=0
                 )
             ], style={"padding": "20px"})
-
 
     def create_display_card(self, title, value):
         """
@@ -221,29 +234,120 @@ class MainDashboard:
 
         return fig_pie
     
-    
-    
     def update_table(n):
-            # Fetch data from the database using DatabaseManager
-            df = db_manager.get_all_data()
+        df = db_manager.get_all_data()
 
-            # Format the data for the DataTable
-            data = df.to_dict('records')  # Convert DataFrame to a list of dictionaries
-            columns = [{'name': col, 'id': col} for col in df.columns]  # Columns format
+        data = df.to_dict('records')  
+        columns = [{'name': col, 'id': col} for col in df.columns]  
 
-            return data, columns
+        return data, columns
+    
+    def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
+        
+        fig_bar = px.bar(
+            grouped_df,
+            x='college_id',
+            y='Count',
+            color='journal',
+            barmode='group',
+            color_discrete_map=self.palette_dict
+        )
+        
+        fig_bar.update_layout(
+            title="Publication Formats per College",
+            xaxis_title='College',
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
+    
+    def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        if df.empty:
+            return px.bar(title="No data available")
+
+        status_mapping = {
+            'PUBLISHED': 'PUBLISHED',
+            'SUBMITTED': 'SUBMITTED',
+            'UPLOADED': 'UPLOADED'
+        }
+
+        df['grouped_status'] = df['status'].apply(lambda x: status_mapping.get(x, 'ON-GOING'))
+
+        status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
+
+        pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
+
+        desired_statuses = ['PUBLISHED', 'ON-GOING', 'SUBMITTED', 'UPLOADED']
+        pivot_df = pivot_df.reindex(desired_statuses).fillna(0)
+
+        fig = go.Figure()
+
+        for college in pivot_df.columns:
+            fig.add_trace(go.Bar(
+                y=pivot_df.index,
+                x=pivot_df[college],
+                name=college,
+                orientation='h',
+                marker_color=self.palette_dict.get(college, 'grey') 
+            ))
+
+        fig.update_layout(
+            barmode='stack',  
+            xaxis_title='Number of Research Outputs',
+            yaxis_title='Research Status',
+            title='Colleges Research Status',
+            yaxis=dict(
+                autorange='reversed',  
+                tickvals=desired_statuses,  
+                ticktext=desired_statuses  
+            )
+        )
+        
+        return fig
 
     def set_callbacks(self):
         """
         Set up the callback functions for the dashboard.
         """
+
+        #reset filters when the reset button is clicked
+        @self.dash_app.callback(
+            [
+                Output('college', 'value'),
+                Output('status', 'value'),
+                Output('years', 'value')
+            ],
+            [Input('reset_button', 'n_clicks')],
+            [
+                State('college', 'options'),
+                State('status', 'options'),
+                State('years', 'min'),
+                State('years', 'max')
+            ]
+        )
+        def reset_filters(n_clicks, college_options, status_options, years_min, years_max):
+            if n_clicks:
+                #reset the values of all filters
+                all_colleges = [option['value'] for option in college_options]
+                all_statuses = [option['value'] for option in status_options]
+                return all_colleges, all_statuses, [years_min, years_max]
+            #default return when the page first loads
+            return dash.no_update, dash.no_update, dash.no_update
+
         @self.dash_app.callback(
             [Output('research-table', 'data'), Output('research-table', 'columns')],
             [Input('interval-component', 'n_intervals')]
         )
         def update_table_callback(n):
             return self.update_table()
-        
+
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
             [
@@ -254,7 +358,7 @@ class MainDashboard:
         )
         def update_lineplot(selected_colleges, selected_status, selected_years):
             return self.update_line_plot(selected_colleges, selected_status, selected_years)
-        
+
         @self.dash_app.callback(
             Output('college_pie_chart', 'figure'),
             [
@@ -265,4 +369,25 @@ class MainDashboard:
         )
         def update_piechart(selected_colleges, selected_status, selected_years):
             return self.update_pie_chart(selected_colleges, selected_status, selected_years)
+
+        @self.dash_app.callback(
+            Output('publication_format_bar_plot', 'figure'),
+            [
+                Input('college', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years):
+            return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years)
         
+        @self.dash_app.callback(
+            Output('research_status_bar_plot', 'figure'),
+            [
+                Input('college', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_research_status_bar_plot(selected_colleges, selected_status, selected_years):
+            return self.update_research_status_bar_plot(selected_colleges, selected_status, selected_years)

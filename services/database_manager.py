@@ -113,7 +113,6 @@ class DatabaseManager:
     def get_columns(self):
         return self.df.columns.tolist()
 
-    
     def filter_data(self, column_name, value, invert):
         if self.df is not None:
             if invert:
@@ -156,6 +155,3 @@ class DatabaseManager:
             return filtered_df
         else:
             raise ValueError("Data not loaded. Please call 'connect()' first.")
-
-
-
