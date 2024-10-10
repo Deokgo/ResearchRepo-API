@@ -23,54 +23,75 @@ def create_kg_sdg(flask_app):
         if not G.has_node(sdg):
             G.add_node(sdg, type='sdg')
 
-        # Track which studies are connected to which sdg
         connected_nodes[sdg].append(study)
         G.add_edge(sdg, study)  
 
-    sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
-    pos = nx.spring_layout(G.subgraph(sdg_nodes), k=1.0, weight='weight')
+    pos = nx.spring_layout(G, k=1.0, weight='weight')
+    
+    fixed_pos = {node: pos[node] for node in G.nodes()}
 
-    # Node attributes (initially, only SDG nodes are shown)
-    node_x = []
-    node_y = []
-    hover_text = []
-    node_labels = []
-    node_color = []
-    node_size = []
+    def build_traces(nodes_to_show, edges_to_show):
+        node_x = []
+        node_y = []
+        hover_text = []
+        node_labels = []
+        node_color = []
+        node_size = []
 
-    for node in sdg_nodes:
-        x, y = pos[node]
-        node_x.append(x)
-        node_y.append(y)
-        hover_text.append(f"{len(connected_nodes[node])} studies connected")
-        node_color.append('green')
-        node_size.append(20 + len(connected_nodes[node]))  
-        node_labels.append(node)  
+        for node in nodes_to_show:
+            x, y = fixed_pos[node]
+            node_x.append(x)
+            node_y.append(y)
 
-    edge_x = []
-    edge_y = []
+            if G.nodes[node]['type'] == 'sdg':
+                hover_text.append(f"{len(connected_nodes[node])} studies connected")
+                node_color.append('green')
+                node_size.append(20 + len(connected_nodes[node]))  
+                node_labels.append(node)
+            else:
+                hover_text.append(node)  
+                node_color.append('red')
+                node_size.append(10)
+                node_labels.append(node)
 
-    edge_trace = go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=0.5, color='#888'),
-        hoverinfo='none',
-        mode='lines')
+        edge_x = []
+        edge_y = []
+        for edge in edges_to_show:
+            x0, y0 = fixed_pos[edge[0]]
+            x1, y1 = fixed_pos[edge[1]]
+            edge_x.append(x0)
+            edge_x.append(x1)
+            edge_x.append(None)
+            edge_y.append(y0)
+            edge_y.append(y1)
+            edge_y.append(None)
 
-    node_trace = go.Scatter(
-        x=node_x, y=node_y,
-        mode='markers+text',
-        text=node_labels,
-        hovertext=hover_text,
-        marker=dict(
-            color=node_color,
-            size=node_size,
-        ),
-        hoverinfo='text'
-    )
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=node_labels,
+            hovertext=hover_text,
+            marker=dict(
+                color=node_color,
+                size=node_size,
+            ),
+            hoverinfo='text'
+        )
+
+        return edge_trace, node_trace
 
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
 
-    # Layout for Dash app
+    sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
+    edge_trace, node_trace = build_traces(sdg_nodes, [])
+
     dash_app.layout = html.Div([
         dcc.Graph(
             id='network-graph',
@@ -106,64 +127,16 @@ def create_kg_sdg(flask_app):
         if clickData and 'points' in clickData:
             clicked_node = clickData['points'][0]['text']
 
+
         if clicked_node and clicked_node in G.nodes and G.nodes[clicked_node]['type'] == 'sdg':
-            new_node_x = []
-            new_node_y = []
-            new_hover_text = []
-            new_node_labels = []
-            new_node_color = []
-            new_node_size = []
-
             subgraph = G.subgraph([clicked_node] + connected_nodes[clicked_node])
-            new_pos = nx.spring_layout(subgraph, k=1.0)
+            nodes_to_show = list(subgraph.nodes)
+            edges_to_show = list(subgraph.edges)
 
-            for node in subgraph:
-                x, y = new_pos[node]
-                new_node_x.append(x)
-                new_node_y.append(y)
-                new_hover_text.append(node)
-                if G.nodes[node].get('type') == 'sdg':
-                    new_node_color.append('blue')  # Center SDG node
-                    new_node_size.append(30)
-                else:
-                    new_node_color.append('red')
-                    new_node_size.append(15)
-                new_node_labels.append(node)
-
-            new_edge_x = []
-            new_edge_y = []
-            for edge in subgraph.edges():
-                x0, y0 = new_pos[edge[0]]
-                x1, y1 = new_pos[edge[1]]
-                new_edge_x.append(x0)
-                new_edge_x.append(x1)
-                new_edge_x.append(None)
-                new_edge_y.append(y0)
-                new_edge_y.append(y1)
-                new_edge_y.append(None)
-
-            # Create traces for edges and nodes after clicking
-            clicked_edge_trace = go.Scatter(
-                x=new_edge_x, y=new_edge_y,
-                line=dict(width=0.5, color='#888'),
-                hoverinfo='none',
-                mode='lines'
-            )
-
-            clicked_node_trace = go.Scatter(
-                x=new_node_x, y=new_node_y,
-                mode='markers+text',
-                text=new_node_labels,
-                hovertext=new_hover_text,
-                marker=dict(
-                    color=new_node_color,
-                    size=new_node_size,
-                ),
-                hoverinfo='text'
-            )
+            edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show)
 
             return {
-                'data': [clicked_edge_trace, clicked_node_trace],
+                'data': [edge_trace, node_trace],
                 'layout': go.Layout(
                     title=f"<br>Research Studies Knowledge Graph - {clicked_node}",
                     titlefont=dict(size=16),
@@ -178,7 +151,7 @@ def create_kg_sdg(flask_app):
             }
 
         return {
-            'data': [node_trace],  
+            'data': [node_trace], 
             'layout': go.Layout(
                 title='<br>Research Studies Knowledge Graph (sdg nodes)',
                 titlefont=dict(size=16),
