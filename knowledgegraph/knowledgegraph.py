@@ -42,7 +42,7 @@ def create_kg_sdg(flask_app):
         connected_nodes[sdg].append(study)
         G.add_edge(sdg, study)
 
-    pos = nx.spring_layout(G, k=1.3, weight='weight')
+    pos = nx.spring_layout(G, k=1, weight='weight')
     fixed_pos = {node: pos[node] for node in G.nodes()}
 
     # Function to create traces for the graph
@@ -66,7 +66,7 @@ def create_kg_sdg(flask_app):
                     if study in filtered_nodes
                 ])
                 hover_text.append(f"{filtered_count} studies connected")
-                node_color.append('green')
+                node_color.append('#CA031B')
                 node_size.append(50 + filtered_count)
                 node_labels.append(node)
             else:
@@ -173,6 +173,8 @@ def create_kg_sdg(flask_app):
          State('knowledge-graph', 'figure')]
     )
     def update_graph(n_clicks, clickData, year_range, selected_colleges, current_figure):
+        ctx = dash.callback_context
+        triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
         # Initial variables
         nodes_to_show = list(G.nodes())
         edges_to_show = list(G.edges())
@@ -180,7 +182,7 @@ def create_kg_sdg(flask_app):
         new_title = '<br>Research Studies Knowledge Graph (Overall View)'
 
         # Apply filters if the "Apply Filters" button is clicked
-        if n_clicks > 0:
+        if (n_clicks > 0) & (triggered_input=="apply-filters"):
             filtered_nodes = [
                 node for node in G.nodes()
                 if (G.nodes[node]['type'] == 'sdg') or
@@ -192,12 +194,13 @@ def create_kg_sdg(flask_app):
                 edge for edge in G.edges()
                 if edge[0] in filtered_nodes and edge[1] in filtered_nodes
             ]
+            nodes_to_show = list(set([node for edge in edges_to_show for node in edge]))
             new_title = '<br>Research Studies Knowledge Graph (Filtered)'
 
         # Handle SDG node click events
-        if clickData and 'points' in clickData:
+        if (clickData and 'points' in clickData):
             clicked_node = clickData['points'][0]['text']
-            if current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}":
+            if (current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}") & (triggered_input!="apply-filters"):
                 # If the same SDG is clicked again, return to the filtered or overall view
                 nodes_to_show = filtered_nodes
                 edges_to_show = [
@@ -205,7 +208,7 @@ def create_kg_sdg(flask_app):
                     if edge[0] in nodes_to_show and edge[1] in nodes_to_show
                 ]
                 new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
-            elif G.nodes[clicked_node]['type'] == 'sdg':
+            elif (G.nodes[clicked_node]['type'] == 'sdg') & (triggered_input!="apply-filters"):
                 # Zoom in on the selected SDG node and show its connected studies
                 nodes_to_show = [clicked_node] + [
                     node for node in connected_nodes[clicked_node]
