@@ -6,19 +6,34 @@ import networkx as nx
 from collections import defaultdict
 from flask import Flask
 from . import db_manager
+import pandas as pd
 
 def create_kg_sdg(flask_app):
     df = db_manager.get_all_data()
-
+    df['date_approved'] = pd.to_datetime(df['date_approved'], errors='coerce')
     G = nx.Graph()
     connected_nodes = defaultdict(list)
+
+    # Define color palette for colleges
+    palette_dict = {
+        'MITL': 'red',
+        'ETYCB': 'yellow',
+        'CCIS': 'green',
+        'CAS': 'blue',
+        'CHS': 'orange'
+    }
 
     # Build the graph
     for index, row in df.iterrows():
         study = row['title']
         sdg = row['sdg']
+        college_id = row['college_id']
+        program_name = row['program_name']
+        concatenated_authors = row['concatenated_authors']
+        year = row['date_approved'].year
 
-        G.add_node(study, type='study')
+        G.add_node(study, type='study', college=college_id, program=program_name,
+                   authors=concatenated_authors, year=year)
         sdg = sdg.strip()
 
         if not G.has_node(sdg):
@@ -27,11 +42,11 @@ def create_kg_sdg(flask_app):
         connected_nodes[sdg].append(study)
         G.add_edge(sdg, study)
 
-    pos = nx.spring_layout(G, k=1.0, weight='weight')
+    pos = nx.spring_layout(G, k=1.3, weight='weight')
     fixed_pos = {node: pos[node] for node in G.nodes()}
 
-    # Function to create traces for graph
-    def build_traces(nodes_to_show, edges_to_show):
+    # Function to create traces for the graph
+    def build_traces(nodes_to_show, edges_to_show, filtered_nodes):
         node_x = []
         node_y = []
         hover_text = []
@@ -45,13 +60,22 @@ def create_kg_sdg(flask_app):
             node_y.append(y)
 
             if G.nodes[node]['type'] == 'sdg':
-                hover_text.append(f"{len(connected_nodes[node])} studies connected")
+                # Update hover text to reflect filtered connected nodes
+                filtered_count = len([
+                    study for study in connected_nodes[node]
+                    if study in filtered_nodes
+                ])
+                hover_text.append(f"{filtered_count} studies connected")
                 node_color.append('green')
-                node_size.append(50 + len(connected_nodes[node]))
+                node_size.append(50 + filtered_count)
                 node_labels.append(node)
             else:
-                hover_text.append(node)
-                node_color.append('red')
+                # Update hover text with college_id, program_name, concatenated_authors, and year
+                hover_text.append(f"College: {G.nodes[node]['college']}<br>"
+                                  f"Program: {G.nodes[node]['program']}<br>"
+                                  f"Authors: {G.nodes[node]['authors']}<br>"
+                                  f"Year: {G.nodes[node]['year']}")
+                node_color.append(palette_dict.get(G.nodes[node]['college'], 'grey'))  # Default to grey if college is not found
                 node_size.append(20)
                 node_labels.append(node)
 
@@ -88,73 +112,116 @@ def create_kg_sdg(flask_app):
 
         return edge_trace, node_trace
 
+    initial_nodes = list(G.nodes())
+    initial_edges = list(G.edges())
+    edge_trace, node_trace = build_traces(initial_nodes, initial_edges, initial_nodes)
     # Initialize Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
 
-    sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
-    edge_trace, node_trace = build_traces(sdg_nodes, [])
-
-    # Layout for Dash app
+    # Layout for Dash app including filters for year and colleges
     dash_app.layout = html.Div([
-        dcc.Graph(
-            id='knowledge-graph',
-            figure={
-                'data': [node_trace],
-                'layout': go.Layout(
-                    title='<br>Research Studies Knowledge Graph (SDG nodes)',
-                    titlefont=dict(size=16),
-                    showlegend=False,
-                    hovermode='closest',
-                    margin=dict(b=0, l=0, r=0, t=50),
-                    width=1200,
-                    height=800,
-                    xaxis=dict(showgrid=False, zeroline=False),
-                    yaxis=dict(showgrid=False, zeroline=False),
-                    transition=dict(duration=500),  # Add transition for animation
-                )
-            }
-        ),
-        dcc.Store(id='clicked-node', data=None)
+        html.Div([
+            html.Label('Select Year Range:'),
+            dcc.RangeSlider(
+                id='year-slider',
+                min=df['date_approved'].dt.year.min(),  
+                max=df['date_approved'].dt.year.max(), 
+                value=[df['date_approved'].dt.year.min(), df['date_approved'].dt.year.max()],
+                marks={year: str(year) for year in range(df['date_approved'].dt.year.min(), df['date_approved'].dt.year.max() + 1, 2)},
+                step=1
+            ),
+            html.Label('Select Colleges:'),
+            dcc.Dropdown(
+                id='college-dropdown',
+                options=[{'label': college, 'value': college} for college in df['college_id'].unique()],
+                value=[],
+                multi=True,
+                placeholder='Select colleges...'
+            ),
+            html.Button('Apply Filters', id='apply-filters', n_clicks=0)
+        ], style={'width': '20%', 'display': 'inline-block', 'padding': '20px', 'verticalAlign': 'top'}),
+
+        html.Div([
+            dcc.Graph(
+                id='knowledge-graph',
+                figure={
+                    'data': [edge_trace, node_trace],  
+                    'layout': go.Layout(
+                        title='<br>Research Studies Knowledge Graph (Overall View)',
+                        titlefont=dict(size=16),
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=0, l=0, r=0, t=50),
+                        width=1200,
+                        height=800,
+                        xaxis=dict(showgrid=False, zeroline=False),
+                        yaxis=dict(showgrid=False, zeroline=False),
+                        transition=dict(duration=500),  # Add transition for animation
+                    )
+                }
+            )
+        ], style={'width': '75%', 'display': 'inline-block', 'padding': '20px'})
     ])
 
-    # Callback to update graph based on user interactions
+    # Callback to handle initial graph display, filters, and node click events
     @dash_app.callback(
-        [Output('knowledge-graph', 'figure'),
-         Output('clicked-node', 'data')],
-        [Input('knowledge-graph', 'clickData')],
-        [State('clicked-node', 'data')]
+        Output('knowledge-graph', 'figure'),
+        [Input('apply-filters', 'n_clicks'),
+         Input('knowledge-graph', 'clickData')],
+        [State('year-slider', 'value'),
+         State('college-dropdown', 'value'),
+         State('knowledge-graph', 'figure')]
     )
-    def update_graph_on_click(clickData, stored_clicked_node):
-        new_clicked_node = None
-        nodes_to_show = sdg_nodes
-        edges_to_show = []
-        new_stored_clicked_node = None
+    def update_graph(n_clicks, clickData, year_range, selected_colleges, current_figure):
+        # Initial variables
+        nodes_to_show = list(G.nodes())
+        edges_to_show = list(G.edges())
+        filtered_nodes = nodes_to_show
+        new_title = '<br>Research Studies Knowledge Graph (Overall View)'
 
+        # Apply filters if the "Apply Filters" button is clicked
+        if n_clicks > 0:
+            filtered_nodes = [
+                node for node in G.nodes()
+                if (G.nodes[node]['type'] == 'sdg') or
+                   (G.nodes[node]['type'] == 'study' and
+                    (year_range[0] <= G.nodes[node]['year'] <= year_range[1]) and
+                    (not selected_colleges or G.nodes[node]['college'] in selected_colleges))
+            ]
+            edges_to_show = [
+                edge for edge in G.edges()
+                if edge[0] in filtered_nodes and edge[1] in filtered_nodes
+            ]
+            new_title = '<br>Research Studies Knowledge Graph (Filtered)'
+
+        # Handle SDG node click events
         if clickData and 'points' in clickData:
-            new_clicked_node = clickData['points'][0]['text']
-
-        # Toggle logic: If the same node is clicked again, reset to SDG nodes
-        if new_clicked_node == stored_clicked_node:
-            nodes_to_show = sdg_nodes
-            edges_to_show = []
-            new_stored_clicked_node = None
-        elif new_clicked_node and new_clicked_node in G.nodes and G.nodes[new_clicked_node]['type'] == 'sdg':
-            subgraph = G.subgraph([new_clicked_node] + connected_nodes[new_clicked_node])
-            nodes_to_show = list(subgraph.nodes)
-            edges_to_show = list(subgraph.edges)
-            new_stored_clicked_node = new_clicked_node
-        else:
-            return dash.no_update, stored_clicked_node
+            clicked_node = clickData['points'][0]['text']
+            if current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}":
+                # If the same SDG is clicked again, return to the filtered or overall view
+                nodes_to_show = filtered_nodes
+                edges_to_show = [
+                    edge for edge in G.edges()
+                    if edge[0] in nodes_to_show and edge[1] in nodes_to_show
+                ]
+                new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
+            elif G.nodes[clicked_node]['type'] == 'sdg':
+                # Zoom in on the selected SDG node and show its connected studies
+                nodes_to_show = [clicked_node] + [
+                    node for node in connected_nodes[clicked_node]
+                    if node in filtered_nodes
+                ]
+                edges_to_show = [(clicked_node, node) for node in nodes_to_show if node != clicked_node]
+                new_title = f"<br>Research Studies Knowledge Graph - {clicked_node}"
 
         # Build the traces based on nodes and edges to show
-        edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show)
+        edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show, filtered_nodes)
 
-        # Return updated figure and the new clicked node state
+        # Return updated figure
         return {
             'data': [edge_trace, node_trace],
             'layout': go.Layout(
-                title='<br>Research Studies Knowledge Graph (SDG nodes)' if new_stored_clicked_node is None
-                else f"<br>Research Studies Knowledge Graph - {new_stored_clicked_node}",
+                title=new_title,
                 titlefont=dict(size=16),
                 showlegend=False,
                 hovermode='closest',
@@ -165,6 +232,6 @@ def create_kg_sdg(flask_app):
                 yaxis=dict(showgrid=False, zeroline=False),
                 transition=dict(duration=500),  # Add transition for animation
             )
-        }, new_stored_clicked_node
+        }
 
     return dash_app
