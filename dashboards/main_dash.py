@@ -8,6 +8,7 @@ from dash.dependencies import Input, Output, State
 from . import db_manager
 import plotly.graph_objects as go
 import plotly.express as px
+import pandas as pd
 
 class MainDashboard:
     def __init__(self, flask_app):
@@ -283,11 +284,16 @@ class MainDashboard:
 
         status_mapping = {
             'PUBLISHED': 'PUBLISHED',
+            'INDEXED': 'PUBLISHED',  #mapping INDEXED to PUBLISHED
             'SUBMITTED': 'SUBMITTED',
             'UPLOADED': 'UPLOADED'
         }
 
         df['grouped_status'] = df['status'].apply(lambda x: status_mapping.get(x, 'ON-GOING'))
+
+        #defining the correct order for the status labels
+        status_order = ['UPLOADED', 'SUBMITTED', 'ON-GOING', 'PUBLISHED']
+        df['grouped_status'] = pd.Categorical(df['grouped_status'], categories=status_order, ordered=True)
 
         fig = go.Figure()
 
@@ -296,7 +302,7 @@ class MainDashboard:
             pivot_df = status_count.pivot(index='grouped_status', columns='program_id', values='Count').fillna(0)
 
             sorted_programs = sorted(pivot_df.columns)
-            title = f"Programs Research Status for {selected_colleges[0]}"
+            title = f"Programs Research Output Status for {selected_colleges[0]}"
 
             random_colors = px.colors.qualitative.Plotly[:len(sorted_programs)]
             for i, program in enumerate(sorted_programs):
@@ -310,7 +316,7 @@ class MainDashboard:
         else:
             status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
             pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
-            title = 'Colleges Research Status'
+            title = 'Colleges Research Output Status'
             
             for college in pivot_df.columns:
                 fig.add_trace(go.Bar(
@@ -321,8 +327,7 @@ class MainDashboard:
                     marker_color=self.palette_dict.get(college, 'grey') 
                 ))
 
-        desired_statuses = ['PUBLISHED', 'ON-GOING', 'SUBMITTED', 'UPLOADED']
-        pivot_df = pivot_df.reindex(desired_statuses).fillna(0)
+        pivot_df = pivot_df.reindex(status_order).fillna(0)
 
         fig.update_layout(
             barmode='stack',
@@ -331,8 +336,8 @@ class MainDashboard:
             title=title,
             yaxis=dict(
                 autorange='reversed',
-                tickvals=desired_statuses,
-                ticktext=desired_statuses
+                tickvals=status_order, 
+                ticktext=status_order
             )
         )
 
