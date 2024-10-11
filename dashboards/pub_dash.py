@@ -88,6 +88,7 @@ class PublicationDash:
             style={"height": "95vh", "display": "flex", "flexDirection": "column"}
         )
 
+
         main_dash = dbc.Container([     
             dbc.Row([  # Row for the world map chart
                 dbc.Col(
@@ -166,7 +167,10 @@ class PublicationDash:
     def update_world_map(self, selected_colleges, selected_status, selected_years): # Added by Nicole Cabansag
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         df = df.dropna()
-        print(df)
+        print(df.columns.tolist)
+        thailand_data = df[df['country'] == 'Thailand'][['country', 'journal']]
+        print(thailand_data)
+        print(len(thailand_data))
 
         if 'country' not in df.columns or df['country'].isnull().all():
             return dcc.Graph()  
@@ -196,41 +200,52 @@ class PublicationDash:
     
     def get_conference_data(self):
         """
-        Fetches the conference data and counts research titles by publication_name and aggregates journal names.
-        Orders the result by count in descending order and journal names alphabetically.
+        Fetches the conference data and counts the number of journals and proceedings by country.
+        Orders the result by the total count (journal count + proceeding count) in descending order.
         """
         # Fetch data from the database using DatabaseManager or the appropriate method
         df = db_manager.get_all_data()
 
-        # Filter relevant columns and drop rows with missing values
-        conference_df = df[['publication_name', 'journal']].dropna()
+        # Filter relevant columns (without dropping missing values)
+        conference_df = df[['country', 'journal']].dropna(subset=['country'])
 
-        # Group by publication_name, aggregate journal names, and count occurrences
+        # Group by country and count journals and proceedings
         conference_counts = (
-            conference_df.groupby('publication_name')
+            conference_df.groupby('country', as_index=False)
             .agg(
-                journal_list=('journal', lambda x: ', '.join(sorted(x.unique()))),  # Concatenate unique journal names in alphabetical order
-                count=('journal', 'size')  # Count the occurrences
+                journal_count=('journal', lambda x: (x == 'journal').sum()),  # Count unique journals
+                proceeding_count=('journal', lambda x: (x == 'proceeding').sum())  # Count occurrences of 'Proceedings' in the format
             )
-            .reset_index()
         )
 
-        # Rename columns
-        conference_counts.columns = ['Publication Title', 'Format', 'Number of Papers Published']
+        # Calculate total count as a new column
+        conference_counts['Total Count'] = conference_counts['journal_count'] + conference_counts['proceeding_count']
 
-        # Order by count in descending order
-        conference_counts = conference_counts.sort_values(by='Number of Papers Published', ascending=False)
+        # Rename columns
+        conference_counts.columns = ['Country', 'Journal Count', 'Proceeding Count', 'Total Count']
+
+        # Order by total count in descending order
+        conference_counts = conference_counts.sort_values(by='Total Count', ascending=False)
 
         return conference_counts
 
 
 
     
-    
     def set_callbacks(self):
         """
         Set up the callback functions for the dashboard.
         """
+        @self.dash_app.callback(
+        [Output('college', 'value'),
+         Output('status', 'value'),
+         Output('years', 'value')],
+        [Input('reset_button', 'n_clicks')],
+        prevent_initial_call=True
+        )
+        def reset_filters(n_clicks):
+            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+        
         @self.dash_app.callback(
             [Output('research-table', 'data'), Output('research-table', 'columns')],
             [Input('interval-component', 'n_intervals')]
@@ -254,16 +269,4 @@ class PublicationDash:
         def update_map(selected_colleges, selected_status, selected_years):
             return self.update_world_map(selected_colleges, selected_status, selected_years)
 
-        
-        
-        @self.dash_app.callback(
-            Output('college_pie_chart', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value')
-            ]
-        )
-        def update_piechart(selected_colleges, selected_status, selected_years):
-            return self.update_pie_chart(selected_colleges, selected_status, selected_years)
         
