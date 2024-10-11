@@ -114,15 +114,15 @@ class MainDashboard:
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
-                    dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden"})
+                    dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
+                    dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash = dbc.Container([
                 dbc.Row([
-                    dbc.Col(dcc.Graph(id='publication_format_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                    dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='publication_format_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
@@ -173,17 +173,23 @@ class MainDashboard:
                         }))
         ])
     
+    def get_program_colors(self, df):
+        unique_programs = df['program_id'].unique()
+        random_colors = px.colors.qualitative.Plotly[:len(unique_programs)]
+        self.program_colors = {program: random_colors[i % len(random_colors)] for i, program in enumerate(unique_programs)}
+    
     def update_line_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'program_id'
-            title = f'Number of Publications for {selected_colleges[0]}'
+            title = f'Number of Research Outputs for {selected_colleges[0]}'
+            self.get_program_colors(grouped_df) 
         else:
             grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'college_id'
-            title = 'Number of Publications per College'
+            title = 'Number of Research Outputs per College'
 
         fig_line = px.line(
             grouped_df, 
@@ -191,7 +197,7 @@ class MainDashboard:
             y='TitleCount', 
             color=color_column, 
             markers=True,
-            color_discrete_map=self.palette_dict
+            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors
         )
         
         fig_line.update_layout(
@@ -213,21 +219,19 @@ class MainDashboard:
             college_name = selected_colleges[0]
             filtered_df = df[df['college_id'] == college_name]
             detail_counts = filtered_df.groupby('program_id').size()
-            title = f'Number of Publications for {college_name}'
+            self.get_program_colors(filtered_df) 
         else:
             detail_counts = df.groupby('college_id').size()
-            title = ''
         
         fig_pie = px.pie(
             names=detail_counts.index,
             values=detail_counts,
             color=detail_counts.index,
-            color_discrete_map=self.palette_dict,
-            labels={'names': 'Category', 'values': 'Number of Publications'},
+            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors,
+            labels={'names': 'Category', 'values': 'Number of Research Outputs'},
         )
 
         fig_pie.update_layout(
-            title=title,
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
             height=400
@@ -252,10 +256,12 @@ class MainDashboard:
             grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
             x_axis = 'program_id'
             xaxis_title = 'Programs'
+            title = f'Publication Formats per Programs in {selected_colleges[0]}'
         else:
             grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
             x_axis = 'college_id'
             xaxis_title = 'Colleges'
+            title = 'Publication Formats per College'
         
         fig_bar = px.bar(
             grouped_df,
@@ -267,7 +273,7 @@ class MainDashboard:
         )
         
         fig_bar.update_layout(
-            title="Publication Formats per College",
+            title=title,
             xaxis_title=xaxis_title,
             yaxis_title='Number of Publications',
             template='plotly_white',
@@ -298,45 +304,42 @@ class MainDashboard:
         fig = go.Figure()
 
         if len(selected_colleges) == 1:
+            self.get_program_colors(df) 
             status_count = df.groupby(['grouped_status', 'program_id']).size().reset_index(name='Count')
             pivot_df = status_count.pivot(index='grouped_status', columns='program_id', values='Count').fillna(0)
 
             sorted_programs = sorted(pivot_df.columns)
-            title = f"Programs Research Output Status for {selected_colleges[0]}"
+            title = f"Comparison of Research Status Across Programs in {selected_colleges[0]}"
 
-            random_colors = px.colors.qualitative.Plotly[:len(sorted_programs)]
-            for i, program in enumerate(sorted_programs):
+            for program in sorted_programs:
                 fig.add_trace(go.Bar(
-                    y=pivot_df.index,
-                    x=pivot_df[program],
+                    x=pivot_df.index, 
+                    y=pivot_df[program],
                     name=program,
-                    orientation='h',
-                    marker_color=random_colors[i % len(random_colors)] 
+                    marker_color=self.program_colors[program] 
                 ))
         else:
             status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
             pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
-            title = 'Colleges Research Output Status'
+            title = 'Comparison of Research Output Status Across Colleges'
             
             for college in pivot_df.columns:
                 fig.add_trace(go.Bar(
-                    y=pivot_df.index,
-                    x=pivot_df[college],
+                    x=pivot_df.index, 
+                    y=pivot_df[college],
                     name=college,
-                    orientation='h',
-                    marker_color=self.palette_dict.get(college, 'grey') 
+                    marker_color=self.palette_dict.get(college, 'grey')
                 ))
 
         pivot_df = pivot_df.reindex(status_order).fillna(0)
 
         fig.update_layout(
-            barmode='stack',
-            xaxis_title='Number of Research Outputs',
-            yaxis_title='Research Status',
+            barmode='group',
+            xaxis_title='Research Status',  
+            yaxis_title='Number of Research Outputs',  
             title=title,
-            yaxis=dict(
-                autorange='reversed',
-                tickvals=status_order, 
+            xaxis=dict(
+                tickvals=status_order,  
                 ticktext=status_order
             )
         )
