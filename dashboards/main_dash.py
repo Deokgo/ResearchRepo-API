@@ -141,19 +141,6 @@ class MainDashboard:
                     fluid=True,
                     className="dbc dbc-ag-grid",
                     style={"overflow": "hidden"}
-                ),
-                dash_table.DataTable(
-                    id='research-table',
-                    columns=[],  # Columns will be populated by callback
-                    data=[],  # Data will be populated by callback
-                    style_table={'overflowX': 'auto'},
-                    style_cell={'textAlign': 'left'},
-                    page_size=30  # Set page size for better UX
-                ),
-                dcc.Interval(
-                    id='interval-component',
-                    interval=60 * 1000,  # Update every 1 minute (optional)
-                    n_intervals=0
                 )
             ], style={"padding": "20px"})
 
@@ -238,16 +225,6 @@ class MainDashboard:
         )
 
         return fig_pie
-    
-    """
-    def update_table(n):
-        df = db_manager.get_all_data()
-
-        data = df.to_dict('records')  
-        columns = [{'name': col, 'id': col} for col in df.columns]  
-
-        return data, columns
-    """
     
     def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
@@ -354,15 +331,6 @@ class MainDashboard:
         )
         def reset_filters(n_clicks):
             return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('simplified_status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
-
-        """
-        @self.dash_app.callback(
-            [Output('research-table', 'data'), Output('research-table', 'columns')],
-            [Input('interval-component', 'n_intervals')]
-        )
-        def update_table_callback(n):
-            return self.update_table()
-        """
 
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
