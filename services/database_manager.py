@@ -3,7 +3,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, db
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords
 
 class DatabaseManager:
     def __init__(self, database_uri):
@@ -50,12 +50,12 @@ class DatabaseManager:
             query = session.query(
                 College.college_id,
                 Program.program_id,
-                Program.program_name,
                 ResearchOutput.sdg,
                 ResearchOutput.title,
                 ResearchOutput.date_approved,
                 authors_subquery.c.concatenated_authors,
                 keywords_subquery.c.concatenated_keywords,
+                Publication.publication_name,
                 Publication.journal,
                 Publication.date_published,
                 Conference.conference_venue,
@@ -76,7 +76,6 @@ class DatabaseManager:
             # Formatting results into a list of dictionaries
             data = [{
                 'college_id': row.college_id,
-                'program_name': row.program_name,
                 'program_id': row.program_id,
                 'sdg': row.sdg,
                 'title': row.title,
@@ -84,6 +83,7 @@ class DatabaseManager:
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors,
                 'concatenated_keywords': row.concatenated_keywords,
+                'publication_name':row.publication_name,
                 'journal': row.journal,
                 'date_published': row.date_published,
                 'conference_venue': row.conference_venue,

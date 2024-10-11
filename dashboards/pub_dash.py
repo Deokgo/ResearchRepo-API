@@ -91,11 +91,31 @@ class PublicationDash:
         main_dash = dbc.Container([     
             dbc.Row([  # Row for the world map chart
                 dbc.Col(
-                    html.Div(id='world_map_chart', children=[], style={"border": "2px solid #007bff","borderRadius": "5px","height": "400px", "width": "100%"}),  # Set height and width
-                    width=12
+                    dcc.Graph(id='conference_loc'),
+                    width=9,
+                    style={
+                        "height": "auto", 
+                        "border": "2px solid #007bff",  # Add a solid border
+                        "borderRadius": "5px",           # Optional: Add rounded corners               # Optional: Add some padding
+                    }
+                )
+            ], style={"margin": "10px"}),
+            dbc.Row([  # Row for the world map chart
+                dbc.Col(
+                    dash_table.DataTable(
+                    id='research-table',
+                    columns=[],  # Columns will be populated by callback
+                    data=[],  # Data will be populated by callback
+                    style_table={'overflowX': 'auto'},
+                    style_cell={'textAlign': 'left'},
+                    page_size=6  # Set page size for better UX
+                ),
+                width=8
+                
                 )
             ], style={"margin": "10px"})
         ], fluid=True)
+
 
         """sub_dash = dbc.Container([
                 dbc.Row([
@@ -113,24 +133,16 @@ class PublicationDash:
                                 main_dash,
                                 #sub_dash
                             ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
-                        ])
+                        ]),
+                        dcc.Interval(
+                            id='interval-component',
+                            interval=60 * 1000,  # Update every 1 minute (optional)
+                            n_intervals=0
+                )
                     ],
                     fluid=True,
                     className="dbc dbc-ag-grid",
                     style={"overflow": "hidden"}
-                ),
-                dash_table.DataTable(
-                    id='research-table',
-                    columns=[],  # Columns will be populated by callback
-                    data=[],  # Data will be populated by callback
-                    style_table={'overflowX': 'auto'},
-                    style_cell={'textAlign': 'left'},
-                    page_size=30  # Set page size for better UX
-                ),
-                dcc.Interval(
-                    id='interval-component',
-                    interval=60 * 1000,  # Update every 1 minute (optional)
-                    n_intervals=0
                 )
             ], style={"padding": "20px"})
 
@@ -172,57 +184,49 @@ class PublicationDash:
         )
 
         fig.update_layout(
-            width=1300,  # Adjust width
-            height=600,  # Adjust height
+            width=900,  # Adjust width
+            height= 500,  # Adjust height
             geo=dict(showframe=False, showcoastlines=False),
             title_x=0.5
         )
 
 
-        return dcc.Graph(figure=fig)
+        return fig
     
     
-    def update_pie_chart(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        
-        if len(selected_colleges) == 1:
-            college_name = selected_colleges[0]
-            filtered_df = df[df['college_id'] == college_name]
-            detail_counts = filtered_df.groupby('program_name').size()
-            title = f'Number of Publications for {college_name}'
-        else:
-            detail_counts = df.groupby('college_id').size()
-            title = ''
-        
-        fig_pie = px.pie(
-            names=detail_counts.index,
-            values=detail_counts,
-            color=detail_counts.index,
-            color_discrete_map=self.palette_dict,
-            labels={'names': 'Category', 'values': 'Number of Publications'},
+    def get_conference_data(self):
+        """
+        Fetches the conference data and counts research titles by publication_name and aggregates journal names.
+        Orders the result by count in descending order and journal names alphabetically.
+        """
+        # Fetch data from the database using DatabaseManager or the appropriate method
+        df = db_manager.get_all_data()
+
+        # Filter relevant columns and drop rows with missing values
+        conference_df = df[['publication_name', 'journal']].dropna()
+
+        # Group by publication_name, aggregate journal names, and count occurrences
+        conference_counts = (
+            conference_df.groupby('publication_name')
+            .agg(
+                journal_list=('journal', lambda x: ', '.join(sorted(x.unique()))),  # Concatenate unique journal names in alphabetical order
+                count=('journal', 'size')  # Count the occurrences
+            )
+            .reset_index()
         )
 
-        fig_pie.update_layout(
-            title=title,
-            template='plotly_white',
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=400
-        )
+        # Rename columns
+        conference_counts.columns = ['Publication Title', 'Format', 'Number of Papers Published']
 
-        return fig_pie
+        # Order by count in descending order
+        conference_counts = conference_counts.sort_values(by='Number of Papers Published', ascending=False)
+
+        return conference_counts
+
+
+
     
     
-    
-    def update_table(n):
-            # Fetch data from the database using DatabaseManager
-            df = db_manager.get_all_data()
-
-            # Format the data for the DataTable
-            data = df.to_dict('records')  # Convert DataFrame to a list of dictionaries
-            columns = [{'name': col, 'id': col} for col in df.columns]  # Columns format
-
-            return data, columns
-
     def set_callbacks(self):
         """
         Set up the callback functions for the dashboard.
@@ -231,17 +235,25 @@ class PublicationDash:
             [Output('research-table', 'data'), Output('research-table', 'columns')],
             [Input('interval-component', 'n_intervals')]
         )
-        def update_table_callback(n):
-            return self.update_table()
+        def update_research_table(n_intervals):
+            # Get the grouped conference data
+            conference_counts = self.get_conference_data()
+
+            # Format the data for the DataTable
+            data = conference_counts.to_dict('records')  # Convert DataFrame to a list of dictionaries
+            columns = [{'name': col, 'id': col} for col in conference_counts.columns]  # Columns format
+
+            return data, columns
         
-        @self.dash_app.callback( # Added by Nicole Cabansag
-            Output('world_map_chart', 'children'),
+        @self.dash_app.callback(
+            Output('conference_loc', 'figure'),  # Changed 'children' to 'figure'
             [Input('college', 'value'),
-             Input('status', 'value'),
-             Input('years', 'value')]
+            Input('status', 'value'),
+            Input('years', 'value')]
         )
         def update_map(selected_colleges, selected_status, selected_years):
             return self.update_world_map(selected_colleges, selected_status, selected_years)
+
         
         
         @self.dash_app.callback(
