@@ -79,6 +79,7 @@ def retrieve_dataset():
     # Main query
     query = db.session.query(
         College.college_id,
+        Program.program_id,
         Program.program_name,
         ResearchOutput.sdg,
         ResearchOutput.title,
@@ -110,6 +111,7 @@ def retrieve_dataset():
     data = [{
         'college_id': row.college_id,
         'program_name': row.program_name,
+        'progra_id': row.program_id,
         'sdg': row.sdg,
         'title': row.title,
         'adviser_name': row.adviser_name,

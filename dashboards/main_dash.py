@@ -1,5 +1,5 @@
 # created by Jelly Mallari
-# continued by Nicole Cabansag
+# continued by Nicole Cabansag (for other charts and added reset_button function)
 
 import dash
 from dash import Dash, html, dcc, dash_table
@@ -176,8 +176,8 @@ class MainDashboard:
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         if len(selected_colleges) == 1:
-            grouped_df = df.groupby(['program_name', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_name'
+            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
+            color_column = 'program_id'
             title = f'Number of Publications for {selected_colleges[0]}'
         else:
             grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
@@ -211,7 +211,7 @@ class MainDashboard:
         if len(selected_colleges) == 1:
             college_name = selected_colleges[0]
             filtered_df = df[df['college_id'] == college_name]
-            detail_counts = filtered_df.groupby('program_name').size()
+            detail_counts = filtered_df.groupby('program_id').size()
             title = f'Number of Publications for {college_name}'
         else:
             detail_counts = df.groupby('college_id').size()
@@ -234,6 +234,7 @@ class MainDashboard:
 
         return fig_pie
     
+    """
     def update_table(n):
         df = db_manager.get_all_data()
 
@@ -241,15 +242,23 @@ class MainDashboard:
         columns = [{'name': col, 'id': col} for col in df.columns]  
 
         return data, columns
+    """
     
     def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
-        grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
+        if len(selected_colleges) == 1:
+            grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+            x_axis = 'program_id'
+            xaxis_title = 'Programs'
+        else:
+            grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
+            x_axis = 'college_id'
+            xaxis_title = 'Colleges'
         
         fig_bar = px.bar(
             grouped_df,
-            x='college_id',
+            x=x_axis,
             y='Count',
             color='journal',
             barmode='group',
@@ -258,7 +267,7 @@ class MainDashboard:
         
         fig_bar.update_layout(
             title="Publication Formats per College",
-            xaxis_title='College',
+            xaxis_title=xaxis_title,
             yaxis_title='Number of Publications',
             template='plotly_white',
             height=400
@@ -268,7 +277,7 @@ class MainDashboard:
     
     def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        
+
         if df.empty:
             return px.bar(title="No data available")
 
@@ -280,36 +289,53 @@ class MainDashboard:
 
         df['grouped_status'] = df['status'].apply(lambda x: status_mapping.get(x, 'ON-GOING'))
 
-        status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
+        fig = go.Figure()
 
-        pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
+        if len(selected_colleges) == 1:
+            status_count = df.groupby(['grouped_status', 'program_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='grouped_status', columns='program_id', values='Count').fillna(0)
+
+            sorted_programs = sorted(pivot_df.columns)
+            title = f"Programs Research Status for {selected_colleges[0]}"
+
+            random_colors = px.colors.qualitative.Plotly[:len(sorted_programs)]
+            for i, program in enumerate(sorted_programs):
+                fig.add_trace(go.Bar(
+                    y=pivot_df.index,
+                    x=pivot_df[program],
+                    name=program,
+                    orientation='h',
+                    marker_color=random_colors[i % len(random_colors)] 
+                ))
+        else:
+            status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
+            title = 'Colleges Research Status'
+            
+            for college in pivot_df.columns:
+                fig.add_trace(go.Bar(
+                    y=pivot_df.index,
+                    x=pivot_df[college],
+                    name=college,
+                    orientation='h',
+                    marker_color=self.palette_dict.get(college, 'grey') 
+                ))
 
         desired_statuses = ['PUBLISHED', 'ON-GOING', 'SUBMITTED', 'UPLOADED']
         pivot_df = pivot_df.reindex(desired_statuses).fillna(0)
 
-        fig = go.Figure()
-
-        for college in pivot_df.columns:
-            fig.add_trace(go.Bar(
-                y=pivot_df.index,
-                x=pivot_df[college],
-                name=college,
-                orientation='h',
-                marker_color=self.palette_dict.get(college, 'grey') 
-            ))
-
         fig.update_layout(
-            barmode='stack',  
+            barmode='stack',
             xaxis_title='Number of Research Outputs',
             yaxis_title='Research Status',
-            title='Colleges Research Status',
+            title=title,
             yaxis=dict(
-                autorange='reversed',  
-                tickvals=desired_statuses,  
-                ticktext=desired_statuses  
+                autorange='reversed',
+                tickvals=desired_statuses,
+                ticktext=desired_statuses
             )
         )
-        
+
         return fig
 
     def set_callbacks(self):
@@ -327,13 +353,14 @@ class MainDashboard:
         def reset_filters(n_clicks):
             return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
-
+        """
         @self.dash_app.callback(
             [Output('research-table', 'data'), Output('research-table', 'columns')],
             [Input('interval-component', 'n_intervals')]
         )
         def update_table_callback(n):
             return self.update_table()
+        """
 
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),

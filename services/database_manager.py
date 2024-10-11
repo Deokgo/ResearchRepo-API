@@ -49,6 +49,7 @@ class DatabaseManager:
             # Main query
             query = session.query(
                 College.college_id,
+                Program.program_id,
                 Program.program_name,
                 ResearchOutput.sdg,
                 ResearchOutput.title,
@@ -76,6 +77,7 @@ class DatabaseManager:
             data = [{
                 'college_id': row.college_id,
                 'program_name': row.program_name,
+                'program_id': row.program_id,
                 'sdg': row.sdg,
                 'title': row.title,
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
