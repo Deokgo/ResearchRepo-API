@@ -50,8 +50,8 @@ class MainDashboard:
                 dbc.Label("Select Status:"),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
-                    value=db_manager.get_unique_values('status'),
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('simplified_status')],
+                    value=db_manager.get_unique_values('simplified_status'),
                     inline=True,
                 ),
             ],
@@ -98,15 +98,15 @@ class MainDashboard:
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Published Papers", str(len(db_manager.filter_data_by_list('status', ['PUBLISHED', 'INDEXED'], invert=False)))),
+                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('simplified_status', 'PUBLISHED', invert=False)))),
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Ongoing Papers", str(len(db_manager.filter_data_by_list('status', ['PUBLISHED', 'INDEXED', 'UPLOADED'], invert=True)))),
+                    self.create_display_card("Ongoing Papers", str(len(db_manager.filter_data('simplified_status', 'ON-GOING', invert=False)))),
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('simplified_status', 'SUBMITTED', invert=False)))),
                     width=3
                 )
             ])
@@ -288,50 +288,40 @@ class MainDashboard:
         if df.empty:
             return px.bar(title="No data available")
 
-        status_mapping = {
-            'PUBLISHED': 'PUBLISHED',
-            'INDEXED': 'PUBLISHED',  #mapping INDEXED to PUBLISHED
-            'SUBMITTED': 'SUBMITTED',
-            'UPLOADED': 'UPLOADED'
-        }
+        # Exclude REJECTED status from the DataFrame
+        df = df[df['status'] != 'REJECTED']
 
-        df['grouped_status'] = df['status'].apply(lambda x: status_mapping.get(x, 'ON-GOING'))
-
-        #defining the correct order for the status labels
         status_order = ['UPLOADED', 'SUBMITTED', 'ON-GOING', 'PUBLISHED']
-        df['grouped_status'] = pd.Categorical(df['grouped_status'], categories=status_order, ordered=True)
 
         fig = go.Figure()
 
         if len(selected_colleges) == 1:
             self.get_program_colors(df) 
-            status_count = df.groupby(['grouped_status', 'program_id']).size().reset_index(name='Count')
-            pivot_df = status_count.pivot(index='grouped_status', columns='program_id', values='Count').fillna(0)
+            status_count = df.groupby(['simplified_status', 'program_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='simplified_status', columns='program_id', values='Count').fillna(0)
 
             sorted_programs = sorted(pivot_df.columns)
             title = f"Comparison of Research Status Across Programs in {selected_colleges[0]}"
 
             for program in sorted_programs:
                 fig.add_trace(go.Bar(
-                    x=pivot_df.index, 
+                    x=pivot_df.index,
                     y=pivot_df[program],
                     name=program,
-                    marker_color=self.program_colors[program] 
+                    marker_color=self.program_colors[program]
                 ))
         else:
-            status_count = df.groupby(['grouped_status', 'college_id']).size().reset_index(name='Count')
-            pivot_df = status_count.pivot(index='grouped_status', columns='college_id', values='Count').fillna(0)
+            status_count = df.groupby(['simplified_status', 'college_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='simplified_status', columns='college_id', values='Count').fillna(0)
             title = 'Comparison of Research Output Status Across Colleges'
             
             for college in pivot_df.columns:
                 fig.add_trace(go.Bar(
-                    x=pivot_df.index, 
+                    x=pivot_df.index,
                     y=pivot_df[college],
                     name=college,
                     marker_color=self.palette_dict.get(college, 'grey')
                 ))
-
-        pivot_df = pivot_df.reindex(status_order).fillna(0)
 
         fig.update_layout(
             barmode='group',
@@ -339,12 +329,16 @@ class MainDashboard:
             yaxis_title='Number of Research Outputs',  
             title=title,
             xaxis=dict(
-                tickvals=status_order,  
-                ticktext=status_order
+                tickvals=status_order,  # This should match the unique statuses in pivot_df index
+                ticktext=status_order    # This ensures that the order of the statuses is displayed correctly
             )
         )
 
+        # Ensure the x-axis is sorted in the defined order
+        fig.update_xaxes(categoryorder='array', categoryarray=status_order)
+
         return fig
+
 
     def set_callbacks(self):
         """
@@ -359,7 +353,7 @@ class MainDashboard:
         prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('simplified_status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
         """
         @self.dash_app.callback(

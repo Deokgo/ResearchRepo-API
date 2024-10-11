@@ -3,6 +3,7 @@
 
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc
+import pandas as pd
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, db
 
 dataset = Blueprint('dataset', __name__)
@@ -109,23 +110,28 @@ def retrieve_dataset():
 
     # Formatting results into a list of dictionaries
     data = [{
-        'college_id': row.college_id,
-        'program_name': row.program_name,
-        'progra_id': row.program_id,
-        'sdg': row.sdg,
-        'title': row.title,
-        'adviser_name': row.adviser_name,
-        'concatenated_panels': row.concatenated_panels,
-        'date_approved': row.date_approved,
-        'concatenated_authors': row.concatenated_authors,
-        'concatenated_keywords': row.concatenated_keywords,
-        'journal': row.journal,
-        'scopus': row.scopus,
-        'date_published': row.date_published,
-        'conference_venue': row.conference_venue,
-        'conference_title': row.conference_title,
-        'conference_date': row.conference_date,
-        'status': row.status
-    } for row in result]
+                'college_id': row.college_id,
+                'program_name': row.program_name,
+                'program_id': row.program_id,
+                'sdg': row.sdg,
+                'title': row.title,
+                'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
+                'date_approved': row.date_approved,
+                'concatenated_authors': row.concatenated_authors,
+                'concatenated_keywords': row.concatenated_keywords,
+                'journal': row.journal,
+                'date_published': row.date_published,
+                'conference_venue': row.conference_venue,
+                'conference_title': row.conference_title,
+                'conference_date': row.conference_date,
+                'status': row.status if pd.notnull(row.status) else "UPLOADED",
+                'simplified_status': (
+                    "ON-GOING" if row.status in ["PRESENTED", "UNDER EVALUATION", "ACCEPTED", "2ND REVIEW", "TO BE PRESENTED", "TO BE PUBLISHED"] else
+                    "PUBLISHED" if row.status in ["PUBLISHED", "INDEXED"] else
+                    row.status if pd.notnull(row.status) else "UPLOADED"
+                ),
+                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else None  # Extract country
+
+            } for row in result]
 
     return jsonify(data)
