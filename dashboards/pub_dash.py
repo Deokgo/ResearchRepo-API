@@ -206,15 +206,15 @@ class PublicationDash:
         # Fetch data from the database using DatabaseManager or the appropriate method
         df = db_manager.get_all_data()
 
-        # Filter relevant columns (without dropping missing values)
-        conference_df = df[['country', 'journal']].dropna(subset=['country'])
+        # Filter relevant columns and drop rows with null values in 'country' and 'date_published' columns
+        conference_df = df[['country', 'journal', 'date_published']].dropna(subset=['country', 'date_published'])
 
         # Group by country and count journals and proceedings
         conference_counts = (
             conference_df.groupby('country', as_index=False)
             .agg(
                 journal_count=('journal', lambda x: (x == 'journal').sum()),  # Count unique journals
-                proceeding_count=('journal', lambda x: (x == 'proceeding').sum())  # Count occurrences of 'Proceedings' in the format
+                proceeding_count=('journal', lambda x: (x == 'proceeding').sum())  # Count occurrences of 'Proceedings'
             )
         )
 
@@ -228,8 +228,6 @@ class PublicationDash:
         conference_counts = conference_counts.sort_values(by='Total Count', ascending=False)
 
         return conference_counts
-
-
 
     
     def set_callbacks(self):
