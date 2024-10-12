@@ -48,8 +48,8 @@ class PublicationDash:
                 dbc.Label("Select Status:"),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('simplified_status')],
-                    value=db_manager.get_unique_values('simplified_status'),
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
+                    value=db_manager.get_unique_values('status'),
                     inline=True,
                 ),
             ],

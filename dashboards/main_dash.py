@@ -50,8 +50,8 @@ class MainDashboard:
                 dbc.Label("Select Status:"),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('simplified_status')],
-                    value=db_manager.get_unique_values('simplified_status'),
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
+                    value=db_manager.get_unique_values('status'),
                     inline=True,
                 ),
             ],
@@ -98,15 +98,15 @@ class MainDashboard:
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('simplified_status', 'PUBLISHED', invert=False)))),
+                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Ongoing Papers", str(len(db_manager.filter_data('simplified_status', 'ON-GOING', invert=False)))),
+                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
                     width=3
                 ),
                 dbc.Col(
-                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('simplified_status', 'SUBMITTED', invert=False)))),
+                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
                     width=3
                 )
             ])
@@ -122,7 +122,7 @@ class MainDashboard:
         sub_dash = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='publication_format_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
+                    dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
@@ -226,6 +226,7 @@ class MainDashboard:
 
         return fig_pie
     
+    """
     def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
@@ -258,27 +259,22 @@ class MainDashboard:
         )
 
         return fig_bar
+    """
     
-    def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years):
+    def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-
         if df.empty:
             return px.bar(title="No data available")
-
-        # Exclude REJECTED status from the DataFrame
-        df = df[df['status'] != 'REJECTED']
-
-        status_order = ['UPLOADED', 'SUBMITTED', 'ON-GOING', 'PUBLISHED']
-
+        
         fig = go.Figure()
 
         if len(selected_colleges) == 1:
             self.get_program_colors(df) 
-            status_count = df.groupby(['simplified_status', 'program_id']).size().reset_index(name='Count')
-            pivot_df = status_count.pivot(index='simplified_status', columns='program_id', values='Count').fillna(0)
+            status_count = df.groupby(['research_type', 'program_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='research_type', columns='program_id', values='Count').fillna(0)
 
             sorted_programs = sorted(pivot_df.columns)
-            title = f"Comparison of Research Status Across Programs in {selected_colleges[0]}"
+            title = f"Comparison of Research Output Type Across Programs"
 
             for program in sorted_programs:
                 fig.add_trace(go.Bar(
@@ -288,8 +284,55 @@ class MainDashboard:
                     marker_color=self.program_colors[program]
                 ))
         else:
-            status_count = df.groupby(['simplified_status', 'college_id']).size().reset_index(name='Count')
-            pivot_df = status_count.pivot(index='simplified_status', columns='college_id', values='Count').fillna(0)
+            status_count = df.groupby(['research_type', 'college_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='research_type', columns='college_id', values='Count').fillna(0)
+            title = 'Comparison of Research Output Type Across Colleges'
+            
+            for college in pivot_df.columns:
+                fig.add_trace(go.Bar(
+                    x=pivot_df.index,
+                    y=pivot_df[college],
+                    name=college,
+                    marker_color=self.palette_dict.get(college, 'grey')
+                ))
+
+        fig.update_layout(
+            barmode='group',
+            xaxis_title='Research Type',  
+            yaxis_title='Number of Research Outputs',  
+            title=title
+        )
+
+        return fig
+
+    def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        if df.empty:
+            return px.bar(title="No data available")
+
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED']
+
+        fig = go.Figure()
+
+        if len(selected_colleges) == 1:
+            self.get_program_colors(df) 
+            status_count = df.groupby(['status', 'program_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='status', columns='program_id', values='Count').fillna(0)
+
+            sorted_programs = sorted(pivot_df.columns)
+            title = f"Comparison of Research Status Across Programs"
+
+            for program in sorted_programs:
+                fig.add_trace(go.Bar(
+                    x=pivot_df.index,
+                    y=pivot_df[program],
+                    name=program,
+                    marker_color=self.program_colors[program]
+                ))
+        else:
+            status_count = df.groupby(['status', 'college_id']).size().reset_index(name='Count')
+            pivot_df = status_count.pivot(index='status', columns='college_id', values='Count').fillna(0)
             title = 'Comparison of Research Output Status Across Colleges'
             
             for college in pivot_df.columns:
@@ -330,7 +373,7 @@ class MainDashboard:
         prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('simplified_status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
@@ -355,15 +398,15 @@ class MainDashboard:
             return self.update_pie_chart(selected_colleges, selected_status, selected_years)
 
         @self.dash_app.callback(
-            Output('publication_format_bar_plot', 'figure'),
+            Output('research_type_bar_plot', 'figure'),
             [
                 Input('college', 'value'), 
                 Input('status', 'value'), 
                 Input('years', 'value')
             ]
         )
-        def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years):
-            return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years)
+        def update_research_type_bar_plot(selected_colleges, selected_status, selected_years):
+            return self.update_research_type_bar_plot(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
             Output('research_status_bar_plot', 'figure'),

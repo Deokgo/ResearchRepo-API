@@ -54,6 +54,7 @@ class DatabaseManager:
                 ResearchOutput.sdg,
                 ResearchOutput.title,
                 ResearchOutput.date_approved,
+                ResearchOutput.research_type,
                 authors_subquery.c.concatenated_authors,
                 keywords_subquery.c.concatenated_keywords,
                 Publication.publication_name,
@@ -86,6 +87,7 @@ class DatabaseManager:
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors,
                 'concatenated_keywords': row.concatenated_keywords,
+                'research_type': row.research_type,
                 'journal': row.journal,
                 'scopus':row.scopus,
                 'date_published': row.date_published,
@@ -93,12 +95,7 @@ class DatabaseManager:
                 'conference_venue': row.conference_venue,
                 'conference_title': row.conference_title,
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "UPLOADED",
-                'simplified_status': (
-                    "ON-GOING" if row.status in ["PRESENTED", "UNDER EVALUATION", "ACCEPTED", "2ND REVIEW", "TO BE PRESENTED", "TO BE PUBLISHED"] else
-                    "PUBLISHED" if row.status in ["PUBLISHED", "INDEXED"] else
-                    row.status if pd.notnull(row.status) else "UPLOADED"
-                ),
+                'status': row.status if pd.notnull(row.status) else "READY",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else None  # Extract country
 
             } for row in result]
@@ -160,7 +157,7 @@ class DatabaseManager:
             print(self.df.head())
             filtered_df = self.df[
                 (self.df['college_id'].isin(selected_colleges)) & 
-                (self.df['simplified_status'].isin(selected_status)) & 
+                (self.df['status'].isin(selected_status)) & 
                 (self.df['year'].between(selected_years[0], selected_years[1]))
             ]
             return filtered_df
