@@ -14,3 +14,4 @@ from .roles import Role
 from .status import Status
 from .keywords import Keywords
 from .panels import Panel
+from .sdg import SDG

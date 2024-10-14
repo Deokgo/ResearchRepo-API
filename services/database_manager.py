@@ -3,7 +3,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG
 
 class DatabaseManager:
     def __init__(self, database_uri):
@@ -46,12 +46,18 @@ class DatabaseManager:
                 func.string_agg(Keywords.keyword, '; ').label('concatenated_keywords')
             ).group_by(Keywords.research_id).subquery()
 
+            # Subquery to concatenate sdg
+            sdg_subquery = session.query(
+                SDG.research_id,  # This should reference the SDG table, not Keywords
+                func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
+            ).group_by(SDG.research_id).subquery()
+
             # Main query
             query = session.query(
                 College.college_id,
                 Program.program_id,
                 Program.program_name,
-                ResearchOutput.sdg,
+                sdg_subquery.c.concatenated_sdg,
                 ResearchOutput.title,
                 ResearchOutput.date_approved,
                 ResearchOutput.research_type,
@@ -72,6 +78,7 @@ class DatabaseManager:
             .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
             .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
             .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
+            .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
             .distinct()
 
             result = query.all()
@@ -81,12 +88,12 @@ class DatabaseManager:
                 'college_id': row.college_id,
                 'program_name': row.program_name,
                 'program_id': row.program_id,
-                'sdg': row.sdg,
                 'title': row.title,
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors,
                 'concatenated_keywords': row.concatenated_keywords,
+                'sdg': row.concatenated_sdg,
                 'research_type': row.research_type,
                 'journal': row.journal,
                 'scopus':row.scopus,

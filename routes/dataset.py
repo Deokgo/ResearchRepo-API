@@ -4,7 +4,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc
 import pandas as pd
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, db
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db
 
 dataset = Blueprint('dataset', __name__)
 
@@ -77,12 +77,18 @@ def retrieve_dataset():
         func.string_agg(Keywords.keyword, '; ').label('concatenated_keywords')
     ).group_by(Keywords.research_id).subquery()
 
+    # Subquery to concatenate sdg
+    sdg_subquery = db.session.query(
+        SDG.research_id,
+        func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
+    ).group_by(SDG.research_id).subquery()
+
     # Main query
     query = db.session.query(
         College.college_id,
         Program.program_id,
         Program.program_name,
-        ResearchOutput.sdg,
+        sdg_subquery.c.concatenated_sdg,
         ResearchOutput.title,
         adviser_subquery.c.adviser_name,
         panels_subquery.c.concatenated_panels,
@@ -104,7 +110,8 @@ def retrieve_dataset():
      .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
      .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
      .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
-     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id)
+     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
+     .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id)
 
     result = query.all()
 
@@ -113,12 +120,12 @@ def retrieve_dataset():
                 'college_id': row.college_id,
                 'program_name': row.program_name,
                 'program_id': row.program_id,
-                'sdg': row.sdg,
                 'title': row.title,
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors,
                 'concatenated_keywords': row.concatenated_keywords,
+                'concatenated_sdg': row.concatenated_sdg,
                 'journal': row.journal,
                 'date_published': row.date_published,
                 'conference_venue': row.conference_venue,

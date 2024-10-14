@@ -27,6 +27,12 @@ class MainDashboard:
         self.create_layout()
         self.set_callbacks()
 
+        self.all_sdgs = [
+            'SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 
+            'SDG 8', 'SDG 9', 'SDG 10', 'SDG 11', 'SDG 12', 'SDG 13', 
+            'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17'
+        ]
+
     def create_layout(self):
         """
         Create the layout of the dashboard.
@@ -110,21 +116,34 @@ class MainDashboard:
                     width=3
                 )
             ])
-        ], style={"transform": "scale(0.9)", "transform-origin": "0 0"})
+        ], style={"transform": "scale(1)", "transform-origin": "0 0"})
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
                     dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
                     dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        sub_dash = dbc.Container([
+        sub_dash1 = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(0.9)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+
+        sub_dash2 = dbc.Container([
+                dbc.Row([
+                    dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                ], style={"margin": "10px"})
+            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+
+        sub_dash3 = dbc.Container([
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         self.dash_app.layout = html.Div([
                 dbc.Container(
@@ -133,7 +152,9 @@ class MainDashboard:
                             dbc.Col([
                                 text_display,
                                 main_dash,
-                                sub_dash
+                                sub_dash1,
+                                sub_dash3,
+                                sub_dash2
                             ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                             dbc.Col(controls, width=2)
                         ])
@@ -225,41 +246,6 @@ class MainDashboard:
         )
 
         return fig_pie
-    
-    """
-    def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        
-        if len(selected_colleges) == 1:
-            grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
-            x_axis = 'program_id'
-            xaxis_title = 'Programs'
-            title = f'Publication Formats per Programs in {selected_colleges[0]}'
-        else:
-            grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
-            x_axis = 'college_id'
-            xaxis_title = 'Colleges'
-            title = 'Publication Formats per College'
-        
-        fig_bar = px.bar(
-            grouped_df,
-            x=x_axis,
-            y='Count',
-            color='journal',
-            barmode='group',
-            color_discrete_map=self.palette_dict
-        )
-        
-        fig_bar.update_layout(
-            title=title,
-            xaxis_title=xaxis_title,
-            yaxis_title='Number of Publications',
-            template='plotly_white',
-            height=400
-        )
-
-        return fig_bar
-    """
     
     def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
@@ -358,7 +344,150 @@ class MainDashboard:
         fig.update_xaxes(categoryorder='array', categoryarray=status_order)
 
         return fig
+    
+    def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        if len(selected_colleges) == 1:
+            grouped_df = df.groupby(['scopus', 'program_id']).size().reset_index(name='Count')
+            x_axis = 'program_id'
+            xaxis_title = 'Programs'
+            title = f'Scopus vs. Non-Scopus per Programs in {selected_colleges[0]}'
+        else:
+            grouped_df = df.groupby(['scopus', 'college_id']).size().reset_index(name='Count')
+            x_axis = 'college_id'
+            xaxis_title = 'Colleges'
+            title = 'Scopus vs. Non-Scopus per College'
+        
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color='scopus',
+            barmode='group',
+            color_discrete_map=self.palette_dict
+        )
+        
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400
+        )
 
+        return fig_bar
+    
+    def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        if len(selected_colleges) == 1:
+            grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+            x_axis = 'program_id'
+            xaxis_title = 'Programs'
+            title = f'Publication Formats per Programs in {selected_colleges[0]}'
+        else:
+            grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
+            x_axis = 'college_id'
+            xaxis_title = 'Colleges'
+            title = 'Publication Formats per College'
+        
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color='journal',
+            barmode='group',
+            color_discrete_map=self.palette_dict
+        )
+        
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
+
+    def update_sdg_chart(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        if df.empty:
+            return px.bar(title="No data available")
+
+        df_copy = df.copy()
+
+        if len(selected_colleges) == 1:
+            self.get_program_colors(df)
+            df_copy = df_copy.set_index('program_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
+            df_copy['sdg'] = df_copy['sdg'].str.strip()
+            df_copy = df_copy.drop(columns=['level_1'])
+            sdg_count = df_copy.groupby(['sdg', 'program_id']).size().reset_index(name='Count')
+            pivot_df = sdg_count.pivot(index='sdg', columns='program_id', values='Count').reindex(self.all_sdgs).fillna(0)
+            pivot_df['Total'] = pivot_df.sum(axis=1)
+            pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
+            pivot_df = pivot_df.reindex(self.all_sdgs)
+
+            sorted_programs = sorted(pivot_df.columns)  # Sort programs alphabetically
+            pivot_df = pivot_df[sorted_programs]  # Reorder the columns in pivot_df by the sorted program list
+            title = f'Programs in {selected_colleges} Targeting Each SDG'
+
+            if pivot_df.empty:
+                print("Pivot DataFrame is empty after processing")
+                return px.bar(title="No data available")
+
+            fig = go.Figure()
+
+            for program in sorted_programs:
+                fig.add_trace(go.Bar(
+                    y=pivot_df.index,
+                    x=pivot_df[program],
+                    name=program,
+                    orientation='h',
+                    marker_color=self.program_colors[program]
+                ))
+        else:
+            df_copy = df_copy.set_index('college_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
+            df_copy['sdg'] = df_copy['sdg'].str.strip()
+            df_copy = df_copy.drop(columns=['level_1'])
+            sdg_count = df_copy.groupby(['sdg', 'college_id']).size().reset_index(name='Count')
+            pivot_df = sdg_count.pivot(index='sdg', columns='college_id', values='Count').reindex(self.all_sdgs).fillna(0)
+            pivot_df['Total'] = pivot_df.sum(axis=1)
+            pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
+            pivot_df = pivot_df.reindex(self.all_sdgs)
+
+            title = 'Colleges Targeting Each SDG'
+
+            if pivot_df.empty:
+                print("Pivot DataFrame is empty after processing")
+                return px.bar(title="No data available")
+
+            fig = go.Figure()
+
+            for college in pivot_df.columns:
+                fig.add_trace(go.Bar(
+                    y=pivot_df.index,
+                    x=pivot_df[college],
+                    name=college,
+                    orientation='h',
+                    marker_color=self.palette_dict.get(college, 'grey')
+                ))
+
+        fig.update_layout(
+            barmode='stack',
+            xaxis_title='Count',
+            yaxis_title='SDG Targeted',
+            title=title,
+            yaxis=dict(
+                autorange='reversed',
+                tickvals=self.all_sdgs,
+                ticktext=self.all_sdgs
+            )
+        )
+        
+        return fig
 
     def set_callbacks(self):
         """
@@ -418,3 +547,34 @@ class MainDashboard:
         )
         def update_research_status_bar_plot(selected_colleges, selected_status, selected_years):
             return self.update_research_status_bar_plot(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_bar_plot', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value')]
+        )
+        def create_publication_bar_chart(selected_colleges, selected_status, selected_years):
+            return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('proceeding_conference_bar_plot', 'figure'),
+            [
+                Input('college', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years):
+            return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('sdg_bar_plot', 'figure'),
+            [
+                Input('college', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_sdg_chart(selected_colleges, selected_status, selected_years):
+            return self.update_sdg_chart(selected_colleges, selected_status, selected_years)
