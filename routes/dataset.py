@@ -14,6 +14,7 @@ def retrieve_dataset():
     latest_status_subquery = db.session.query(
         Status.publication_id,
         Status.status,
+        Status.timestamp,
         func.row_number().over(
             partition_by=Status.publication_id,
             order_by=desc(Status.timestamp)
@@ -89,10 +90,12 @@ def retrieve_dataset():
         Program.program_id,
         Program.program_name,
         sdg_subquery.c.concatenated_sdg,
+        ResearchOutput.research_id,
         ResearchOutput.title,
         adviser_subquery.c.adviser_name,
         panels_subquery.c.concatenated_panels,
         ResearchOutput.date_approved,
+        ResearchOutput.research_type,
         authors_subquery.c.concatenated_authors,
         keywords_subquery.c.concatenated_keywords,
         Publication.journal,
@@ -101,7 +104,8 @@ def retrieve_dataset():
         Conference.conference_venue,
         Conference.conference_title,
         Conference.conference_date,
-        latest_status_subquery.c.status
+        latest_status_subquery.c.status,
+        latest_status_subquery.c.timestamp,
     ).join(College, ResearchOutput.college_id == College.college_id) \
      .join(Program, ResearchOutput.program_id == Program.program_id) \
      .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -117,28 +121,27 @@ def retrieve_dataset():
 
     # Formatting results into a list of dictionaries
     data = [{
-                'college_id': row.college_id,
-                'program_name': row.program_name,
-                'program_id': row.program_id,
-                'title': row.title,
+                'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
+                'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
+                'program_id': row.program_id if pd.notnull(row.program_id) else None,
+                'research_id': row.research_id,
+                'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
                 'date_approved': row.date_approved,
-                'concatenated_authors': row.concatenated_authors,
-                'concatenated_keywords': row.concatenated_keywords,
-                'concatenated_sdg': row.concatenated_sdg,
-                'journal': row.journal,
+                'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',
+                'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
+                'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
+                'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
+                'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
+                'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
-                'conference_venue': row.conference_venue,
-                'conference_title': row.conference_title,
+                'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
+                'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
+                'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "UPLOADED",
-                'simplified_status': (
-                    "ON-GOING" if row.status in ["PRESENTED", "UNDER EVALUATION", "ACCEPTED", "2ND REVIEW", "TO BE PRESENTED", "TO BE PUBLISHED"] else
-                    "PUBLISHED" if row.status in ["PUBLISHED", "INDEXED"] else
-                    row.status if pd.notnull(row.status) else "UPLOADED"
-                ),
-                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else None  # Extract country
-
+                'status': row.status if pd.notnull(row.status) else "READY",
+                'timestamp': row.timestamp,
+                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country'
             } for row in result]
 
-    return jsonify(data)
+    return jsonify({"dataset": [dict(row) for row in data]})

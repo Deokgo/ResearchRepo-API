@@ -93,7 +93,7 @@ class DatabaseManager:
                 'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
                 'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
-                'journal': row.journal if pd.notnull(row.journal) else 'No Journal',
+                'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
                 'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,

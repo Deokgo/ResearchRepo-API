@@ -101,21 +101,30 @@ class MainDashboard:
             dbc.Row([
                 dbc.Col(
                     self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                    width=3
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
                 dbc.Col(
                     self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                    width=3
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
                 dbc.Col(
                     self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
-                    width=3
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
                 dbc.Col(
-                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
-                    width=3
+                    self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 )
-            ])
+            ], justify="center")
         ], style={"transform": "scale(1)", "transform-origin": "0 0"})
 
         main_dash = dbc.Container([
@@ -348,6 +357,8 @@ class MainDashboard:
     def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
+        df = df[df['scopus'] != 'N/A']
+
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['scopus', 'program_id']).size().reset_index(name='Count')
             x_axis = 'program_id'
@@ -365,7 +376,8 @@ class MainDashboard:
             y='Count',
             color='scopus',
             barmode='group',
-            color_discrete_map=self.palette_dict
+            color_discrete_map=self.palette_dict,
+            labels={'scopus': 'Scopus vs. Non-Scopus'}
         )
         
         fig_bar.update_layout(
@@ -381,6 +393,8 @@ class MainDashboard:
     def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
+        df = df[df['journal'] != 'unpublished']
+
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
             x_axis = 'program_id'
@@ -391,14 +405,15 @@ class MainDashboard:
             x_axis = 'college_id'
             xaxis_title = 'Colleges'
             title = 'Publication Formats per College'
-        
+
         fig_bar = px.bar(
             grouped_df,
             x=x_axis,
             y='Count',
             color='journal',
             barmode='group',
-            color_discrete_map=self.palette_dict
+            color_discrete_map=self.palette_dict,
+            labels={'journal': 'Publication Format'}
         )
         
         fig_bar.update_layout(
@@ -410,6 +425,7 @@ class MainDashboard:
         )
 
         return fig_bar
+
 
     def update_sdg_chart(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
