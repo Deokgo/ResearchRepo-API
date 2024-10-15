@@ -1,5 +1,3 @@
-#Created by Jelly Mallari
-
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
@@ -46,9 +44,9 @@ class DatabaseManager:
                 func.string_agg(Keywords.keyword, '; ').label('concatenated_keywords')
             ).group_by(Keywords.research_id).subquery()
 
-            # Subquery to concatenate sdg
+            # Subquery to concatenate SDG
             sdg_subquery = session.query(
-                SDG.research_id,  # This should reference the SDG table, not Keywords
+                SDG.research_id,
                 func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
             ).group_by(SDG.research_id).subquery()
 
@@ -83,85 +81,87 @@ class DatabaseManager:
 
             result = query.all()
 
-            # Formatting results into a list of dictionaries
+            # Formatting results into a list of dictionaries with safe handling for missing data
             data = [{
-                'college_id': row.college_id,
-                'program_name': row.program_name,
-                'program_id': row.program_id,
-                'title': row.title,
+                'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
+                'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
+                'program_id': row.program_id if pd.notnull(row.program_id) else None,
+                'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
                 'date_approved': row.date_approved,
-                'concatenated_authors': row.concatenated_authors,
-                'concatenated_keywords': row.concatenated_keywords,
-                'sdg': row.concatenated_sdg,
-                'research_type': row.research_type,
-                'journal': row.journal,
-                'scopus':row.scopus,
+                'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',
+                'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
+                'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
+                'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
+                'journal': row.journal if pd.notnull(row.journal) else 'No Journal',
+                'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
                 'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
-                'conference_venue': row.conference_venue,
-                'conference_title': row.conference_title,
+                'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
+                'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
                 'status': row.status if pd.notnull(row.status) else "READY",
-                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else None  # Extract country
-
+                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country'
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame
             self.df = pd.DataFrame(data)
-        
-
 
         finally:
             session.close()
-        
-        
+
         return self.df
-    
 
     def get_unique_values(self, column_name):
-        
-        if column_name in self.df.columns:
-            return self.df[column_name].unique()
+        if self.df is not None and column_name in self.df.columns:
+            unique_values = self.df[column_name].dropna().unique()
+            if len(unique_values) == 0:
+                print(f"Warning: Column '{column_name}' exists but contains no values.")
+            return unique_values
         else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
-    def get_columns(self):
-        return self.df.columns.tolist()
+            return []  # Return an empty list if the column doesn't exist or has no values
 
-    def filter_data(self, column_name, value, invert):
+    def get_columns(self):
+        return self.df.columns.tolist() if self.df is not None else []
+
+    def filter_data(self, column_name, value, invert=False):
         if self.df is not None:
-            if invert:
-                return self.df[self.df[column_name] != value]
+            if column_name in self.df.columns:
+                if invert:
+                    return self.df[self.df[column_name] != value]
+                else:
+                    return self.df[self.df[column_name] == value]
             else:
-                return self.df[self.df[column_name] == value]
+                raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
         else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
-        
-    def filter_data_by_list(self, column_name, values, invert):
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+
+    def filter_data_by_list(self, column_name, values, invert=False):
         if self.df is not None:
-            if invert:
-                return self.df[~self.df[column_name].isin(values)]
+            if column_name in self.df.columns:
+                if invert:
+                    return self.df[~self.df[column_name].isin(values)]
+                else:
+                    return self.df[self.df[column_name].isin(values)]
             else:
-                return self.df[self.df[column_name].isin(values)]
+                raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
         else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
-    
-    
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+
     def get_min_value(self, column_name):
-        if self.df is not None:
+        if self.df is not None and column_name in self.df.columns:
             return self.df[column_name].min()
         else:
-            raise ValueError("Data not loaded. Please call 'connect()' first.")
-    
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+
     def get_max_value(self, column_name):
-        if self.df is not None:
+        if self.df is not None and column_name in self.df.columns:
             return self.df[column_name].max()
         else:
-            raise ValueError("Data not loaded. Please call 'connect()' first.")
-        
+            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+
     def get_filtered_data(self, selected_colleges, selected_status, selected_years):
         if self.df is not None:
-            print(self.df.head())
             filtered_df = self.df[
                 (self.df['college_id'].isin(selected_colleges)) & 
                 (self.df['status'].isin(selected_status)) & 
@@ -169,4 +169,4 @@ class DatabaseManager:
             ]
             return filtered_df
         else:
-            raise ValueError("Data not loaded. Please call 'connect()' first.")
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")

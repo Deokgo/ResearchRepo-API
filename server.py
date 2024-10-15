@@ -1,20 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Flask
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate #install this module in your terminal
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
 from config import Config
 from flask_mail import Mail
-from dashboards.main_dashboard import create_main_dashboard
-from dashboards.main_dash import MainDashboard
-from dashboards.pub_dash import PublicationDash
-from knowledgegraph.knowledgegraph import create_kg_sdg
-import dash_bootstrap_components as dbc
+
 #Initialize the app
 app = Flask(__name__)
+
 CORS(app)
 
 #database Configuration
@@ -27,34 +23,47 @@ mail = Mail(app)
 migrate = Migrate(app, db)
 
 
-# function that checks db if existing or not
+
+# Function that checks the database if it exists or not
 def check_db(db_name, user, password, host='localhost', port='5432'):
     try:
+        # Connect to the default 'postgres' database to manage other databases
         connection = psycopg2.connect(user=user, password=password, host=host, port=port, dbname='postgres')
-        connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)  # To execute CREATE DATABASE outside transactions
         cursor = connection.cursor()
 
-        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+        # Use parameterized query to prevent SQL injection
+        cursor.execute(sql.SQL("SELECT 1 FROM pg_database WHERE datname = %s"), [db_name])
         exists = cursor.fetchone()
 
         if not exists:
-            cursor.execute(f'CREATE DATABASE "{db_name}"')
+            # Create the new database if it doesn't exist
+            cursor.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(db_name)))
             print(f"Database '{db_name}' created successfully.")
         else:
             print(f"Database '{db_name}' already exists.")
     except Exception as error:
-        print(f"Error while creating database: {error}")
+        print(f"Error while creating or checking database: {error}")
     finally:
         if connection:
             cursor.close()
             connection.close()
 
-#
+# Function to check if the tables have any data
+def has_table_data(session, table_model):
+    return session.query(table_model).first() is not None
+
+
+# Check if the database exists and create it if not
 check_db('Research_Data_Integration_System', 'postgres', 'Papasa01!')
 
+# Ensure tables are created after the database check
 with app.app_context():
-    db.create_all()
+    db.create_all()  # This will create all the tables based on your SQLAlchemy models
     print("Tables created successfully.")
+
+
+
 
 
 from routes.auth import auth
@@ -70,14 +79,29 @@ app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
 
 
+from dashboards.main_dashboard import create_main_dashboard
+from dashboards.main_dash import MainDashboard
+from dashboards.pub_dash import PublicationDash
+from knowledgegraph.knowledgegraph import create_kg_sdg
+import dash_bootstrap_components as dbc
+from models import ResearchOutput
 
 # Created by Jelly Mallari | Create Dash apps and link them to Flask app
+# Create Dash apps and link them to Flask app
 def create_dash_apps(app):
-    MainDashboard(app)
-    PublicationDash(app) 
-    create_main_dashboard(app)
-     
-    create_kg_sdg(app)
+    with app.app_context():
+        session = db.session
+
+        # Check if key tables have data before proceeding
+        if has_table_data(session, ResearchOutput):
+            MainDashboard(app)
+            PublicationDash(app)
+            create_main_dashboard(app)
+            create_kg_sdg(app)
+            print("Dash apps created successfully.")
+        else:
+            print("Dash apps cannot be created as no data is present in the ResearchOutput table.")
+
 
 if __name__ == "__main__":
     create_dash_apps(app)
