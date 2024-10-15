@@ -26,21 +26,24 @@ def create_kg_sdg(flask_app):
     # Build the graph
     for index, row in df.iterrows():
         study = row['title']
-        sdg = row['sdg']
+        sdg_list = row['sdg'].split(';')  # Split SDGs by ';' delimiter
         college_id = row['college_id']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
         year = row['date_approved'].year
 
+        # Add study node
         G.add_node(study, type='study', college=college_id, program=program_name,
                    authors=concatenated_authors, year=year)
-        sdg = sdg.strip()
 
-        if not G.has_node(sdg):
-            G.add_node(sdg, type='sdg')
+        # Iterate over each SDG and add edges
+        for sdg in sdg_list:
+            sdg = sdg.strip()  # Remove any leading/trailing spaces
+            if not G.has_node(sdg):
+                G.add_node(sdg, type='sdg')
 
-        connected_nodes[sdg].append(study)
-        G.add_edge(sdg, study)
+            connected_nodes[sdg].append(study)
+            G.add_edge(sdg, study)
 
     pos = nx.spring_layout(G, k=1, weight='weight')
     fixed_pos = {node: pos[node] for node in G.nodes()}
@@ -212,16 +215,16 @@ def create_kg_sdg(flask_app):
                 # Zoom in on the selected SDG node and show its connected studies
                 nodes_to_show = [clicked_node] + [
                     node for node in connected_nodes[clicked_node]
-                    if node in filtered_nodes
+                    if node in filtered_nodes  # Respect current filters
                 ]
-                edges_to_show = [(clicked_node, node) for node in nodes_to_show if node != clicked_node]
-                new_title = f"<br>Research Studies Knowledge Graph - {clicked_node}"
+                edges_to_show = [
+                    edge for edge in G.edges(clicked_node)
+                    if edge[1] in filtered_nodes  # Respect current filters
+                ]
+                new_title = f'<br>Research Studies Knowledge Graph - {clicked_node}'
 
-        # Build the traces based on nodes and edges to show
         edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show, filtered_nodes)
-
-        # Return updated figure
-        return {
+        new_figure = {
             'data': [edge_trace, node_trace],
             'layout': go.Layout(
                 title=new_title,
@@ -233,8 +236,9 @@ def create_kg_sdg(flask_app):
                 height=800,
                 xaxis=dict(showgrid=False, zeroline=False),
                 yaxis=dict(showgrid=False, zeroline=False),
-                transition=dict(duration=500),  # Add transition for animation
+                transition=dict(duration=500),  
             )
         }
+        return new_figure
 
     return dash_app
