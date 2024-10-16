@@ -9,7 +9,6 @@ import plotly.express as px
 import pandas as pd
 from wordcloud import WordCloud
 
-
 class PublicationDash:
     def __init__(self, flask_app):
         """
@@ -116,18 +115,15 @@ class PublicationDash:
         # Display the resulting DataFrame
         print(sorted_keywords_count)
 
-        # Create the keywords bar chart section
-        keywords_bar_section = html.Div([
-            html.H3("Top 10 Keywords"),
-            dcc.Graph(id='keywords-bar-chart')
-        ])
+
+
 
         # Insert into the main_dash layout
         main_dash = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H1("SDG Analytics Dashboard"),
+                        html.H1("SDG Analytics Dashboard", style={'margin':'0px 0px 50px 0px'}),
                         html.H5("Choose SDG:"),
                         dcc.Dropdown(
                             id='sdg-dropdown',
@@ -139,10 +135,11 @@ class PublicationDash:
                             placeholder="Select SDGs",
                             value=distinct_sdg_values,
                             style={'width': '100%'}
-                        ),
-                        html.Br(),
-                        html.Div(id='dropdown-output')
-                    ]),
+                        )
+                    ])])]),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id="keyword-wordcloud",style={"transform": "scale(1)", "transform-origin": "0 0"}),
                     dash_table.DataTable(
                         id='research-table',
                         columns=[],
@@ -153,7 +150,7 @@ class PublicationDash:
                     )
                 ], width=8),
                 dbc.Col([
-                    dcc.Graph(id='publication_format_bar_plot'),
+                    dcc.Graph(id='author-sdg-graph'),
                     dcc.Graph(id='upload_publish_area_chart')
                 ], width=4)
             ], style={"margin": "10px"}),
@@ -163,10 +160,11 @@ class PublicationDash:
                 dbc.Container(
                     [
                         dbc.Row([
+                             dbc.Col(controls, width=2),
                             dbc.Col([
                                 main_dash
-                            ], width=10),
-                            dbc.Col(controls, width=2)
+                            ], width=10,style={"transform": "scale(1)", "transform-origin": "0 0"}),
+                           
                         ]),
                         dcc.Interval(
                             id='interval-component',
@@ -333,7 +331,125 @@ class PublicationDash:
         )
 
         return fig
+    
+    def update_bar_graph(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        if df.empty:  # Handle case where no data is returned
+            return go.Figure()  # Return an empty figure
+        
+        df['author_count'] = df['concatenated_authors'].apply(lambda x: len(x.split(';')))
+        
+        # Step 2: Group by 'published_year' and sum the 'author_count'
+        author_count_per_year = df.groupby('published_year')['author_count'].sum().reset_index()
+        
+        # Add a row for 2024 to the 'author_count_per_year' if it's missing
+        if 2024 not in author_count_per_year['published_year'].values:
+            author_count_per_year = pd.concat([
+                author_count_per_year, 
+                pd.DataFrame({'published_year': [2024], 'author_count': [0]})
+            ], ignore_index=True)
+        
+        # Group by 'year' for uploaded data
+        author_count_per_year1 = df.groupby('year')['author_count'].sum().reset_index()
+        
+        # Display the result
+        print(author_count_per_year)
+        
+        # Merge both dataframes so that we can overlay them on the same plot
+        # We assume 'published_year' and 'year' are related but different contexts
+        combined_df = pd.merge(author_count_per_year, author_count_per_year1, how='outer', left_on='published_year', right_on='year', suffixes=('_published', '_uploaded'))
+        
+        # Create the bar chart with overlay
+        fig = go.Figure()
 
+        # Add the "published_year" trace
+        fig.add_trace(
+            go.Line(
+                x=combined_df['published_year'],
+                y=combined_df['author_count_published'],
+                name='Published Year',
+                marker_color='blue',  # Customize the color for published data
+                opacity=0.6  # Make it slightly transparent to see overlapping bars
+            )
+        )
+        
+        # Add the "year" trace
+        fig.add_trace(
+            go.Bar(
+                x=combined_df['published_year'],
+                y=combined_df['author_count_uploaded'],
+                name='Uploaded Year',
+                marker_color='orange',  # Customize the color for uploaded data
+                opacity=0.6  # Make it slightly transparent
+            )
+        )
+        
+        # Update layout with better readability
+        fig.update_layout(
+            barmode='overlay',  # Overlay both bars on top of each other
+            xaxis_title='Year',
+            yaxis_title='Number of Authors',
+            title='Comparing Published vs. Uploaded Authors',
+            xaxis_tickangle=0,  # Rotate x-axis labels for better readability
+            template='plotly_white',  # Use a white background template
+            margin=dict(l=0, r=0, t=30, b=0),  # Adjust margins
+            height=350,  # Set the height of the figure
+            showlegend=True,
+            legend=dict(
+                orientation="h",  # Horizontal orientation
+                yanchor="top",  # Anchor to the bottom
+                y=-0.2,  # Position below the plot area
+                xanchor="center",  # Center anchor
+                x=0.5  # Center position
+            )
+        )
+        
+        return fig
+    
+    def generate_wordcloud(self, selected_colleges, selected_status, selected_years):
+        # Fetch filtered data
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        df['concatenated_keywords'] = df['concatenated_keywords'].str.replace(' ', '_', regex=False)
+        
+        # Step 1: Split 'concatenated_keywords' by semicolon and strip leading/trailing spaces
+        keywords_series = df['concatenated_keywords'].str.split(';').explode().str.strip()
+
+        # Step 2: Get the count of each keyword after splitting and trimming
+        keywords_count = keywords_series.value_counts().reset_index()
+
+        # Step 3: Rename columns to 'Keyword' and 'Count'
+        keywords_count.columns = ['Keyword', 'Count']
+
+        # Step 4: Create a string of keywords for the word cloud
+        keywords_string = ' '.join(keywords_count['Keyword'].values)
+        
+        # Step 5: Generate the word cloud
+        wordcloud = WordCloud(
+            background_color='white',
+            width=1600,
+            height=800,
+            max_words=200
+        ).generate(keywords_string)
+
+        # Step 6: Convert the word cloud image to a plotly figure
+        fig = go.Figure()
+
+        # Convert wordcloud to image array and plot it using plotly
+        fig.add_trace(go.Image(z=wordcloud.to_array()))
+
+        # Update layout
+        fig.update_layout(
+            title="Keywords Word Cloud",
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        return fig
+    
 
     
     def set_callbacks(self):
@@ -376,6 +492,14 @@ class PublicationDash:
         )
         def update_publication_bar_chart(selected_colleges, selected_status, selected_years):
             return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years)
+        @self.dash_app.callback(
+            Output('author-sdg-graph', 'figure'),
+            [Input('college', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value')]  # Adjust these inputs based on the actual component IDs
+        )
+        def update_graph(selected_colleges, selected_status, selected_years):
+            return self.update_bar_graph(selected_colleges, selected_status, selected_years) 
         
         @self.dash_app.callback(
             Output('upload_publish_area_chart', 'figure'),  # Add an ID for your area chart
@@ -385,5 +509,15 @@ class PublicationDash:
         )
         def update_upload_publish_area_chart(selected_colleges, selected_status, selected_years):
             return self.create_area_chart(selected_colleges, selected_status, selected_years)
+        # Callback for the Word Cloud
+        @self.dash_app.callback(
+            Output('keyword-wordcloud', 'figure'),
+            [Input('college', 'value'),
+             Input('status', 'value'),
+             Input('years', 'value')]
+        )
+        def update_wordcloud(selected_colleges, selected_status, selected_years):
+            return self.generate_wordcloud(selected_colleges, selected_status, selected_years)
         
+                      
         

@@ -112,6 +112,7 @@ class DatabaseManager:
 
             # Convert the list of dictionaries to a DataFrame
             self.df = pd.DataFrame(data)
+            print(self.df.columns)
 
         finally:
             session.close()
