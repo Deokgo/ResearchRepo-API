@@ -115,7 +115,10 @@ def retrieve_dataset():
      .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
      .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
      .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
-     .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id)
+     .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
+     .filter(latest_status_subquery.c.timestamp.isnot(None)) \
+     .order_by(desc(latest_status_subquery.c.timestamp))
+
 
     result = query.all()
 
