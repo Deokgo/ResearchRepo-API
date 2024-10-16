@@ -7,6 +7,8 @@ from . import db_manager
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+from wordcloud import WordCloud
+
 
 class PublicationDash:
     def __init__(self, flask_app):
@@ -86,46 +88,75 @@ class PublicationDash:
                 college, status, slider, button
             ],
             body=True,
-            style={"height": "95vh", "display": "flex", "flexDirection": "column"}
+            style={"height": "100vh", "display": "flex", "flexDirection": "column"}
         )
 
+        all_sdgs = [f'SDG {i}' for i in range(1, 18)]
 
-        main_dash = dbc.Container([     
-            dbc.Row([  # Row for the world map chart
+        # Sample DataFrame for testing
+        df = db_manager.get_all_data()  # Fetch all data
+        sdg_series = df['sdg'].str.split('; ').explode()
+
+        # Step 2: Drop duplicates to get distinct SDG values
+        distinct_sdg_df = pd.DataFrame(sdg_series.drop_duplicates().reset_index(drop=True), columns=['sdg'])
+        distinct_sdg_values = distinct_sdg_df['sdg'].tolist()  # Convert distinct SDG column to list
+
+        
+        # Split 'concatenated_keywords' by semicolon and strip leading/trailing spaces
+        keywords_series = df['concatenated_keywords'].str.split(';').explode().str.strip()
+
+        # Get the count of each keyword after splitting and trimming
+        keywords_count = keywords_series.value_counts().reset_index()
+
+        # Rename the columns to 'Keyword' and 'Count'
+        keywords_count.columns = ['Keyword', 'Count']
+
+        sorted_keywords_count = keywords_count.sort_values(by='Count', ascending=False).reset_index(drop=True)
+
+        # Display the resulting DataFrame
+        print(sorted_keywords_count)
+
+        # Create the keywords bar chart section
+        keywords_bar_section = html.Div([
+            html.H3("Top 10 Keywords"),
+            dcc.Graph(id='keywords-bar-chart')
+        ])
+
+        # Insert into the main_dash layout
+        main_dash = dbc.Container([
+            dbc.Row([
                 dbc.Col([
-                    dcc.Graph(
-                        id='conference_loc',style={"transform": "scale(0.9)", "transform-origin": "0 0" }),
+                    html.Div([
+                        html.H1("SDG Analytics Dashboard"),
+                        html.H5("Choose SDG:"),
+                        dcc.Dropdown(
+                            id='sdg-dropdown',
+                            options=[
+                                {'label': sdg, 'value': sdg, 'disabled': sdg not in distinct_sdg_values}
+                                for sdg in all_sdgs
+                            ],
+                            multi=True,
+                            placeholder="Select SDGs",
+                            value=distinct_sdg_values,
+                            style={'width': '100%'}
+                        ),
+                        html.Br(),
+                        html.Div(id='dropdown-output')
+                    ]),
                     dash_table.DataTable(
                         id='research-table',
-                        columns=[],  # Columns will be populated by callback
-                        data=[],  # Data will be populated by callback
+                        columns=[],
+                        data=[],
                         style_table={'overflowX': 'auto'},
                         style_cell={'textAlign': 'left'},
-                        page_size=6  # Set page size for better UX
-                )],
-                    width=8,
-                    style={
-                        "height": "auto", 
-                        "border": "2px solid #007bff",  # Add a solid border
-                        "borderRadius": "5px"         # Optional: Add rounded corners               # Optional: Add some padding
-                    }
-                ),
+                        page_size=10
+                    )
+                ], width=8),
                 dbc.Col([
                     dcc.Graph(id='publication_format_bar_plot'),
-                    dcc.Graph(id='upload_publish_area_chart')],
-                    width=4,
-                    style={
-                        "height": "auto", 
-                        "border": "2px solid #007bff",  # Add a solid border
-                        "borderRadius": "5px",           # Optional: Add rounded corners               # Optional: Add some padding
-                    }
-                )
+                    dcc.Graph(id='upload_publish_area_chart')
+                ], width=4)
             ], style={"margin": "10px"}),
-            dbc.Row([  # Row for the world map chart
-                dbc.Col(
-                    
-                width=8)
-            ], style={"margin": "10px"})
         ], fluid=True)
 
         self.dash_app.layout = html.Div([
@@ -134,7 +165,7 @@ class PublicationDash:
                         dbc.Row([
                             dbc.Col([
                                 main_dash
-                            ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
+                            ], width=10),
                             dbc.Col(controls, width=2)
                         ]),
                         dcc.Interval(
@@ -165,71 +196,31 @@ class PublicationDash:
                             "margin": "5px"                  # Space between columns
                         }))
         ])
-    
-    def update_world_map(self, selected_colleges, selected_status, selected_years): # Added by Nicole Cabansag
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        df = df.dropna()
-        if 'country' not in df.columns or df['country'].isnull().all():
-            return dcc.Graph()  
-
-        country_counts = df.groupby('country').size().reset_index(name='Count')
-
-        fig = px.choropleth(
-            country_counts,
-            locations='country',  
-            locationmode='country names', 
-            color='Count',  
-            hover_name='country',  
-            color_continuous_scale=px.colors.sequential.Plasma,  
-            title="International Conference Distribution"
-        )
-
-        fig.update_layout(
-            width=900,  # Adjust width
-            height= 500,  # Adjust height
-            geo=dict(showframe=False, showcoastlines=False),
-            title_x=0.5
-        )
 
 
-        return fig
-    
-    
+
     def get_conference_data(self, selected_colleges, selected_status, selected_years):
-        """
-        Fetches the conference data and counts the number of journals and proceedings by country.
-        Orders the result by the total count (journal count + proceeding count) in descending order.
-        Includes SDG in the final output but does not include it in the journal and proceeding counts.
-        """
-        # Fetch data from the database using DatabaseManager or the appropriate method
+        # Fetch filtered data from the database using DatabaseManager or the appropriate method
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        # Exclude rows where 'conference_title' is 'No conference title'
+        df = df[df['conference_title'] != 'No Conference Title']
 
-        # Filter relevant columns and drop rows with null values in 'country' and 'date_published' columns
-        conference_df = df[['country', 'sdg', 'journal', 'date_published']].dropna(subset=['country', 'date_published'])
+        result = df.groupby('conference_title').agg(
+            aggregated_sdg=pd.NamedAgg(column='sdg', aggfunc=lambda x: ', '.join(set([sdg for sublist in x.str.split('; ') for sdg in sublist]))),
+            number_of_titles=pd.NamedAgg(column='title', aggfunc='count')
+        ).reset_index()
 
-        # Group by country and aggregate data
-        conference_counts = (
-            conference_df.groupby('country', as_index=False)
-            .agg(
-                SDG_List=('sdg', lambda x: ', '.join(sorted(set(x)))),
-                Journal_Count=('journal', lambda x: (x.str.lower() == 'journal').sum()),  # Count entries marked as 'journal'
-                Proceeding_Count=('journal', lambda x: (x.str.lower() == 'proceeding').sum())  # Count entries marked as 'proceeding'
-                  # List unique SDGs, sorted alphabetically
-            )
-        )
+        # Sort by 'number_of_titles' in descending order (change to ascending=True if needed)
+        result = result.sort_values(by='number_of_titles', ascending=False).reset_index(drop=True)
 
-        # Calculate total count as a new column
-        conference_counts['Total_Count'] = conference_counts['Journal_Count'] + conference_counts['Proceeding_Count']
+        result = result.rename(columns={
+        'conference_title': 'Conference Title',
+        'aggregated_sdg': 'SDGs Presented',
+        'number_of_titles': 'Current # of Papers Published'
+        })
 
-        # Order by total count in descending order
-        conference_counts = conference_counts.sort_values(by='Total_Count', ascending=False)
+        return result
 
-        # Return all columns except 'Total_Count'
-        return conference_counts.drop(columns=['Total_Count'])
-
-
-
-    
 
     def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
         # Fetch the filtered data from the db_manager
@@ -290,8 +281,6 @@ class PublicationDash:
         # Fill NaN values with 0 for count columns
         combined_counts.fillna(0, inplace=True)
 
-        # Display the combined DataFrame
-        print(combined_counts.columns.tolist)
         
         return combined_counts
 
@@ -304,7 +293,6 @@ class PublicationDash:
         """
         # Get the counts
         counts_df = self.get_uploaded_and_published_counts(selected_colleges, selected_status, selected_years)
-        print(counts_df)
 
         # Create the histogram chart
         fig = go.Figure()
@@ -379,14 +367,6 @@ class PublicationDash:
 
             return data, columns
         
-        @self.dash_app.callback(
-            Output('conference_loc', 'figure'),  # Changed 'children' to 'figure'
-            [Input('college', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value')]
-        )
-        def update_map(selected_colleges, selected_status, selected_years):
-            return self.update_world_map(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
             Output('publication_format_bar_plot', 'figure'),
@@ -405,6 +385,5 @@ class PublicationDash:
         )
         def update_upload_publish_area_chart(selected_colleges, selected_status, selected_years):
             return self.create_area_chart(selected_colleges, selected_status, selected_years)
-
-
+        
         

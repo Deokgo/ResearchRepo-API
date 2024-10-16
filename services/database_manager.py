@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG
+from services.data_fetcher import ResearchDataFetcher
 
 class DatabaseManager:
     def __init__(self, database_uri):
@@ -10,6 +11,11 @@ class DatabaseManager:
         self.df = None
 
         self.get_all_data()
+
+    def get_data_from_model(self,model):
+        fetcher = ResearchDataFetcher(model)
+        data = fetcher.get_data_from_model()
+        return data
 
     def get_all_data(self):
         session = self.Session()
