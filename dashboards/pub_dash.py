@@ -140,19 +140,24 @@ class PublicationDash:
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id="keyword-wordcloud",style={"transform": "scale(1)", "transform-origin": "0 0"}),
+                    html.H4("Research Conferences", style={'textAlign': 'left', 'margin-bottom': '10px'}),
                     dash_table.DataTable(
                         id='research-table',
                         columns=[],
                         data=[],
-                        style_table={'overflowX': 'auto'},
-                        style_cell={'textAlign': 'left'},
-                        page_size=10
+                        style_table={'overflowX': 'inherit'},
+                        style_cell={'textAlign': 'left','whiteSpace': 'normal',    # Allows text to wrap naturally
+                                    'wordWrap': 'break-word',  # Breaks long words and wraps them to the next line
+                                    'wordBreak': 'break-word', # Forces a break in words if necessary
+                                    'maxWidth': '200px',       # Optional: Sets the maximum width for the cell
+                                    'overflow': 'hidden'},      
+                        page_size=6
                     )
-                ], width=8),
+                ], width=8, style={"border": "1px solid black", "padding": "10px", "margin-bottom": "10px"}),
                 dbc.Col([
                     dcc.Graph(id='author-sdg-graph'),
                     dcc.Graph(id='upload_publish_area_chart')
-                ], width=4)
+                ], width=4, style={"border": "1px solid black", "padding": "10px", "margin-bottom": "10px"})
             ], style={"margin": "10px"}),
         ], fluid=True)
 
@@ -197,12 +202,22 @@ class PublicationDash:
 
 
 
-    def get_conference_data(self, selected_colleges, selected_status, selected_years):
+    def get_conference_data(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Fetch filtered data from the database using DatabaseManager or the appropriate method
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Check if sdg_dropdown_value is provided for additional filtering
+        if sdg_dropdown_value and len(sdg_dropdown_value) > 0:
+            # If sdg_dropdown_value is not empty, filter the dataframe based on SDGs
+            df = df[df['sdg'].apply(lambda x: any(sdg in x.split('; ') for sdg in sdg_dropdown_value))]
+        else:
+            # If sdg_dropdown_value is empty, skip the SDG filtering
+            print("No SDGs selected, returning data filtered only by college, status, and years.")
+
         # Exclude rows where 'conference_title' is 'No conference title'
         df = df[df['conference_title'] != 'No Conference Title']
 
+        # Aggregation of SDGs and counting the number of titles per conference
         result = df.groupby('conference_title').agg(
             aggregated_sdg=pd.NamedAgg(column='sdg', aggfunc=lambda x: ', '.join(set([sdg for sublist in x.str.split('; ') for sdg in sublist]))),
             number_of_titles=pd.NamedAgg(column='title', aggfunc='count')
@@ -211,21 +226,33 @@ class PublicationDash:
         # Sort by 'number_of_titles' in descending order (change to ascending=True if needed)
         result = result.sort_values(by='number_of_titles', ascending=False).reset_index(drop=True)
 
+        # Rename columns for better readability
         result = result.rename(columns={
-        'conference_title': 'Conference Title',
-        'aggregated_sdg': 'SDGs Presented',
-        'number_of_titles': 'Current # of Papers Published'
+            'conference_title': 'Conference Title',
+            'aggregated_sdg': 'SDGs Presented',
+            'number_of_titles': 'Number of Published Papers'
         })
 
         return result
 
 
-    def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+
+    def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):  # Modified by Nicole Cabansag
         # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         if df.empty:  # Handle case where no data is returned
             return go.Figure()  # Return an empty figure
+        
+        # Check if sdg_dropdown_value is provided for additional filtering
+        if sdg_dropdown_value and len(sdg_dropdown_value) > 0:
+            # If sdg_dropdown_value is not empty, filter the dataframe based on SDGs
+            df = df[df['sdg'].apply(lambda x: any(sdg in x.split('; ') for sdg in sdg_dropdown_value))]
+        else:
+            # If sdg_dropdown_value is empty, skip the SDG filtering
+            print("No SDGs selected, returning data filtered only by college, status, and years.")
+
+        # The dataframe `df` is now filtered by the selected colleges, status, years, and (if selected) SDGs
 
         # Group by College, Scopus, and Journal
         grouped_df = df.groupby([ 'scopus', 'journal']).size().reset_index(name='Count')
@@ -263,9 +290,19 @@ class PublicationDash:
         return fig_bar
     
 
-    def get_uploaded_and_published_counts(self, selected_colleges, selected_status, selected_years):
+    def get_uploaded_and_published_counts(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
         # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Check if sdg_dropdown_value is provided for additional filtering
+        if sdg_dropdown_value and len(sdg_dropdown_value) > 0:
+            # If sdg_dropdown_value is not empty, filter the dataframe based on SDGs
+            df = df[df['sdg'].apply(lambda x: any(sdg in x.split('; ') for sdg in sdg_dropdown_value))]
+        else:
+            # If sdg_dropdown_value is empty, skip the SDG filtering
+            print("No SDGs selected, returning data filtered only by college, status, and years.")
+
+        # The dataframe `df` is now filtered by the selected colleges, status, years, and (if selected) SDGs
         # Count occurrences of each year and published_year
         year_counts = df['year'].value_counts().reset_index()
         year_counts.columns = ['year', 'year_count']  # Rename columns
@@ -285,12 +322,12 @@ class PublicationDash:
 
     
 
-    def create_area_chart(self, selected_colleges, selected_status, selected_years):
+    def create_area_chart(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
         """
         Creates a histogram for uploaded and published papers per year.
         """
         # Get the counts
-        counts_df = self.get_uploaded_and_published_counts(selected_colleges, selected_status, selected_years)
+        counts_df = self.get_uploaded_and_published_counts(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
 
         # Create the histogram chart
         fig = go.Figure()
@@ -332,12 +369,22 @@ class PublicationDash:
 
         return fig
     
-    def update_bar_graph(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+    def update_bar_graph(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):  # Modified by Nicole Cabansag
         # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         if df.empty:  # Handle case where no data is returned
             return go.Figure()  # Return an empty figure
+        
+        # Check if sdg_dropdown_value is provided for additional filtering
+        if sdg_dropdown_value and len(sdg_dropdown_value) > 0:
+            # If sdg_dropdown_value is not empty, filter the dataframe based on SDGs
+            df = df[df['sdg'].apply(lambda x: any(sdg in x.split('; ') for sdg in sdg_dropdown_value))]
+        else:
+            # If sdg_dropdown_value is empty, skip the SDG filtering
+            print("No SDGs selected, returning data filtered only by college, status, and years.")
+
+        # The dataframe `df` is now filtered by the selected colleges, status, years, and (if selected) SDGs
         
         df['author_count'] = df['concatenated_authors'].apply(lambda x: len(x.split(';')))
         
@@ -369,7 +416,7 @@ class PublicationDash:
             go.Line(
                 x=combined_df['published_year'],
                 y=combined_df['author_count_published'],
-                name='Published Year',
+                name='Published Papers',
                 marker_color='blue',  # Customize the color for published data
                 opacity=0.6  # Make it slightly transparent to see overlapping bars
             )
@@ -380,7 +427,7 @@ class PublicationDash:
             go.Bar(
                 x=combined_df['published_year'],
                 y=combined_df['author_count_uploaded'],
-                name='Uploaded Year',
+                name='Uploaded Papers',
                 marker_color='orange',  # Customize the color for uploaded data
                 opacity=0.6  # Make it slightly transparent
             )
@@ -391,7 +438,7 @@ class PublicationDash:
             barmode='overlay',  # Overlay both bars on top of each other
             xaxis_title='Year',
             yaxis_title='Number of Authors',
-            title='Comparing Published vs. Uploaded Authors',
+            title='Contributors per Year ',
             xaxis_tickangle=0,  # Rotate x-axis labels for better readability
             template='plotly_white',  # Use a white background template
             margin=dict(l=0, r=0, t=30, b=0),  # Adjust margins
@@ -408,9 +455,20 @@ class PublicationDash:
         
         return fig
     
-    def generate_wordcloud(self, selected_colleges, selected_status, selected_years):
+    def generate_wordcloud(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
         # Fetch filtered data
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+
+        # Check if sdg_dropdown_value is provided for additional filtering
+        if sdg_dropdown_value and len(sdg_dropdown_value) > 0:
+            # If sdg_dropdown_value is not empty, filter the dataframe based on SDGs
+            df = df[df['sdg'].apply(lambda x: any(sdg in x.split('; ') for sdg in sdg_dropdown_value))]
+        else:
+            # If sdg_dropdown_value is empty, skip the SDG filtering
+            print("No SDGs selected, returning data filtered only by college, status, and years.")
+
+        # The dataframe `df` is now filtered by the selected colleges, status, years, and (if selected) SDGs
 
         df['concatenated_keywords'] = df['concatenated_keywords'].str.replace(' ', '_', regex=False)
         
@@ -471,11 +529,12 @@ class PublicationDash:
             [Input('interval-component', 'n_intervals'),
              Input('college', 'value'),
             Input('status', 'value'),
-            Input('years', 'value')]
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value')]
         )
-        def update_research_table(n_intervals,selected_colleges, selected_status, selected_years):
+        def update_research_table(n_intervals,selected_colleges, selected_status, selected_years,sdg_dropdown_value):
             # Get the grouped conference data
-            conference_counts = self.get_conference_data(selected_colleges, selected_status, selected_years)
+            conference_counts = self.get_conference_data(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
 
             # Format the data for the DataTable
             data = conference_counts.to_dict('records')  # Convert DataFrame to a list of dictionaries
@@ -488,36 +547,40 @@ class PublicationDash:
             Output('publication_format_bar_plot', 'figure'),
             [Input('college', 'value'), 
              Input('status', 'value'), 
-             Input('years', 'value')]
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
         )
-        def update_publication_bar_chart(selected_colleges, selected_status, selected_years):
-            return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years)
+        def update_publication_bar_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
         @self.dash_app.callback(
             Output('author-sdg-graph', 'figure'),
             [Input('college', 'value'),
             Input('status', 'value'),
-            Input('years', 'value')]  # Adjust these inputs based on the actual component IDs
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value')]  # Adjust these inputs based on the actual component IDs
         )
-        def update_graph(selected_colleges, selected_status, selected_years):
-            return self.update_bar_graph(selected_colleges, selected_status, selected_years) 
+        def update_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            return self.update_bar_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value) 
         
         @self.dash_app.callback(
             Output('upload_publish_area_chart', 'figure'),  # Add an ID for your area chart
             [Input('college', 'value'), 
             Input('status', 'value'), 
-            Input('years', 'value')]
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value')]
         )
-        def update_upload_publish_area_chart(selected_colleges, selected_status, selected_years):
-            return self.create_area_chart(selected_colleges, selected_status, selected_years)
+        def update_upload_publish_area_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            return self.create_area_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
         # Callback for the Word Cloud
         @self.dash_app.callback(
             Output('keyword-wordcloud', 'figure'),
             [Input('college', 'value'),
              Input('status', 'value'),
-             Input('years', 'value')]
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
         )
-        def update_wordcloud(selected_colleges, selected_status, selected_years):
-            return self.generate_wordcloud(selected_colleges, selected_status, selected_years)
+        def update_wordcloud(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            return self.generate_wordcloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
         
                       
         
