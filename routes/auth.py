@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from models.account import Account
 from models.user_profile import UserProfile
+from models.visitor import Visitor
 from werkzeug.security import check_password_hash
 import jwt
 import datetime
@@ -54,12 +55,12 @@ def add_user():
     data = request.json
 
     #ensure all required fields are present
-    required_fields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'department', 'program']
+    required_fields = ['firstName', 'lastName', 'email', 'institution', 'reason', 'password', 'confirmPassword']
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
         
-    user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
+    user_id = auth_services.formatting_id('US', Visitor, 'visitor_id')
 
     response, status_code=user_srv.add_new_user(user_id,data) #role_id assigned to Researcher by default
     
@@ -70,6 +71,10 @@ def add_user():
         # Modify the response to include the token
         response_data = response.get_json()  # Extract the JSON data from the original response
         response_data['token'] = token  # Add the token
+
+        #log the successful login in the Audit_Trail
+        auth_services.log_audit_trail(user_id=user_id, table_name='Account and Visitor', record_id=None,
+                    operation='SIGNUP', action_desc='Created Account')
 
         return jsonify(response_data), status_code
 

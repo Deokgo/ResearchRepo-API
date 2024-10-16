@@ -1,19 +1,19 @@
 import datetime
 import jwt
 from flask import Blueprint, request, jsonify, current_app
-from models import db, UserProfile, Account
+from models import db, Visitor, Account
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
 
-def add_new_user(user_id,data, assigned='04'):
+def add_new_user(user_id,data, assigned='06'):
     """Add a new user to the database."""
     
     try:
         # Insert data into the Account table
         new_account = Account(
             user_id=user_id,  # assuming email is used as the user_id
-            email=data['email'],  # Mapúa MCL live account
+            email=data['email'],  # email account
             user_pw=generate_password_hash(data['password']),
             acc_status='ACTIVATED',  # assuming account is activated by default
             role_id=assigned,  
@@ -21,16 +21,16 @@ def add_new_user(user_id,data, assigned='04'):
         db.session.add(new_account)
 
         # Insert data into the Researcher table
-        new_researcher = UserProfile(
-            researcher_id=new_account.user_id,  # use the user_id from Account
-            college_id=data['department'],  # department corresponds to college_id
-            program_id=data['program'],  # program corresponds to program_id
+        new_visitor = Visitor(
+            visitor_id=new_account.user_id,  # use the user_id from Account
+            institution=data['institution'],  # department corresponds to college_id
             first_name=data['firstName'],
             middle_name=data.get('middleName'),  # allowing optional fields
             last_name=data['lastName'],
-            suffix=data.get('suffix')  # allowing optional suffix
+            suffix=data.get('suffix'),  # allowing optional suffix
+            reason=data['reason']
         )
-        db.session.add(new_researcher)
+        db.session.add(new_visitor)
 
         # Commit both operations
         db.session.commit()
