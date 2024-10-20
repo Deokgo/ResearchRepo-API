@@ -154,6 +154,25 @@ class MainDashboard:
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
+        """
+        # Add the DataTable
+        data_table_section = dbc.Container([
+            dbc.Row([
+                dbc.Col(
+                    dash_table.DataTable(
+                        id='data_table',
+                        columns=[{"name": col, "id": col} for col in db_manager.get_all_data().columns],
+                        data=db_manager.get_all_data().to_dict('records'),
+                        style_table={'height': '400px', 'overflowY': 'auto'},
+                        style_cell={'textAlign': 'left'},
+                        page_size=10,
+                    ),
+                    width=12
+                )
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+        """
+
         self.dash_app.layout = html.Div([
                 dbc.Container(
                     [
@@ -164,6 +183,7 @@ class MainDashboard:
                                 sub_dash1,
                                 sub_dash3,
                                 sub_dash2
+                                #data_table_section  # Add the table section below the sub_dash sections
                             ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                             dbc.Col(controls, width=2)
                         ])
