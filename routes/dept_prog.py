@@ -49,3 +49,19 @@ def get_programs_by_college():
 
     except Exception as e:
         return jsonify({"message": f"Error retrieving all programs: {str(e)}"}), 500
+
+@deptprogs.route('/fetch_programs', methods=['GET'])
+def get_all_programs():
+    try:
+        #retrieve all colleges from the database
+        progs = Program.query.order_by(Program.program_id.asc()).all()
+        prog_list = [{
+            "program_id": prog.program_id,
+            "program_name": prog.program_name
+        } for prog in progs]
+
+        #return the list of colleges
+        return jsonify({"colleges": prog_list}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving all college departments: {str(e)}"}), 404
