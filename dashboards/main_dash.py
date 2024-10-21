@@ -56,7 +56,9 @@ class MainDashboard:
                 dbc.Label("Select Status:"),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
+                    options=[{'label': value, 'value': value} for value in sorted(
+                        db_manager.get_unique_values('status'), key=lambda x: (x != 'READY', x != 'PULLOUT', x)
+                    )],
                     value=db_manager.get_unique_values('status'),
                     inline=True,
                 ),
@@ -100,17 +102,12 @@ class MainDashboard:
         text_display = dbc.Container([
             dbc.Row([
                 dbc.Col(
-                    self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
+                    self.create_display_card("Research Papers", str(len(db_manager.get_all_data()))),
                     width=2,
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
                 dbc.Col(
-                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                    width=2,
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
+                    self.create_display_card("For Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
                     width=2,
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
@@ -120,10 +117,20 @@ class MainDashboard:
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
                 ),
                 dbc.Col(
-                    self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
+                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
                     width=2,
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
-                )
+                ),
+                dbc.Col(
+                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Pullout Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
+                    width=2,
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "height": "150px"}
+                ) 
             ], justify="center")
         ], style={"transform": "scale(1)", "transform-origin": "0 0"})
 
@@ -326,7 +333,7 @@ class MainDashboard:
         if df.empty:
             return px.bar(title="No data available")
 
-        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED']
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
 
         fig = go.Figure()
 
@@ -414,6 +421,7 @@ class MainDashboard:
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
 
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
