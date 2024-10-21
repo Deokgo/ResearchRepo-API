@@ -2,7 +2,7 @@
 # created by Nicole Cabansag (Oct. 7, 2024)
 
 from flask import Blueprint, jsonify
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, nulls_last
 import pandas as pd
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db
 
@@ -84,7 +84,6 @@ def retrieve_dataset():
         func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
     ).group_by(SDG.research_id).subquery()
 
-    # Main query
     query = db.session.query(
         College.college_id,
         Program.program_id,
@@ -107,18 +106,16 @@ def retrieve_dataset():
         latest_status_subquery.c.status,
         latest_status_subquery.c.timestamp,
     ).join(College, ResearchOutput.college_id == College.college_id) \
-     .join(Program, ResearchOutput.program_id == Program.program_id) \
-     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
-     .outerjoin(Conference, Publication.conference_id == Conference.conference_id) \
-     .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
-     .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
-     .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
-     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
-     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
-     .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
-     .filter(latest_status_subquery.c.timestamp.isnot(None)) \
-     .order_by(desc(latest_status_subquery.c.timestamp))
-
+    .join(Program, ResearchOutput.program_id == Program.program_id) \
+    .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
+    .outerjoin(Conference, Publication.conference_id == Conference.conference_id) \
+    .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
+    .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
+    .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
+    .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
+    .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
+    .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
+    .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
     result = query.all()
 
@@ -143,7 +140,7 @@ def retrieve_dataset():
                 'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
                 'status': row.status if pd.notnull(row.status) else "READY",
-                'timestamp': row.timestamp,
+                'timestamp': row.timestamp if pd.notnull(row.status) else "N/A",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country'
             } for row in result]
 

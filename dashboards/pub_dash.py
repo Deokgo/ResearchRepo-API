@@ -165,10 +165,10 @@ class PublicationDash:
                 dbc.Container(
                     [
                         dbc.Row([
-                             dbc.Col(controls, width=2),
                             dbc.Col([
                                 main_dash
                             ], width=10,style={"transform": "scale(1)", "transform-origin": "0 0"}),
+                            dbc.Col(controls, width=2),
                            
                         ]),
                         dcc.Interval(
