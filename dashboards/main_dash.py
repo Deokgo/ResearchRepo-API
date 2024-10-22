@@ -40,7 +40,7 @@ class MainDashboard:
 
         college = html.Div(
             [
-                dbc.Label("Select College:"),
+                dbc.Label("Select College:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
@@ -53,7 +53,7 @@ class MainDashboard:
 
         status = html.Div(
             [
-                dbc.Label("Select Status:"),
+                dbc.Label("Select Status:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="status",
                     options=[{'label': value, 'value': value} for value in sorted(
@@ -68,7 +68,7 @@ class MainDashboard:
 
         slider = html.Div(
             [
-                dbc.Label("Select Years"),
+                dbc.Label("Select Years: ", style={"color": "#08397C"}),
                 dcc.RangeSlider(
                     min=db_manager.get_min_value('year'), 
                     max=db_manager.get_max_value('year'), 
@@ -92,11 +92,14 @@ class MainDashboard:
 
         controls = dbc.Card(
             [
-                html.H4("Filters", style={"margin": "10px 0px"}),
-                college, status, slider, button
+                html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
+                college,
+                status,
+                slider,
+                button,
             ],
             body=True,
-            style={"height": "95vh", "display": "flex", "flexDirection": "column"}
+            style={"border": "2px solid #0A438F", "height": "95vh", "display": "flex", "flexDirection": "column"}
         )
 
         text_display = dbc.Container([
@@ -139,27 +142,27 @@ class MainDashboard:
                     dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
                     dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash1 = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash2 = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash3 = dbc.Container([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
             ], style={"margin": "10px"})
-        ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+        ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         """
         # Add the DataTable
@@ -210,7 +213,7 @@ class MainDashboard:
                 html.H5(title, style={'textAlign': 'center'}),
                 html.H2(value, style={'textAlign': 'center'})
             ], style={
-                            "border": "1px solid #007bff",  # Change color as needed
+                            "border": "2px solid #0A438F",  # Change color as needed
                             "borderRadius": "10px",          # Adjust the roundness
                             "padding": "10px",               # Add some padding inside the card
                             "margin": "5px"                  # Space between columns

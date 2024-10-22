@@ -33,7 +33,7 @@ class PublicationDash:
 
         college = html.Div(
             [
-                dbc.Label("Select College:"),
+                dbc.Label("Select College:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
@@ -46,7 +46,7 @@ class PublicationDash:
 
         status = html.Div(
             [
-                dbc.Label("Select Status:"),
+                dbc.Label("Select Status:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="status",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
@@ -59,7 +59,7 @@ class PublicationDash:
 
         slider = html.Div(
             [
-                dbc.Label("Select Years"),
+                dbc.Label("Select Years:", style={"color": "#08397C"}),
                 dcc.RangeSlider(
                     min=db_manager.get_min_value('year'), 
                     max=db_manager.get_max_value('year'), 
@@ -83,11 +83,11 @@ class PublicationDash:
 
         controls = dbc.Card(
             [
-                html.H4("Filters", style={"margin": "10px 0px"}),
+                html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
                 college, status, slider, button
             ],
             body=True,
-            style={"height": "100vh", "display": "flex", "flexDirection": "column"}
+            style={"border": "2px solid #0A438F", "height": "100vh", "display": "flex", "flexDirection": "column"}
         )
 
         all_sdgs = [f'SDG {i}' for i in range(1, 18)]
@@ -124,7 +124,7 @@ class PublicationDash:
                 dbc.Col([
                     html.Div([
                         html.H1("SDG Analytics Dashboard", style={'margin':'0px 0px 50px 0px'}),
-                        html.H5("Choose SDG:"),
+                        html.H5("Choose SDG:", style={"color": "#08397C"}),
                         dcc.Dropdown(
                             id='sdg-dropdown',
                             options=[
@@ -134,7 +134,7 @@ class PublicationDash:
                             multi=True,
                             placeholder="Select SDGs",
                             value=distinct_sdg_values,
-                            style={'width': '100%'}
+                            style={'width': '100%', "border": "1px solid #0A438F"}
                         )
                     ])])]),
             dbc.Row([
@@ -153,11 +153,11 @@ class PublicationDash:
                                     'overflow': 'hidden'},      
                         page_size=6
                     )
-                ], width=8, style={"border": "1px solid black", "padding": "10px", "margin-bottom": "10px"}),
+                ], width=8, style={"border": "2px solid #0A438F", "padding": "10px", "margin-bottom": "10px"}),
                 dbc.Col([
                     dcc.Graph(id='author-sdg-graph'),
                     dcc.Graph(id='upload_publish_area_chart')
-                ], width=4, style={"border": "1px solid black", "padding": "10px", "margin-bottom": "10px"})
+                ], width=4, style={"border": "2px solid #0A438F", "padding": "10px", "margin-bottom": "10px"})
             ], style={"margin": "10px"}),
         ], fluid=True)
 
@@ -193,7 +193,7 @@ class PublicationDash:
                 html.H5(title, style={'textAlign': 'center'}),
                 html.H2(value, style={'textAlign': 'center'})
             ], style={
-                            "border": "1px solid #007bff",  # Change color as needed
+                            "border": "2px solid #0A438F",  # Change color as needed
                             "borderRadius": "10px",          # Adjust the roundness
                             "padding": "10px",               # Add some padding inside the card
                             "margin": "5px"                  # Space between columns
