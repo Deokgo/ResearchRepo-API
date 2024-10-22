@@ -185,42 +185,39 @@ def create_kg_sdg(flask_app):
 
     # Callback to handle initial graph display, filters, and node click events
     @dash_app.callback(
-        Output('knowledge-graph', 'figure'),
-        [Input('apply-filters', 'n_clicks'),
-         Input('knowledge-graph', 'clickData')],
-        [State('year-slider', 'value'),
-         State('college-dropdown', 'value'),
-         State('knowledge-graph', 'figure')]
-    )
+    Output('knowledge-graph', 'figure'),
+    [Input('apply-filters', 'n_clicks'),
+     Input('knowledge-graph', 'clickData')],
+    [State('year-slider', 'value'),
+     State('college-dropdown', 'value'),
+     State('knowledge-graph', 'figure')]
+)
     def update_graph(n_clicks, clickData, year_range, selected_colleges, current_figure):
+        show_labels = False
         ctx = dash.callback_context
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        # Initial variables
-        nodes_to_show = list(G.nodes())
-        edges_to_show = list(G.edges())
-        filtered_nodes = nodes_to_show
-        new_title = '<br>Research Studies Knowledge Graph (Overall View)'
 
-        # Apply filters if the "Apply Filters" button is clicked
-        if (n_clicks > 0) & (triggered_input=="apply-filters"):
-            filtered_nodes = [
-                node for node in G.nodes()
-                if (G.nodes[node]['type'] == 'sdg') or
-                   (G.nodes[node]['type'] == 'study' and
-                    (year_range[0] <= G.nodes[node]['year'] <= year_range[1]) and
-                    (not selected_colleges or G.nodes[node]['college'] in selected_colleges))
-            ]
-            edges_to_show = [
-                edge for edge in G.edges()
-                if edge[0] in filtered_nodes and edge[1] in filtered_nodes
-            ]
-            nodes_to_show = list(set([node for edge in edges_to_show for node in edge]))
-            new_title = '<br>Research Studies Knowledge Graph (Filtered)'
+        # Apply filters regardless of the triggered input
+        filtered_nodes = [
+            node for node in G.nodes()
+            if (G.nodes[node]['type'] == 'sdg') or
+            (G.nodes[node]['type'] == 'study' and
+                (year_range[0] <= G.nodes[node]['year'] <= year_range[1]) and
+                (not selected_colleges or G.nodes[node]['college'] in selected_colleges))
+        ]
+        edges_to_show = [
+            edge for edge in G.edges()
+            if edge[0] in filtered_nodes and edge[1] in filtered_nodes
+        ]
+        nodes_to_show = list(set([node for edge in edges_to_show for node in edge]))
+
+        # Set default title
+        new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
 
         # Handle SDG node click events
         if (clickData and 'points' in clickData):
             clicked_node = clickData['points'][0]['text']
-            if (current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}") & (triggered_input!="apply-filters"):
+            if (current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}") and (triggered_input != "apply-filters"):
                 # If the same SDG is clicked again, return to the filtered or overall view
                 nodes_to_show = filtered_nodes
                 edges_to_show = [
@@ -228,9 +225,9 @@ def create_kg_sdg(flask_app):
                     if edge[0] in nodes_to_show and edge[1] in nodes_to_show
                 ]
                 new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
-                show_labels = False
-            elif (G.nodes[clicked_node]['type'] == 'sdg') & (triggered_input!="apply-filters"):
-                # Zoom in on the selected SDG node and show its connected studies
+                show_labels=False
+            elif (G.nodes[clicked_node]['type'] == 'sdg') and (triggered_input != "apply-filters"):
+                # Zoom in on the selected SDG node and show its connected studies, respecting current filters
                 nodes_to_show = [clicked_node] + [
                     node for node in connected_nodes[clicked_node]
                     if node in filtered_nodes  # Respect current filters
@@ -259,5 +256,6 @@ def create_kg_sdg(flask_app):
             )
         }
         return new_figure
+
 
     return dash_app
