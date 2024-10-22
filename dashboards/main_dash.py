@@ -390,7 +390,7 @@ class MainDashboard:
             grouped_df = df.groupby(['scopus', 'program_id']).size().reset_index(name='Count')
             x_axis = 'program_id'
             xaxis_title = 'Programs'
-            title = f'Scopus vs. Non-Scopus per Programs in {selected_colleges[0]}'
+            title = f'Scopus vs. Non-Scopus per Program in {selected_colleges[0]}'
         else:
             grouped_df = df.groupby(['scopus', 'college_id']).size().reset_index(name='Count')
             x_axis = 'college_id'
@@ -427,7 +427,7 @@ class MainDashboard:
             grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
             x_axis = 'program_id'
             xaxis_title = 'Programs'
-            title = f'Publication Formats per Programs in {selected_colleges[0]}'
+            title = f'Publication Formats per Program in {selected_colleges[0]}'
         else:
             grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
             x_axis = 'college_id'
@@ -476,7 +476,7 @@ class MainDashboard:
 
             sorted_programs = sorted(pivot_df.columns)  # Sort programs alphabetically
             pivot_df = pivot_df[sorted_programs]  # Reorder the columns in pivot_df by the sorted program list
-            title = f'Programs in {selected_colleges} Targeting Each SDG'
+            title = f'Programs in {selected_colleges[0]} Targeting Each SDG'
 
             if pivot_df.empty:
                 print("Pivot DataFrame is empty after processing")
