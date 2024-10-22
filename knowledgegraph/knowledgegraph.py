@@ -25,6 +25,7 @@ def create_kg_sdg(flask_app):
 
     # Build the graph
     for index, row in df.iterrows():
+        research_id = row['research_id']
         study = row['title']
         sdg_list = row['sdg'].split(';')  # Split SDGs by ';' delimiter
         college_id = row['college_id']
@@ -33,7 +34,7 @@ def create_kg_sdg(flask_app):
         year = row['date_approved'].year
 
         # Add study node
-        G.add_node(study, type='study', college=college_id, program=program_name,
+        G.add_node(research_id, type='study', research=research_id, title=study,college=college_id, program=program_name,
                    authors=concatenated_authors, year=year)
 
         # Iterate over each SDG and add edges
@@ -42,20 +43,31 @@ def create_kg_sdg(flask_app):
             if not G.has_node(sdg):
                 G.add_node(sdg, type='sdg')
 
-            connected_nodes[sdg].append(study)
-            G.add_edge(sdg, study)
+            connected_nodes[sdg].append(research_id)
+            G.add_edge(sdg, research_id)
 
-    pos = nx.spring_layout(G, k=1, weight='weight')
+    pos = nx.spring_layout(G, k=6, iterations=200, weight='weight')
     fixed_pos = {node: pos[node] for node in G.nodes()}
 
     # Function to create traces for the graph
-    def build_traces(nodes_to_show, edges_to_show, filtered_nodes):
+    def build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=True):
         node_x = []
         node_y = []
         hover_text = []
         node_labels = []
         node_color = []
         node_size = []
+
+        # Calculate the number of studies connected to each SDG
+        sdg_connections = {
+            node: len([study for study in connected_nodes[node] if study in filtered_nodes])
+            for node in G.nodes() if G.nodes[node]['type'] == 'sdg'
+        }
+        
+        # Get min and max connection counts for scaling
+        if sdg_connections:
+            max_connections = max(sdg_connections.values())
+            min_connections = min(sdg_connections.values())
 
         for node in nodes_to_show:
             x, y = fixed_pos[node]
@@ -64,23 +76,27 @@ def create_kg_sdg(flask_app):
 
             if G.nodes[node]['type'] == 'sdg':
                 # Update hover text to reflect filtered connected nodes
-                filtered_count = len([
-                    study for study in connected_nodes[node]
-                    if study in filtered_nodes
-                ])
+                filtered_count = len([study for study in connected_nodes[node] if study in filtered_nodes])
                 hover_text.append(f"{filtered_count} studies connected")
                 node_color.append('#CA031B')
-                node_size.append(50 + filtered_count)
+
+                # Scale the node size between 60 and 100 based on the number of connections
+                if max_connections > min_connections:
+                    size = 60 + (filtered_count - min_connections) / (max_connections - min_connections) * (100 - 60)
+                else:
+                    size = 60  # If all nodes have the same number of connections
+                node_size.append(size)
                 node_labels.append(node)
             else:
                 # Update hover text with college_id, program_name, concatenated_authors, and year
-                hover_text.append(f"College: {G.nodes[node]['college']}<br>"
-                                  f"Program: {G.nodes[node]['program']}<br>"
-                                  f"Authors: {G.nodes[node]['authors']}<br>"
-                                  f"Year: {G.nodes[node]['year']}")
+                hover_text.append(f"Title: {G.nodes[node]['title']}<br>"
+                                f"College: {G.nodes[node]['college']}<br>"
+                                f"Program: {G.nodes[node]['program']}<br>"
+                                f"Authors: {G.nodes[node]['authors']}<br>"
+                                f"Year: {G.nodes[node]['year']}")
                 node_color.append(palette_dict.get(G.nodes[node]['college'], 'grey'))  # Default to grey if college is not found
                 node_size.append(20)
-                node_labels.append(node)
+                node_labels.append(node if show_labels else "")
 
         edge_x = []
         edge_y = []
@@ -103,7 +119,7 @@ def create_kg_sdg(flask_app):
 
         node_trace = go.Scatter(
             x=node_x, y=node_y,
-            mode='markers+text',
+            mode='markers+text' if any(G.nodes[node]['type'] == 'sdg' for node in nodes_to_show) else 'markers',
             text=node_labels,
             hovertext=hover_text,
             marker=dict(
@@ -115,9 +131,10 @@ def create_kg_sdg(flask_app):
 
         return edge_trace, node_trace
 
+
     initial_nodes = list(G.nodes())
     initial_edges = list(G.edges())
-    edge_trace, node_trace = build_traces(initial_nodes, initial_edges, initial_nodes)
+    edge_trace, node_trace = build_traces(initial_nodes, initial_edges, initial_nodes, show_labels=False)
     # Initialize Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
 
@@ -211,6 +228,7 @@ def create_kg_sdg(flask_app):
                     if edge[0] in nodes_to_show and edge[1] in nodes_to_show
                 ]
                 new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
+                show_labels = False
             elif (G.nodes[clicked_node]['type'] == 'sdg') & (triggered_input!="apply-filters"):
                 # Zoom in on the selected SDG node and show its connected studies
                 nodes_to_show = [clicked_node] + [
@@ -222,8 +240,9 @@ def create_kg_sdg(flask_app):
                     if edge[1] in filtered_nodes  # Respect current filters
                 ]
                 new_title = f'<br>Research Studies Knowledge Graph - {clicked_node}'
+                show_labels = True
 
-        edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show, filtered_nodes)
+        edge_trace, node_trace = build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=show_labels)
         new_figure = {
             'data': [edge_trace, node_trace],
             'layout': go.Layout(

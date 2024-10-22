@@ -62,6 +62,7 @@ class DatabaseManager:
                 Program.program_id,
                 Program.program_name,
                 sdg_subquery.c.concatenated_sdg,
+                ResearchOutput.research_id,
                 ResearchOutput.title,
                 ResearchOutput.date_approved,
                 ResearchOutput.research_type,
@@ -89,6 +90,7 @@ class DatabaseManager:
 
             # Formatting results into a list of dictionaries with safe handling for missing data
             data = [{
+                'research_id': row.research_id if pd.notnull(row.research_id) else 'Unknown',
                 'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
                 'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
                 'program_id': row.program_id if pd.notnull(row.program_id) else None,
