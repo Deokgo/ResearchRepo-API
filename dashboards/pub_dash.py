@@ -87,7 +87,7 @@ class PublicationDash:
                 college, status, slider, button
             ],
             body=True,
-            style={"border": "2px solid #0A438F", "height": "100vh", "display": "flex", "flexDirection": "column"}
+            style={"border": "2px solid #0A438F", "display": "flex", "flexDirection": "column"}
         )
 
         all_sdgs = [f'SDG {i}' for i in range(1, 18)]
@@ -123,7 +123,6 @@ class PublicationDash:
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H1("SDG Analytics Dashboard", style={'margin':'0px 0px 50px 0px'}),
                         html.H5("Choose SDG:", style={"color": "#08397C"}),
                         dcc.Dropdown(
                             id='sdg-dropdown',
@@ -151,7 +150,7 @@ class PublicationDash:
                                     'wordBreak': 'break-word', # Forces a break in words if necessary
                                     'maxWidth': '200px',       # Optional: Sets the maximum width for the cell
                                     'overflow': 'hidden'},      
-                        page_size=6
+                        page_size=3
                     )
                 ], width=8, style={"border": "2px solid #0A438F", "padding": "10px", "margin-bottom": "10px"}),
                 dbc.Col([
