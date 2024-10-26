@@ -1,4 +1,6 @@
 from . import db
+from .program import Program
+from .college import College
 
 class UserProfile(db.Model):
     __tablename__ = 'user_profile'
@@ -9,3 +11,7 @@ class UserProfile(db.Model):
     middle_name = db.Column(db.String(2))
     last_name = db.Column(db.String(30))
     suffix = db.Column(db.String(10))
+
+    # Define relationships to College and Program
+    college = db.relationship('College', backref=db.backref('user_profiles', lazy=True))
+    program = db.relationship('Program', backref=db.backref('user_profiles', lazy=True))

@@ -1,17 +1,12 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from models.account import Account
 from models.user_profile import UserProfile
-from models.visitor import Visitor
 from werkzeug.security import check_password_hash
-import jwt
-import datetime
-from services import auth_services,user_srv
-
+from services import auth_services
+from sqlalchemy.orm import joinedload
 
 auth = Blueprint('auth', __name__)
 
-
-#modified by Nicole Cabansag, added comparing hashed values for user_pw
 @auth.route('/login', methods=['POST']) 
 def login():
     data = request.json
@@ -23,32 +18,50 @@ def login():
             return jsonify({"message": "Email and password are required"}), 400
 
         try:
-            #retrieve user from the database
-            user = Account.query.filter_by(email=email).one()
+            # Retrieve the account with the joined user profile, college, and program data
+            user = (
+                Account.query
+                .filter_by(email=email)
+                .options(
+                    joinedload(Account.user_profile)
+                    .joinedload(UserProfile.college),
+                    joinedload(Account.user_profile)
+                    .joinedload(UserProfile.program)
+                )
+                .one_or_none()
+            )
 
-            #compare hashed password with the provided plain password
+            if user is None:
+                return jsonify({"message": "User not found"}), 404
+
+            # Compare hashed password with the provided plain password
             if check_password_hash(user.user_pw, password):
-                #if login successful...
-
-                # Send this token to client to authenticate user
+                # Generate token on successful login
                 token = auth_services.generate_token(user.user_id)
 
-                #log the successful login in the Audit_Trail
-                auth_services.log_audit_trail(user_id=user.user_id, table_name='Account', record_id=None,
-                                operation='LOGIN', action_desc='User logged in')
-                
+                # Log successful login in the Audit_Trail
+                auth_services.log_audit_trail(
+                    user_id=user.user_id,
+                    table_name='Account',
+                    record_id=None,
+                    operation='LOGIN',
+                    action_desc='User logged in'
+                )
+
                 return jsonify({
                     "message": "Login successful",
                     "user_id": user.user_id,
                     "role": user.role.role_name,
+                    "college": user.user_profile.college.college_name if user.user_profile.college else None,
+                    "program": user.user_profile.program.program_name if user.user_profile.program else None,
                     "token": token
                 }), 200
             else:
                 return jsonify({"message": "Invalid password"}), 401
 
         except Exception as e:
-            return jsonify({"message": str(e)}), 404
-        
+            return jsonify({"message": str(e)}), 500
+
 #created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
 @auth.route('/signup', methods=['POST']) 
 def add_user():
