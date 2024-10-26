@@ -51,9 +51,9 @@ def login():
                 return jsonify({
                     "message": "Login successful",
                     "user_id": user.user_id,
-                    "role": user.role.role_name,
-                    "college": user.user_profile.college.college_name if user.user_profile.college else None,
-                    "program": user.user_profile.program.program_name if user.user_profile.program else None,
+                    "role": user.role.role_id,
+                    "college": user.user_profile.college.college_id if user.user_profile.college else None,
+                    "program": user.user_profile.program.program_id if user.user_profile.program else None,
                     "token": token
                 }), 200
             else:
