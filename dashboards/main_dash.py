@@ -106,36 +106,30 @@ class MainDashboard:
             dbc.Row([
                 dbc.Col(
                     self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
                     self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
                     self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
                     self.create_display_card("Newly Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
                     self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
                     self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", 
-                           "height": "150px", "width": "200px", "padding": "0", "margin": "0"}
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 )
-            ], justify="center")
-        ], style={"transform": "scale(1)", "transform-origin": "0 0"})
+            ], justify="center", style={"margin": "0"})
+        ], style={"transform": "scale(1)", "transform-origin": "0 0", "width": "1200px", "margin": "0 auto", "padding": "0"})
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
@@ -184,40 +178,42 @@ class MainDashboard:
         """
 
         self.dash_app.layout = html.Div([
-                dbc.Container(
-                    [
-                        dbc.Row([
-                            dbc.Col([
-                                text_display,
-                                main_dash,
-                                sub_dash1,
-                                sub_dash3,
-                                sub_dash2
-                                #data_table_section  # Add the table section below the sub_dash sections
-                            ], width=10,style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
-                            dbc.Col(controls, width=2)
-                        ])
-                    ],
-                    fluid=True,
-                    className="dbc dbc-ag-grid",
-                    style={"overflow": "hidden"}
-                )
-            ], style={"padding": "20px"})
+            dbc.Container([
+                dbc.Row([
+                    dbc.Col([
+                        # Display main metrics and dashboards
+                        dbc.Row(text_display),         # Display `text_display` at the top
+                        dbc.Row(main_dash),            # Main dashboard section
+                        dbc.Row(sub_dash1),            # Sub dashboard 1
+                        dbc.Row(sub_dash3),            # Sub dashboard 3
+                        dbc.Row(sub_dash2),            # Sub dashboard 2
+                        # dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
+                    ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
+                    dbc.Col(controls, width=2)       # Controls on the side
+                ])
+            ], fluid=True, className="dbc dbc-ag-grid", style={"overflow": "hidden"})
+        ], style={"padding": "20px"})
 
     def create_display_card(self, title, value):
         """
         Create a display card for showing metrics.
         """
         return html.Div([
-            dbc.Col(html.Div([
+            html.Div([
                 html.H5(title, style={'textAlign': 'center'}),
                 html.H2(value, style={'textAlign': 'center'})
             ], style={
-                            "border": "2px solid #0A438F",  # Change color as needed
-                            "borderRadius": "10px",          # Adjust the roundness
-                            "padding": "10px",               # Add some padding inside the card
-                            "margin": "5px"                  # Space between columns
-                        }))
+                "border": "2px solid #0A438F",    # Border color
+                "borderRadius": "10px",           # Rounded corners
+                "padding": "10px",                # Padding inside the card
+                "width": "170px",                 # Fixed width
+                "height": "150px",                # Fixed height
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "margin": "0"
+            })
         ])
     
     def get_program_colors(self, df):
