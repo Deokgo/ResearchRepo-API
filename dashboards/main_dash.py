@@ -113,11 +113,11 @@ class MainDashboard:
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
-                    self.create_display_card("Newly Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                    self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
-                    self.create_display_card("Newly Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
+                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(

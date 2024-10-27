@@ -1,8 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from models.account import Account
 from models.user_profile import UserProfile
+from models.visitor import Visitor
 from werkzeug.security import check_password_hash
-from services import auth_services
+from services import auth_services, user_srv
+import jwt
+import datetime
 from sqlalchemy.orm import joinedload
 
 auth = Blueprint('auth', __name__)
