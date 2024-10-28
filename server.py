@@ -70,14 +70,14 @@ from routes.auth import auth
 from routes.accounts import accounts
 from routes.dept_prog import deptprogs
 from routes.dataset import dataset
-
+from routes.paper_op import paper
 
 # Register the blueprint for routes
 app.register_blueprint(auth, url_prefix='/auth')
 app.register_blueprint(accounts, url_prefix='/accounts')
 app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
-
+app.register_blueprint(paper, url_prefix='/paper')
 
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.main_dash import MainDashboard
