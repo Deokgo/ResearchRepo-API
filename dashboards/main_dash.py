@@ -187,7 +187,7 @@ class MainDashboard:
                         dbc.Row(sub_dash1),            # Sub dashboard 1
                         dbc.Row(sub_dash3),            # Sub dashboard 3
                         dbc.Row(sub_dash2),            # Sub dashboard 2
-                        # dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
+                        #dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])

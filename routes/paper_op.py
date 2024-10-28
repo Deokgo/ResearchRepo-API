@@ -5,20 +5,20 @@ paper = Blueprint('paper', __name__)
 
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
-    # Extract data from the request JSON
+    #extract data from the request JSON
     data = request.get_json()
     print("Request data:", data)
     
-    # Validate required fields
-    required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type']
+    #validate required fields
+    required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'sdg']
     missing_fields = [field for field in required_fields if field not in data]
     if missing_fields:
         return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
     
     try:
-        # Create a new ResearchOutput record
+        #create a new ResearchOutput record
         new_paper = ResearchOutput(
-            research_id = data['research_id'],
+            research_id=data['research_id'],
             college_id=data['college_id'],
             program_id=data['program_id'],
             title=data['title'],
@@ -26,14 +26,21 @@ def add_paper():
             date_approved=data['date_approved'],
             research_type=data['research_type']
         )
+
+        #create a new SDG record associated with the research_id
+        new_paper_sdg = SDG(
+            research_id=data['research_id'],
+            sdg=data['sdg']
+        )
         
-        # Add to session and commit
+        #add to session and commit
         db.session.add(new_paper)
+        db.session.add(new_paper_sdg)
         db.session.commit()
         
         return jsonify({"message": "Research output added successfully", "research_id": new_paper.research_id}), 201
     
     except Exception as e:
-        # Rollback in case of error
+        #rollback in case of error
         db.session.rollback()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
