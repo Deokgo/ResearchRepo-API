@@ -10,6 +10,12 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 
+def default_if_empty(selected_values, default_values):
+    """
+    Returns default_values if selected_values is empty.
+    """
+    return selected_values if selected_values else default_values
+
 class MainDashboard:
     def __init__(self, flask_app):
         """
@@ -24,6 +30,11 @@ class MainDashboard:
             'CAS': 'blue',
             'CHS': 'orange'
         }
+
+        # Get default values
+        self.default_colleges = db_manager.get_unique_values('college_id')
+        self.default_statuses = db_manager.get_unique_values('status')
+        self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
         self.create_layout()
         self.set_callbacks()
 
@@ -44,7 +55,7 @@ class MainDashboard:
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
-                    value=db_manager.get_unique_values('college_id'),
+                    value=[],
                     inline=True,
                 ),
             ],
@@ -59,7 +70,7 @@ class MainDashboard:
                     options=[{'label': value, 'value': value} for value in sorted(
                         db_manager.get_unique_values('status'), key=lambda x: (x != 'READY', x != 'PULLOUT', x)
                     )],
-                    value=db_manager.get_unique_values('status'),
+                    value=[],
                     inline=True,
                 ),
             ],
@@ -536,16 +547,17 @@ class MainDashboard:
         """
         Set up the callback functions for the dashboard.
         """
-        
+
+        # Callback for reset button
         @self.dash_app.callback(
-        [Output('college', 'value'),
-         Output('status', 'value'),
-         Output('years', 'value')],
-        [Input('reset_button', 'n_clicks')],
-        prevent_initial_call=True
+            [Output('college', 'value'),
+            Output('status', 'value'),
+            Output('years', 'value')],
+            [Input('reset_button', 'n_clicks')],
+            prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
@@ -556,6 +568,9 @@ class MainDashboard:
             ]
         )
         def update_lineplot(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_line_plot(selected_colleges, selected_status, selected_years)
 
         @self.dash_app.callback(
@@ -567,6 +582,9 @@ class MainDashboard:
             ]
         )
         def update_piechart(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_pie_chart(selected_colleges, selected_status, selected_years)
 
         @self.dash_app.callback(
@@ -578,6 +596,9 @@ class MainDashboard:
             ]
         )
         def update_research_type_bar_plot(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_research_type_bar_plot(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
@@ -589,6 +610,9 @@ class MainDashboard:
             ]
         )
         def update_research_status_bar_plot(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_research_status_bar_plot(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
@@ -598,6 +622,9 @@ class MainDashboard:
              Input('years', 'value')]
         )
         def create_publication_bar_chart(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
@@ -609,6 +636,9 @@ class MainDashboard:
             ]
         )
         def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
@@ -620,4 +650,7 @@ class MainDashboard:
             ]
         )
         def update_sdg_chart(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_sdg_chart(selected_colleges, selected_status, selected_years)

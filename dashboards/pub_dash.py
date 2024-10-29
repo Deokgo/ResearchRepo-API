@@ -9,6 +9,12 @@ import plotly.express as px
 import pandas as pd
 from wordcloud import WordCloud
 
+def default_if_empty(selected_values, default_values):
+    """
+    Returns default_values if selected_values is empty.
+    """
+    return selected_values if selected_values else default_values
+
 class PublicationDash:
     def __init__(self, flask_app):
         """
@@ -23,6 +29,10 @@ class PublicationDash:
             'CAS': 'blue',
             'CHS': 'orange'
         }
+        # Get default values
+        self.default_colleges = db_manager.get_unique_values('college_id')
+        self.default_statuses = db_manager.get_unique_values('status')
+        self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
         self.create_layout()
         self.set_callbacks()
 
@@ -37,7 +47,7 @@ class PublicationDash:
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
-                    value=db_manager.get_unique_values('college_id'),
+                    value=[],
                     inline=True,
                 ),
             ],
@@ -50,7 +60,7 @@ class PublicationDash:
                 dbc.Checklist(
                     id="status",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('status')],
-                    value=db_manager.get_unique_values('status'),
+                    value=[],
                     inline=True,
                 ),
             ],
@@ -319,8 +329,6 @@ class PublicationDash:
         return combined_counts
 
 
-    
-
     def create_area_chart(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
         """
         Creates a histogram for uploaded and published papers per year.
@@ -513,34 +521,44 @@ class PublicationDash:
         """
         Set up the callback functions for the dashboard.
         """
+        # Callback for reset button
         @self.dash_app.callback(
-        [Output('college', 'value'),
-         Output('status', 'value'),
-         Output('years', 'value')],
-        [Input('reset_button', 'n_clicks')],
-        prevent_initial_call=True
+            [Output('college', 'value'),
+            Output('status', 'value'),
+            Output('years', 'value')],
+            [Input('reset_button', 'n_clicks')],
+            prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return db_manager.get_unique_values('college_id'), db_manager.get_unique_values('status'), [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
         
         @self.dash_app.callback(
             [Output('research-table', 'data'), Output('research-table', 'columns')],
             [Input('interval-component', 'n_intervals'),
-             Input('college', 'value'),
+            Input('college', 'value'),
             Input('status', 'value'),
             Input('years', 'value'),
             Input('sdg-dropdown', 'value')]
         )
-        def update_research_table(n_intervals,selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            # Get the grouped conference data
-            conference_counts = self.get_conference_data(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        def update_research_table(n_intervals, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+            # Handle empty selections by using default values when inputs are empty
+            if not selected_colleges:
+                selected_colleges = db_manager.get_unique_values('college_id')
+            if not selected_status:
+                selected_status = db_manager.get_unique_values('status')
+            if not selected_years or len(selected_years) != 2:
+                selected_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            if not sdg_dropdown_value:
+                sdg_dropdown_value = None
+
+            # Get the filtered conference data
+            conference_counts = self.get_conference_data(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
 
             # Format the data for the DataTable
             data = conference_counts.to_dict('records')  # Convert DataFrame to a list of dictionaries
             columns = [{'name': col, 'id': col} for col in conference_counts.columns]  # Columns format
 
             return data, columns
-        
         
         @self.dash_app.callback(
             Output('publication_format_bar_plot', 'figure'),
@@ -550,7 +568,11 @@ class PublicationDash:
              Input('sdg-dropdown', 'value')]
         )
         def update_publication_bar_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        
         @self.dash_app.callback(
             Output('author-sdg-graph', 'figure'),
             [Input('college', 'value'),
@@ -559,6 +581,9 @@ class PublicationDash:
             Input('sdg-dropdown', 'value')]  # Adjust these inputs based on the actual component IDs
         )
         def update_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.update_bar_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value) 
         
         @self.dash_app.callback(
@@ -569,7 +594,11 @@ class PublicationDash:
             Input('sdg-dropdown', 'value')]
         )
         def update_upload_publish_area_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.create_area_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        
         # Callback for the Word Cloud
         @self.dash_app.callback(
             Output('keyword-wordcloud', 'figure'),
@@ -579,7 +608,7 @@ class PublicationDash:
              Input('sdg-dropdown', 'value')]
         )
         def update_wordcloud(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
             return self.generate_wordcloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
-        
-                      
-        
