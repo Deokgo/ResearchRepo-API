@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile
+from services import auth_services
 
 paper = Blueprint('paper', __name__)
 
@@ -37,6 +38,17 @@ def add_paper():
         db.session.add(new_paper)
         db.session.add(new_paper_sdg)
         db.session.commit()
+
+        """
+        # Audit Log
+        auth_services.log_audit_trail(
+            user_id=user.user_id,
+            table_name='Account',
+            record_id=new_paper.research_id,
+            operation='ADD NEW PAPER',
+            action_desc='Added research paper'
+        )
+        """
         
         return jsonify({"message": "Research output added successfully", "research_id": new_paper.research_id}), 201
     
