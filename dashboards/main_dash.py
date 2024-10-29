@@ -139,8 +139,8 @@ class MainDashboard:
                     self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 )
-            ], justify="center", style={"margin": "0"})
-        ], style={"transform": "scale(1)", "transform-origin": "0 0", "width": "1200px", "margin": "0 auto", "padding": "0"})
+            ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
+        ], style={"padding": "2rem"})
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
