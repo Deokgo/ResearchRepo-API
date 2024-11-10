@@ -8,67 +8,7 @@ from models import College, Program, ResearchOutput, Publication, Status, Confer
 
 dataset = Blueprint('dataset', __name__)
 
-@dataset.route('/get_total', methods=['GET'])
-def get_total():
-    # Subquery to get the latest status for each publication
-    latest_status_subquery = db.session.query(
-        Status.publication_id,
-        Status.status,
-        Status.timestamp,
-        func.row_number().over(
-            partition_by=Status.publication_id,
-            order_by=desc(Status.timestamp)
-        ).label('rn')
-    ).subquery()
-
-    query = db.session.query(
-        ResearchOutput.research_id,
-        latest_status_subquery.c.status,
-        latest_status_subquery.c.timestamp,
-    ).outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
-    .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
-    .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
-
-    result = query.all()
-
-    # Formatting results into a list of dictionaries
-    data = [{
-        'research_id': row.research_id,
-        'status': row.status if row.status else "READY",
-        'timestamp': row.timestamp if row.timestamp else "N/A",
-    } for row in result]
-
-    df = pd.DataFrame(data)
-    print(df.head())
-
-    # Getting counts for each status
-    total_ready = len(filter_data(df, 'status', 'READY'))
-    total_submitted = len(filter_data(df, 'status', 'SUBMITTED'))
-    total_accepted = len(filter_data(df, 'status', 'ACCEPTED'))
-    total_published = len(filter_data(df, 'status', 'PUBLISHED'))
-
-    # Returning totals as JSON response with a root 'totals'
-    return jsonify({
-        'totals': {
-            'total_ready': total_ready,
-            'total_submitted': total_submitted,
-            'total_accepted': total_accepted,
-            'total_published': total_published
-        }
-    })
-
-def filter_data(df, column_name, value, invert=False):
-    if df is not None:
-        if column_name in df.columns:
-            if invert:
-                return df[df[column_name] != value]
-            else:
-                return df[df[column_name] == value]
-        else:
-            raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
-    else:
-        raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
-
+# used for research tracking
 @dataset.route('/fetch_dataset', methods=['GET'])
 def retrieve_dataset():
     # Subquery to get the latest status for each publication
@@ -211,6 +151,7 @@ def retrieve_dataset():
 
     return jsonify({"dataset": [dict(row) for row in data]})
 
+# used for manage papers and collections
 @dataset.route('/fetch_ordered_dataset', methods=['GET'])
 def fetch_ordered_dataset():
     # Subquery to get the latest status for each publication
