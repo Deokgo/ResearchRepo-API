@@ -124,7 +124,7 @@ def upload_manuscript():
         os.makedirs(dir_path, exist_ok=True)
 
         # Save the file
-        filename = secure_filename(group_code + '.pdf')
+        filename = secure_filename(group_code+'_Manuscript'+ '.pdf')
         file_path = os.path.join(dir_path, filename)
         file.save(file_path)
 
