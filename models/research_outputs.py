@@ -13,4 +13,6 @@ class ResearchOutput(db.Model):
     date_approved = db.Column(db.Date)
     adviser_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
     research_type = db.Column(db.String(30))
+    view_count = db.Column(db.Integer)
+    download_count = db.Column(db.Integer)
     #agency_id --> to be finalized
