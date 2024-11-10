@@ -1,8 +1,11 @@
 from flask import Blueprint, request, jsonify
 from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile
 from services import auth_services
+import os
+from werkzeug.utils import secure_filename
 
 paper = Blueprint('paper', __name__)
+UPLOAD_FOLDER = './research_repository'
 
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
@@ -103,6 +106,31 @@ def add_paper():
         #rollback in case of error
         db.session.rollback()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    
+@paper.route('/upload_manuscript', methods=['POST'])
+def upload_manuscript():
+    try:
+        file = request.files['file']
+        research_type = request.form['research_type']
+        year = request.form['year']
+        department = request.form['department']
+        program = request.form['program']
+        group_code = request.form['group_code']
+
+        # Create directory structure if it doesn't exist
+        dir_path = os.path.join(
+            UPLOAD_FOLDER, research_type, 'manuscript', year, department, program
+        )
+        os.makedirs(dir_path, exist_ok=True)
+
+        # Save the file
+        filename = secure_filename(group_code + '.pdf')
+        file_path = os.path.join(dir_path, filename)
+        file.save(file_path)
+
+        return jsonify({"message": "File uploaded successfully."}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
 def is_duplicate(group_code):
     #check if any record with the given college_id (group_code) exists
