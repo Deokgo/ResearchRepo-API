@@ -36,7 +36,8 @@ def add_paper():
                 title=data['title'],
                 abstract=data['abstract'],
                 date_approved=data['date_approved'],
-                research_type=data['research_type']
+                research_type=data['research_type'],
+                full_manuscript=data.get('full_manuscript', None)
             )
 
             """
@@ -110,12 +111,13 @@ def add_paper():
 @paper.route('/upload_manuscript', methods=['POST'])
 def upload_manuscript():
     try:
+        # Get file and form data
         file = request.files['file']
         research_type = request.form['research_type']
         year = request.form['year']
         department = request.form['department']
         program = request.form['program']
-        group_code = request.form['group_code']
+        research_id = request.form['group_code']
 
         # Create directory structure if it doesn't exist
         dir_path = os.path.join(
@@ -124,11 +126,48 @@ def upload_manuscript():
         os.makedirs(dir_path, exist_ok=True)
 
         # Save the file
-        filename = secure_filename(group_code+'_Manuscript'+ '.pdf')
+        filename = secure_filename(f"{research_id}_manuscript.pdf")
         file_path = os.path.join(dir_path, filename)
+        file_path = os.path.normpath(file_path)
         file.save(file_path)
 
+        # Update handle of research output
+        print(f"Group Code for Manuscript Upload: {research_id}")
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+
+        if research_output:
+            research_output.full_manuscript = file_path
+            db.session.commit()
+            print(f"Updated Manuscript Path in Database: {file_path}")
+        else:
+            return jsonify({"error": "Research output not found for the given group code."}), 404
+
         return jsonify({"message": "File uploaded successfully."}), 201
+
+    except Exception as e:
+        # Log the error
+        print(f"Error during manuscript upload: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@paper.route('/view_manuscript/<research_id>', methods=['GET'])
+def view_manuscript(research_id):
+    try:
+        # Query the database for the full_manuscript handle using the research_id
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+
+        # Check if research_output exists and if the handle for the manuscript is available
+        if not research_output or not research_output.full_manuscript:
+            return jsonify({"error": "Manuscript not found."}), 404
+
+        file_path = os.path.normpath(research_output.full_manuscript)
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found."}), 404
+
+        # Send the file for viewing and downloading
+        return send_file(file_path, as_attachment=False)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
