@@ -1,11 +1,12 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile
 from services import auth_services
 import os
 from werkzeug.utils import secure_filename
 
 paper = Blueprint('paper', __name__)
-UPLOAD_FOLDER = './research_repository'
+UPLOAD_FOLDER = os.path.abspath('./research_repository')
+
 
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
@@ -165,7 +166,6 @@ def view_manuscript(research_id):
         # Check if the file exists
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
-
         # Send the file for viewing and downloading
         return send_file(file_path, as_attachment=False)
     except Exception as e:

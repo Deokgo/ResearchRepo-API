@@ -102,7 +102,10 @@ def create_dash_apps(app):
             PublicationDash(app)
             create_main_dashboard(app)
             create_kg_sdg(app)
-            print("Dash apps created successfully.")
+            # print("Dash apps created successfully.")
+            # print("Available routes:")
+            # for rule in app.url_map.iter_rules():
+            #     print(rule)
         else:
             print("Dash apps cannot be created as no data is present in the ResearchOutput table.")
 
