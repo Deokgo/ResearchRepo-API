@@ -11,7 +11,7 @@ dataset = Blueprint('dataset', __name__)
 # used for research tracking
 @dataset.route('/fetch_dataset', methods=['GET'])
 @dataset.route('/fetch_dataset/<research_id>', methods=['GET'])
-def retrieve_dataset(research_id):
+def retrieve_dataset(research_id=None):
     # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
         Status.publication_id,
