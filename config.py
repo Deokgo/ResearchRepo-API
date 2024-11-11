@@ -11,7 +11,8 @@ class Config:
     MAIL_SERVER = 'smtp.gmail.com'  # Use your mail server, e.g., Gmail
     MAIL_PORT = 465  # SMTP SSL port
     MAIL_USE_SSL = True
-    MAIL_USERNAME = 'your_email@gmail.com'
-    MAIL_PASSWORD = 'your_email_password'
-    MAIL_DEFAULT_SENDER = 'your_email@gmail.com'
+    MAIL_USE_TLS=False
+    MAIL_USERNAME = 'procurementinventory27@gmail.com'
+    MAIL_PASSWORD = 'lfec yazu ydsb saol' 
+    MAIL_DEFAULT_SENDER = 'procurementinventory27@gmail.com'
     
