@@ -10,7 +10,8 @@ dataset = Blueprint('dataset', __name__)
 
 # used for research tracking
 @dataset.route('/fetch_dataset', methods=['GET'])
-def retrieve_dataset():
+@dataset.route('/fetch_dataset/<research_id>', methods=['GET'])
+def retrieve_dataset(research_id):
     # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
         Status.publication_id,
@@ -120,6 +121,10 @@ def retrieve_dataset():
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
+    #filter by research_id if provided
+    if research_id:
+        query = query.filter(ResearchOutput.research_id == research_id)
+
     result = query.all()
 
     # Formatting results into a list of dictionaries
@@ -153,7 +158,8 @@ def retrieve_dataset():
 
 # used for manage papers and collections
 @dataset.route('/fetch_ordered_dataset', methods=['GET'])
-def fetch_ordered_dataset():
+@dataset.route('/fetch_ordered_dataset/<research_id>', methods=['GET'])
+def fetch_ordered_dataset(research_id=None):
     # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
         Status.publication_id,
@@ -235,6 +241,7 @@ def fetch_ordered_dataset():
         sdg_subquery.c.concatenated_sdg,
         ResearchOutput.research_id,
         ResearchOutput.title,
+        ResearchOutput.abstract,
         ResearchOutput.view_count,
         ResearchOutput.download_count,
         adviser_subquery.c.adviser_name,
@@ -263,10 +270,15 @@ def fetch_ordered_dataset():
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .order_by(desc(ResearchOutput.date_approved))
 
+    #filter by research_id if provided
+    if research_id:
+        query = query.filter(ResearchOutput.research_id == research_id)
+
     result = query.all()
 
     # Formatting results into a list of dictionaries
     data = [{
+                'abstract': row.abstract,
                 'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
                 'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
                 'program_id': row.program_id if pd.notnull(row.program_id) else None,
