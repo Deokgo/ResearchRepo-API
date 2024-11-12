@@ -15,4 +15,5 @@ class ResearchOutput(db.Model):
     research_type = db.Column(db.String(30))
     view_count = db.Column(db.Integer)
     download_count = db.Column(db.Integer)
+    date_uploaded = db.Column(db.TIMESTAMP)
     #agency_id --> to be finalized
