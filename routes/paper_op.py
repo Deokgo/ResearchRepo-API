@@ -5,7 +5,7 @@ import os
 from werkzeug.utils import secure_filename
 
 paper = Blueprint('paper', __name__)
-UPLOAD_FOLDER = os.path.abspath('./research_repository')
+UPLOAD_FOLDER = './research_repository'
 
 
 @paper.route('/add_paper', methods=['POST'])
@@ -38,7 +38,8 @@ def add_paper():
                 abstract=data['abstract'],
                 date_approved=data['date_approved'],
                 research_type=data['research_type'],
-                full_manuscript=data.get('full_manuscript', None)
+                full_manuscript=data.get('full_manuscript', None),
+                adviser_id=data['adviser_id']
             )
 
             """

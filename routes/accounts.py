@@ -134,3 +134,24 @@ def update_account(user_id):
     finally:
         db.session.close()  # Ensure the session is closed
 
+@accounts.route('/search_advisers', methods=['GET'])
+def search_advisers():
+    query = request.args.get('query', '')
+    if query:
+        advisers = UserProfile.query.join(Account, UserProfile.researcher_id == Account.user_id)\
+                    .filter((UserProfile.first_name.ilike(f'%{query}%')) | 
+                            (UserProfile.last_name.ilike(f'%{query}%')) |
+                            (Account.email.ilike(f'%{query}%')))\
+                    .add_columns(UserProfile.researcher_id, UserProfile.first_name, UserProfile.last_name, Account.email)\
+                    .all()
+
+        result = [{"user_id": adviser.researcher_id, 
+                   "first_name": first_name, 
+                   "last_name": last_name, 
+                   "email": email} for adviser, researcher_id, first_name, last_name, email in advisers]
+
+        return jsonify({"advisers": result}), 200
+    return jsonify({"advisers": []}), 200
+
+
+
