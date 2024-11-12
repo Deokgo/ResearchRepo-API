@@ -134,7 +134,7 @@ def update_account(user_id):
     finally:
         db.session.close()  # Ensure the session is closed
 
-@accounts.route('/search_advisers', methods=['GET'])
+@accounts.route('/search_user', methods=['GET'])
 def search_advisers():
     query = request.args.get('query', '')
     if query:

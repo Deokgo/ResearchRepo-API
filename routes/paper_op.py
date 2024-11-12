@@ -3,6 +3,9 @@ from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutpu
 from services import auth_services
 import os
 from werkzeug.utils import secure_filename
+from datetime import datetime
+import pytz
+import traceback
 
 paper = Blueprint('paper', __name__)
 UPLOAD_FOLDER = './research_repository'
@@ -30,6 +33,8 @@ def add_paper():
         if is_duplicate(data['research_id']):   #checking if the inputted research_id/group code is already existing
             return jsonify({"error": f"Group Code already exists"}), 400
         else:  
+            philippine_tz = pytz.timezone('Asia/Manila')
+            current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
             new_paper = ResearchOutput(
                 research_id=data['research_id'],
                 college_id=data['college_id'],
@@ -39,7 +44,8 @@ def add_paper():
                 date_approved=data['date_approved'],
                 research_type=data['research_type'],
                 full_manuscript=data.get('full_manuscript', None),
-                adviser_id=data['adviser_id']
+                adviser_id=data['adviser_id'],
+                date_uploaded=current_datetime
             )
 
             """
@@ -92,6 +98,15 @@ def add_paper():
             db.session.add(new_paper_sdg)
             db.session.commit()
 
+            if 'panel_ids' in data:
+                for panel_id in data['panel_ids']:
+                    new_panel = Panel(
+                        research_id=data['research_id'],
+                        panel_id=panel_id
+                    )
+                    db.session.add(new_panel)
+            db.session.commit()
+
             """
             # Audit Log
             auth_services.log_audit_trail(
@@ -108,6 +123,7 @@ def add_paper():
     except Exception as e:
         #rollback in case of error
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
     
 @paper.route('/upload_manuscript', methods=['POST'])
