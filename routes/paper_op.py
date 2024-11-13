@@ -183,6 +183,9 @@ def view_manuscript(research_id):
         # Check if the file exists
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
+        
+        increment_downloads(research_id) # increment download_count
+
         # Send the file for viewing and downloading
         return send_file(file_path, as_attachment=False)
     except Exception as e:
@@ -233,7 +236,7 @@ def increment_views(research_id):
         db.session.close()  #ensure the session is closed
 
 
-@paper.route('/increment_downloads/<research_id>', methods=['PUT'])
+#@paper.route('/increment_downloads/<research_id>', methods=['PUT'])
 def increment_downloads(research_id):
     try:
         updated_downloads = 0
