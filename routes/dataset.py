@@ -268,7 +268,7 @@ def fetch_ordered_dataset(research_id=None):
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
-    .order_by(desc(ResearchOutput.date_approved))
+    .order_by(desc(ResearchOutput.date_uploaded))
 
     #filter by research_id if provided
     if research_id:
@@ -285,8 +285,8 @@ def fetch_ordered_dataset(research_id=None):
                 'research_id': row.research_id,
                 'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
-                'view_count': row.view_count if pd.notnull(row.view_count) else 'No Views Yet',
-                'download_count': row.download_count if pd.notnull(row.download_count) else 'No Downloads Yet',
+                'view_count': row.view_count,
+                'download_count': row.download_count,
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',
                 'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',

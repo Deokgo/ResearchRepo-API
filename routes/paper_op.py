@@ -194,3 +194,28 @@ def is_duplicate(group_code):
     
     #return True if a record is found, False otherwise
     return research_output is not None
+
+@paper.route('/increment_views/<research_id>', methods=['PUT'])
+def increment_views(research_id):
+    try:
+        updated_views = 0
+        #fetch the record using SQLAlchemy query
+        view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
+        if view_count:
+            if view_count.view_count is None:
+                updated_views = 0
+            else:
+                updated_views = int(view_count.view_count) + 1
+
+            view_count.view_count = updated_views
+            db.session.commit()
+            return jsonify({"message": "View count incremented", "updated_views": updated_views}), 200
+        else:
+            return jsonify({"message": "Record not found"}), 404
+    
+    except Exception as e:
+        db.session.rollback()  #rollback in case of any error
+        return jsonify({"message": f"Failed to update view counts: {e}"}), 500
+    
+    finally:
+        db.session.close()  #ensure the session is closed
