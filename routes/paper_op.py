@@ -208,14 +208,43 @@ def increment_views(research_id):
                 updated_views = int(view_count.view_count) + 1
 
             view_count.view_count = updated_views
+            download_count = view_count.download_count
             db.session.commit()
-            return jsonify({"message": "View count incremented", "updated_views": updated_views}), 200
+            return jsonify({"message": "View count incremented", 
+                            "updated_views": updated_views,
+                            "download_count": download_count}), 200
         else:
             return jsonify({"message": "Record not found"}), 404
     
     except Exception as e:
         db.session.rollback()  #rollback in case of any error
         return jsonify({"message": f"Failed to update view counts: {e}"}), 500
+    
+    finally:
+        db.session.close()  #ensure the session is closed
+
+
+@paper.route('/increment_downloads/<research_id>', methods=['PUT'])
+def increment_downloads(research_id):
+    try:
+        updated_downloads = 0
+        #fetch the record using SQLAlchemy query
+        download_count = ResearchOutput.query.filter_by(research_id=research_id).first()
+        if download_count:
+            if download_count.download_count is None:
+                updated_downloads = 0
+            else:
+                updated_downloads = int(download_count.download_count) + 1
+
+            download_count.download_count = updated_downloads
+            db.session.commit()
+            return jsonify({"message": "Download count incremented", "updated_downloads": updated_downloads}), 200
+        else:
+            return jsonify({"message": "Record not found"}), 404
+    
+    except Exception as e:
+        db.session.rollback()  #rollback in case of any error
+        return jsonify({"message": f"Failed to update download counts: {e}"}), 500
     
     finally:
         db.session.close()  #ensure the session is closed
