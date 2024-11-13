@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, session
 from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile
 from services import auth_services
 import os
@@ -210,6 +210,15 @@ def increment_views(research_id):
             view_count.view_count = updated_views
             download_count = view_count.download_count
             db.session.commit()
+
+            auth_services.log_audit_trail(
+                user_id=str(session['user_id']), # should be able to fetch the current user that is logged in
+                table_name='Research_Output',
+                record_id=research_id,
+                operation='VIEW PAPER',
+                action_desc='Viewed research paper'
+            )
+
             return jsonify({"message": "View count incremented", 
                             "updated_views": updated_views,
                             "download_count": download_count}), 200
@@ -238,6 +247,14 @@ def increment_downloads(research_id):
 
             download_count.download_count = updated_downloads
             db.session.commit()
+
+            auth_services.log_audit_trail(
+                user_id=str(session['user_id']), # should be able to fetch the current user that is logged in
+                table_name='Research_Output',
+                record_id=research_id,
+                operation='DOWNLOAD PAPER',
+                action_desc='Downloaded research paper'
+            )
             return jsonify({"message": "Download count incremented", "updated_downloads": updated_downloads}), 200
         else:
             return jsonify({"message": "Record not found"}), 404

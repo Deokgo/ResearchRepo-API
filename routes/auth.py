@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, session
 from models.account import Account
 from models.user_profile import UserProfile
 from models.visitor import Visitor
@@ -12,6 +12,8 @@ auth = Blueprint('auth', __name__)
 
 @auth.route('/login', methods=['POST']) 
 def login():
+    session.clear() # making sure that the session is empty before we store the session
+
     data = request.json
     if data:
         email = data.get('email')
@@ -41,6 +43,7 @@ def login():
             if check_password_hash(user.user_pw, password):
                 # Generate token on successful login
                 token = auth_services.generate_token(user.user_id)
+                session['user_id'] = user.user_id
 
                 # Log successful login in the Audit_Trail
                 auth_services.log_audit_trail(
@@ -123,4 +126,3 @@ def create_account():
         return jsonify(response_data), status_code
 
     return response, status_code
-
