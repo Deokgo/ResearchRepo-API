@@ -139,6 +139,7 @@ def search_advisers():
     query = request.args.get('query', '')
     if query:
         advisers = UserProfile.query.join(Account, UserProfile.researcher_id == Account.user_id)\
+                    .filter(Account.role_id.in_(['04', '05', '06']))\
                     .filter((UserProfile.first_name.ilike(f'%{query}%')) | 
                             (UserProfile.last_name.ilike(f'%{query}%')) |
                             (Account.email.ilike(f'%{query}%')))\

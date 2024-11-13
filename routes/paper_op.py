@@ -200,69 +200,97 @@ def is_duplicate(group_code):
 def increment_views(research_id):
     try:
         updated_views = 0
-        #fetch the record using SQLAlchemy query
+        # Get user_id from request body instead of session
+        data = request.get_json()
+        user_id = data.get('user_id', 'anonymous')
+        
+        # Fetch the record using SQLAlchemy query
         view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
         if view_count:
             if view_count.view_count is None:
-                updated_views = 0
+                updated_views = 1  # Start from 1 if None
             else:
                 updated_views = int(view_count.view_count) + 1
 
             view_count.view_count = updated_views
-            download_count = view_count.download_count
+            download_count = view_count.download_count or 0  # Default to 0 if None
             db.session.commit()
 
-            auth_services.log_audit_trail(
-                user_id=str(session['user_id']), # should be able to fetch the current user that is logged in
-                table_name='Research_Output',
-                record_id=research_id,
-                operation='VIEW PAPER',
-                action_desc='Viewed research paper'
-            )
+            # Log audit trail only if user_id is available
+            if user_id != 'anonymous':
+                try:
+                    auth_services.log_audit_trail(
+                        user_id=user_id,
+                        table_name='Research_Output',
+                        record_id=research_id,
+                        operation='VIEW PAPER',
+                        action_desc='Viewed research paper'
+                    )
+                except Exception as audit_error:
+                    print(f"Audit trail logging failed: {audit_error}")
+                    # Continue execution even if audit trail fails
 
-            return jsonify({"message": "View count incremented", 
-                            "updated_views": updated_views,
-                            "download_count": download_count}), 200
+            return jsonify({
+                "message": "View count incremented", 
+                "updated_views": updated_views,
+                "download_count": download_count
+            }), 200
         else:
             return jsonify({"message": "Record not found"}), 404
     
     except Exception as e:
-        db.session.rollback()  #rollback in case of any error
-        return jsonify({"message": f"Failed to update view counts: {e}"}), 500
+        db.session.rollback()
+        print(f"Error in increment_views: {str(e)}")  # Add detailed error logging
+        return jsonify({"message": f"Failed to update view counts: {str(e)}"}), 500
     
     finally:
-        db.session.close()  #ensure the session is closed
+        db.session.close()
 
 
 @paper.route('/increment_downloads/<research_id>', methods=['PUT'])
 def increment_downloads(research_id):
     try:
         updated_downloads = 0
-        #fetch the record using SQLAlchemy query
+        # Get user_id from request body
+        data = request.get_json()
+        user_id = data.get('user_id', 'anonymous')
+        
+        # Fetch the record using SQLAlchemy query
         download_count = ResearchOutput.query.filter_by(research_id=research_id).first()
         if download_count:
             if download_count.download_count is None:
-                updated_downloads = 0
+                updated_downloads = 1  # Start from 1 if None
             else:
                 updated_downloads = int(download_count.download_count) + 1
 
             download_count.download_count = updated_downloads
             db.session.commit()
 
-            auth_services.log_audit_trail(
-                user_id=str(session['user_id']), # should be able to fetch the current user that is logged in
-                table_name='Research_Output',
-                record_id=research_id,
-                operation='DOWNLOAD PAPER',
-                action_desc='Downloaded research paper'
-            )
-            return jsonify({"message": "Download count incremented", "updated_downloads": updated_downloads}), 200
+            # Log audit trail only if user_id is available
+            if user_id != 'anonymous':
+                try:
+                    auth_services.log_audit_trail(
+                        user_id=user_id,
+                        table_name='Research_Output',
+                        record_id=research_id,
+                        operation='DOWNLOAD PAPER',
+                        action_desc='Downloaded research paper'
+                    )
+                except Exception as audit_error:
+                    print(f"Audit trail logging failed: {audit_error}")
+                    # Continue execution even if audit trail fails
+
+            return jsonify({
+                "message": "Download count incremented", 
+                "updated_downloads": updated_downloads
+            }), 200
         else:
             return jsonify({"message": "Record not found"}), 404
     
     except Exception as e:
-        db.session.rollback()  #rollback in case of any error
-        return jsonify({"message": f"Failed to update download counts: {e}"}), 500
+        db.session.rollback()
+        print(f"Error in increment_downloads: {str(e)}")  # Add detailed error logging
+        return jsonify({"message": f"Failed to update download counts: {str(e)}"}), 500
     
     finally:
-        db.session.close()  #ensure the session is closed
+        db.session.close()
