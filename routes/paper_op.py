@@ -13,119 +13,99 @@ UPLOAD_FOLDER = './research_repository'
 
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
-    #extract data from the request JSON
-    data = request.get_json()
-    print("Request data:", data)
-    
-    #validate required fields (add adviser_id, keywords, panels, path for manus)
-    required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'sdg']
-    missing_fields = [field for field in required_fields if field not in data]
-    if missing_fields:
-        return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
-    
     try:
-        #create a new ResearchOutput record
-        """
-        add later:
-        adviser_id=data['adviser_id']
-        """
+        # Get the file and form data
+        file = request.files.get('file')
+        if not file:
+            return jsonify({"error": "No file provided"}), 400
 
-        if is_duplicate(data['research_id']):   #checking if the inputted research_id/group code is already existing
+        data = request.form.to_dict()  # Get form data
+        
+        required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'sdg']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+        
+        if is_duplicate(data['research_id']):
             return jsonify({"error": f"Group Code already exists"}), 400
-        else:  
-            philippine_tz = pytz.timezone('Asia/Manila')
-            current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
-            new_paper = ResearchOutput(
-                research_id=data['research_id'],
-                college_id=data['college_id'],
-                program_id=data['program_id'],
-                title=data['title'],
-                abstract=data['abstract'],
-                date_approved=data['date_approved'],
-                research_type=data['research_type'],
-                full_manuscript=data.get('full_manuscript', None),
-                adviser_id=data['adviser_id'],
-                date_uploaded=current_datetime
-            )
 
-            """
-            #assuming 'sdg' field may contain multiple sdg separated by ';'
-            sdg_list = data['sdg'].split(';')
+        # First try to save the file
+        dir_path = os.path.join(
+            UPLOAD_FOLDER, 
+            data['research_type'], 
+            'manuscript', 
+            str(datetime.strptime(data['date_approved'], '%Y-%m-%d').year),
+            data['college_id'],
+            data['program_id']
+        )
+        os.makedirs(dir_path, exist_ok=True)
 
-            #iterate over the split keywords and add each one individually
-            for sdg in sdg_list:
-                new_keyword = Keywords(
+        filename = secure_filename(f"{data['research_id']}_manuscript.pdf")
+        file_path = os.path.normpath(os.path.join(dir_path, filename))
+        file.save(file_path)
+        
+        # If file save succeeds, proceed with database operations
+        philippine_tz = pytz.timezone('Asia/Manila')
+        current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
+        
+        new_paper = ResearchOutput(
+            research_id=data['research_id'],
+            college_id=data['college_id'],
+            program_id=data['program_id'],
+            title=data['title'],
+            abstract=data['abstract'],
+            date_approved=data['date_approved'],
+            research_type=data['research_type'],
+            full_manuscript=file_path,  # Save the file path
+            adviser_id=data['adviser_id'],
+            date_uploaded=current_datetime
+        )
+        db.session.add(new_paper)
+        db.session.commit()
+
+        # Handle multiple SDGs
+        sdg_list = data['sdg'].split(';') if data['sdg'] else []
+        for sdg_id in sdg_list:
+            if sdg_id.strip():
+                new_sdg = SDG(
                     research_id=data['research_id'],
-                    sdg=sdg.strip()  #remove any leading or trailing whitespace
+                    sdg=sdg_id.strip()
                 )
-                db.session.add(new_keyword)
+                db.session.add(new_sdg)
 
-            """
-
-            #create a new SDG record associated with the research_id (delete this after implementing the code above)
-            new_paper_sdg = SDG(
-                research_id=data['research_id'],
-                sdg=data['sdg']
-            )
-
-
-            """
-            #assuming 'keywords' field may contain multiple keywords separated by ';'
-            keywords_list = data['keywords'].split(';')
-
-            #iterate over the split keywords and add each one individually
-            for keyword in keywords_list:
-                new_keyword = Keywords(
+        # Handle panels if present
+        panel_ids = request.form.getlist('panel_ids[]')  # Adjust based on how you're sending panel_ids
+        if panel_ids:
+            for panel_id in panel_ids:
+                new_panel = Panel(
                     research_id=data['research_id'],
-                    keywords=keyword.strip()  #remove any leading or trailing whitespace
+                    panel_id=panel_id
                 )
-                db.session.add(new_keyword)
-            """
+                db.session.add(new_panel)
 
-            """
-            # for panels
-            panels_list = data['panels'].split(';')
-            for panel in panels_list:
-                new_panels = Panel(
-                    research_id=data['research_id'],
-                    panels=panel.strip()
-                )
-                db.session.add(new_panels)
-            """
-            
-            #add to session and commit
-            db.session.add(new_paper)
-            db.session.add(new_paper_sdg)
-            db.session.commit()
+        db.session.commit()
 
-            if 'panel_ids' in data:
-                for panel_id in data['panel_ids']:
-                    new_panel = Panel(
-                        research_id=data['research_id'],
-                        panel_id=panel_id
-                    )
-                    db.session.add(new_panel)
-            db.session.commit()
-
-            """
-            # Audit Log
-            auth_services.log_audit_trail(
-                user_id=user.user_id, # should be able to fetch the current user that is logged in
-                table_name='Research_Output',
-                record_id=new_paper.research_id,
-                operation='ADD NEW PAPER',
-                action_desc='Added research paper'
-            )
-            """
-            
-            return jsonify({"message": "Research output added successfully", "research_id": new_paper.research_id}), 201
+        return jsonify({
+            "message": "Research output and manuscript added successfully", 
+            "research_id": new_paper.research_id
+        }), 201
     
     except Exception as e:
-        #rollback in case of error
+        # If anything fails, rollback database changes and delete the file if it exists
         db.session.rollback()
+        if 'file_path' in locals() and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass  # If file deletion fails, continue with error response
+        
         traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-    
+        
+    finally:
+        db.session.close()
+
+
 @paper.route('/upload_manuscript', methods=['POST'])
 def upload_manuscript():
     try:
@@ -190,10 +170,10 @@ def view_manuscript(research_id):
         return jsonify({"error": str(e)}), 500
     
 def is_duplicate(group_code):
-    #check if any record with the given college_id (group_code) exists
-    research_output = ResearchOutput.query.filter_by(college_id=group_code).first()
+    # Check if any record with the given research_id (group_code) exists
+    research_output = ResearchOutput.query.filter_by(research_id=group_code).first()
     
-    #return True if a record is found, False otherwise
+    # Return True if a record is found, False otherwise
     return research_output is not None
 
 @paper.route('/increment_views/<research_id>', methods=['PUT'])
