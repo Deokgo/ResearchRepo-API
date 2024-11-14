@@ -83,6 +83,18 @@ def add_paper():
                 )
                 db.session.add(new_panel)
 
+        # Handle keywords if present
+        keywords_str = data.get('keywords')
+        if keywords_str:
+            keywords_list = keywords_str.split(';')
+            for keyword in keywords_list:
+                if keyword.strip():  # Only add non-empty keywords
+                    new_keyword = Keywords(
+                        research_id=data['research_id'],
+                        keyword=keyword.strip()
+                    )
+                    db.session.add(new_keyword)
+
         db.session.commit()
 
         return jsonify({
