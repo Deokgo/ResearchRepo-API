@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file, session
-from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile
+from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile, Account
 from services import auth_services
 import os
 from werkzeug.utils import secure_filename
@@ -15,7 +15,9 @@ UPLOAD_FOLDER = './research_repository'
 def add_paper():
     try:
         # Get user_id from form data 
-        user_id = request.form.get('user_id', 'anonymous')
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({"error": "User must be logged in to add a paper"}), 401
 
         # Get the file and form data
         file = request.files.get('file')
@@ -25,13 +27,17 @@ def add_paper():
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
             'abstract', 'date_approved', 'research_type', 
-            'adviser_id', 'sdg', 'keywords', 'panel_ids'
+            'adviser_id', 'sdg', 'keywords', 'author_ids', 'panel_ids'
         ]
         missing_fields = [field for field in required_fields if field not in data]
         
         # Add file to validation
         if not file:
             missing_fields.append('file')
+        
+         # Check if authors array is empty
+        if 'author_ids' in data and not request.form.getlist('author_ids'):
+            missing_fields.append('author_ids')
             
         # Check if panels array is empty
         if 'panel_ids' in data and not request.form.getlist('panel_ids'):
@@ -94,7 +100,7 @@ def add_paper():
                 )
                 db.session.add(new_sdg)
 
-        # Handle panels if present
+        # Handle panels
         panel_ids = request.form.getlist('panel_ids')
         if panel_ids:
             for panel_id in panel_ids:
@@ -104,7 +110,7 @@ def add_paper():
                 )
                 db.session.add(new_panel)
 
-        # Handle keywords if present
+        # Handle keywords 
         keywords_str = data.get('keywords')
         if keywords_str:
             keywords_list = keywords_str.split(';')
@@ -116,20 +122,51 @@ def add_paper():
                     )
                     db.session.add(new_keyword)
 
+        # Handle authors 
+        author_ids = request.form.getlist('author_ids')
+
+        if author_ids:
+            try:
+                # Query author information including last names
+                author_info = db.session.query(
+                    Account.user_id,
+                    UserProfile.last_name
+                ).join(
+                    UserProfile,
+                    Account.user_id == UserProfile.researcher_id
+                ).filter(
+                    Account.user_id.in_(author_ids)
+                ).all()
+
+                # Create a dictionary of author_id to last_name for sorting
+                author_dict = {str(author.user_id): author.last_name for author in author_info}
+                
+                # Sort author_ids based on last names
+                sorted_author_ids = sorted(author_ids, key=lambda x: author_dict[x].lower())
+
+                # Add authors with order based on sorted last names
+                for index, author_id in enumerate(sorted_author_ids, start=1):
+                    new_author = ResearchOutputAuthor(
+                        research_id=data['research_id'],
+                        author_id=author_id,
+                        author_order=index  # Order based on sorted last names
+                    )
+                    db.session.add(new_author)
+
+            except Exception as e:
+                print(f"Error sorting authors: {str(e)}")
+                raise e
+
         db.session.commit()
 
-        if user_id != 'anonymous':
-            try:
-                auth_services.log_audit_trail(
-                    user_id=user_id,
-                    table_name='Research_Output',
-                    record_id=new_paper.research_id,
-                    operation='ADD NEW PAPER',
-                    action_desc='Added research paper'
-                )
-            except Exception as audit_error:
-                print(f"Audit trail logging failed: {audit_error}")
-                # Continue execution even if audit trail fails
+        # Log audit trail
+        auth_services.log_audit_trail(
+            user_id=user_id,
+            table_name='Research_Output',
+            record_id=new_paper.research_id,
+            operation='ADD NEW PAPER',
+            action_desc='Added research paper'
+        )
 
         return jsonify({
             "message": "Research output and manuscript added successfully", 
