@@ -25,7 +25,7 @@ def add_paper():
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
             'abstract', 'date_approved', 'research_type', 
-            'adviser_id', 'sdg', 'keywords', 'panel_ids[]'
+            'adviser_id', 'sdg', 'keywords', 'panel_ids'
         ]
         missing_fields = [field for field in required_fields if field not in data]
         
@@ -34,8 +34,8 @@ def add_paper():
             missing_fields.append('file')
             
         # Check if panels array is empty
-        if 'panel_ids[]' in data and not request.form.getlist('panel_ids'):
-            missing_fields.append('panel_ids[]')
+        if 'panel_ids' in data and not request.form.getlist('panel_ids'):
+            missing_fields.append('panel_ids')
             
         # Check if keywords is empty
         if 'keywords' in data and not data['keywords'].strip():
@@ -95,7 +95,7 @@ def add_paper():
                 db.session.add(new_sdg)
 
         # Handle panels if present
-        panel_ids = request.form.getlist('panel_ids[]')  # Adjust based on how you're sending panel_ids
+        panel_ids = request.form.getlist('panel_ids')
         if panel_ids:
             for panel_id in panel_ids:
                 new_panel = Panel(
