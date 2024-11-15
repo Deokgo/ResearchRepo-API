@@ -14,19 +14,33 @@ UPLOAD_FOLDER = './research_repository'
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
     try:
-        # Get user_id from request body instead of session
-        user_data = request.get_json()
-        user_id = user_data.get('user_id', 'anonymous')
+        # Get user_id from form data 
+        user_id = request.form.get('user_id', 'anonymous')
 
         # Get the file and form data
         file = request.files.get('file')
-        if not file:
-            return jsonify({"error": "No file provided"}), 400
-
-        data = request.form.to_dict()  # Get form data
+        data = request.form  # Get form data
         
-        required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'adviser_id', 'sdg', 'file', 'panel_ids[]', 'keywords', 'authors']
+        # Update required fields list
+        required_fields = [
+            'research_id', 'college_id', 'program_id', 'title', 
+            'abstract', 'date_approved', 'research_type', 
+            'adviser_id', 'sdg', 'keywords', 'panel_ids[]'
+        ]
         missing_fields = [field for field in required_fields if field not in data]
+        
+        # Add file to validation
+        if not file:
+            missing_fields.append('file')
+            
+        # Check if panels array is empty
+        if 'panel_ids[]' in data and not request.form.getlist('panel_ids'):
+            missing_fields.append('panel_ids[]')
+            
+        # Check if keywords is empty
+        if 'keywords' in data and not data['keywords'].strip():
+            missing_fields.append('keywords')
+
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
         
@@ -62,6 +76,7 @@ def add_paper():
             research_type=data['research_type'],
             full_manuscript=file_path,  # Save the file path
             adviser_id=data['adviser_id'],
+            user_id=user_id,
             date_uploaded=current_datetime,
             view_count=0,
             download_count=0
