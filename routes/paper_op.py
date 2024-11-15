@@ -14,6 +14,10 @@ UPLOAD_FOLDER = './research_repository'
 @paper.route('/add_paper', methods=['POST'])
 def add_paper():
     try:
+        # Get user_id from request body instead of session
+        user_data = request.get_json()
+        user_id = user_data.get('user_id', 'anonymous')
+
         # Get the file and form data
         file = request.files.get('file')
         if not file:
@@ -21,7 +25,7 @@ def add_paper():
 
         data = request.form.to_dict()  # Get form data
         
-        required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'sdg']
+        required_fields = ['research_id', 'college_id', 'program_id', 'title', 'abstract', 'date_approved', 'research_type', 'adviser_id', 'sdg', 'file', 'panel_ids[]', 'keywords', 'authors']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
@@ -58,7 +62,9 @@ def add_paper():
             research_type=data['research_type'],
             full_manuscript=file_path,  # Save the file path
             adviser_id=data['adviser_id'],
-            date_uploaded=current_datetime
+            date_uploaded=current_datetime,
+            view_count=0,
+            download_count=0
         )
         db.session.add(new_paper)
         db.session.commit()
@@ -96,6 +102,19 @@ def add_paper():
                     db.session.add(new_keyword)
 
         db.session.commit()
+
+        if user_id != 'anonymous':
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_id,
+                    table_name='Research_Output',
+                    record_id=new_paper.research_id,
+                    operation='ADD NEW PAPER',
+                    action_desc='Added research paper'
+                )
+            except Exception as audit_error:
+                print(f"Audit trail logging failed: {audit_error}")
+                # Continue execution even if audit trail fails
 
         return jsonify({
             "message": "Research output and manuscript added successfully", 
