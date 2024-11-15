@@ -234,14 +234,6 @@ def fetch_ordered_dataset(research_id=None):
         func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
     ).group_by(SDG.research_id).subquery()
 
-    # Subquery to concatenate user_id
-    user_id_subquery = db.session.query(
-        ResearchOutput.research_id,
-        func.string_agg(Account.user_id, ';').label('concatenated_users')
-    ).join(ResearchOutputAuthor, ResearchOutput.research_id == ResearchOutputAuthor.research_id
-    ).join(Account, ResearchOutputAuthor.author_id == Account.user_id
-    ).group_by(ResearchOutput.research_id).subquery()
-
     query = db.session.query(
         College.college_id,
         College.college_name,
@@ -258,7 +250,6 @@ def fetch_ordered_dataset(research_id=None):
         panels_subquery.c.concatenated_panels,
         ResearchOutput.date_approved,
         ResearchOutput.research_type,
-        user_id_subquery.c.concatenated_users,
         authors_subquery.c.concatenated_authors,
         keywords_subquery.c.concatenated_keywords,
         Publication.journal,
@@ -302,7 +293,6 @@ def fetch_ordered_dataset(research_id=None):
                 'view_count': row.view_count,
                 'download_count': row.download_count,
                 'date_approved': row.date_approved,
-                'concatenated_users': row.concatenated_users,
                 'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',
                 'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
