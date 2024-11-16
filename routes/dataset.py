@@ -24,22 +24,32 @@ def retrieve_dataset(research_id=None):
     ).subquery()
 
     # Subquery to concatenate authors
-    authors_subquery = db.session.query(
+    ordered_authors = db.session.query(
         ResearchOutputAuthor.research_id,
-        func.string_agg(
-            func.concat(
-                UserProfile.first_name,
-                ' ',
-                func.coalesce(UserProfile.middle_name, ''),
-                ' ',
-                UserProfile.last_name,
-                ' ',
-                func.coalesce(UserProfile.suffix, '')
-            ), '; '
-        ).label('concatenated_authors')
+        UserProfile.first_name,
+        UserProfile.middle_name,
+        UserProfile.last_name,
+        UserProfile.suffix,
+        ResearchOutputAuthor.author_order
     ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
      .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .group_by(ResearchOutputAuthor.research_id).subquery()
+     .order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
+
+    authors_subquery = db.session.query(
+        ordered_authors.c.research_id,
+        func.string_agg(
+            func.concat(
+                ordered_authors.c.first_name,
+                ' ',
+                func.coalesce(ordered_authors.c.middle_name, ''),
+                ' ',
+                ordered_authors.c.last_name,
+                ' ',
+                func.coalesce(ordered_authors.c.suffix, '')
+            ),
+            '; '
+        ).label('concatenated_authors')
+    ).group_by(ordered_authors.c.research_id).subquery()
     
     adviser_subquery = db.session.query(
         ResearchOutput.research_id,
@@ -172,22 +182,32 @@ def fetch_ordered_dataset(research_id=None):
     ).subquery()
 
     # Subquery to concatenate authors
-    authors_subquery = db.session.query(
+    ordered_authors = db.session.query(
         ResearchOutputAuthor.research_id,
-        func.string_agg(
-            func.concat(
-                UserProfile.first_name,
-                ' ',
-                func.coalesce(UserProfile.middle_name, ''),
-                ' ',
-                UserProfile.last_name,
-                ' ',
-                func.coalesce(UserProfile.suffix, '')
-            ), '; '
-        ).label('concatenated_authors')
+        UserProfile.first_name,
+        UserProfile.middle_name,
+        UserProfile.last_name,
+        UserProfile.suffix,
+        ResearchOutputAuthor.author_order
     ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
      .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .group_by(ResearchOutputAuthor.research_id).subquery()
+     .order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
+
+    authors_subquery = db.session.query(
+        ordered_authors.c.research_id,
+        func.string_agg(
+            func.concat(
+                ordered_authors.c.first_name,
+                ' ',
+                func.coalesce(ordered_authors.c.middle_name, ''),
+                ' ',
+                ordered_authors.c.last_name,
+                ' ',
+                func.coalesce(ordered_authors.c.suffix, '')
+            ),
+            '; '
+        ).label('concatenated_authors')
+    ).group_by(ordered_authors.c.research_id).subquery()
     
     adviser_subquery = db.session.query(
         ResearchOutput.research_id,
