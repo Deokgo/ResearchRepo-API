@@ -132,55 +132,63 @@ def publication_papers(research_id=None):
         
         return jsonify({"dataset":data}), 200
     elif request.method == 'POST':
-        #current_user = get_jwt_identity()
-        #user = db.session.query(Account).filter(Account.user_id == current_user).first()
+        data = request.get_json()  # Get the JSON data sent in the request
+        try:
+            # Check if ResearchOutput exists
+            research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
 
-        #if user:
-            # Handle POST request - Update an existing publication entry
-            data = request.get_json()  # Get the JSON data sent in the request
-            try:
-                # Check if ResearchOutput exists
-                research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
-                cf_id=formatting_id("CF", Conference, 'conference_id'),
-                if research_output:
-                    # Create Publication
-                    new_publication = Publication(
-                        publication_id=formatting_id("PBC", Publication, 'publication_id'),  # Ensure unique publication_id
-                        research_id=research_id,
-                        publication_name=data.get('publication_name'),
-                        conference_id=cf_id,
-                        journal=data.get('journal'),
-                        user_id=data.get('user_id'),
-                        date_published=data.get('date_published'),
-                        scopus=data.get('scopus'),
-                         # Ensure user_id is provided in request data
-                    )
-                    db.session.add(new_publication)
+            if not research_output:
+                return jsonify({'message': 'ResearchOutput not found'}), 404
 
-                    new_conference = Conference(
-                        conference_id=cf_id,  # Ensure unique conference_id
-                        conference_title=data.get('conference_title'),
-                        conference_venue=data.get('conference_venue'),
-                        conference_date=data.get('conference_date')
-                    )
-                    db.session.add(new_conference)
-                    
-                    # Associate the conference with the publication
-                    new_publication.conference = new_conference
+            # Check if conference exists or create a new one
+            conference_title = data.get('conference_title')
+            conference = db.session.query(Conference).filter(Conference.conference_title.ilike(conference_title)).first()
 
-                    db.session.commit()
-                    log_audit_trail(user_id=data.get('user_id'), table_name='Publication and Conference', record_id=None,
-                                      operation='UPDATE', action_desc='Updating Publication details')
-                    return jsonify({'message': 'Publication and Conference created successfully'}), 201
-                else:
-                    return jsonify({'message': 'ResearchOutput not found'}), 404
+            if not conference:
+                # Generate a unique conference_id
+                cf_id = formatting_id("CF", Conference, 'conference_id')
+
+                # Create a new Conference
+                conference = Conference(
+                    conference_id=cf_id,
+                    conference_title=data.get('conference_title'),
+                    conference_venue=data.get('conference_venue'),
+                    conference_date=data.get('conference_date')
+                )
+                db.session.add(conference)
+            else:
+                cf_id = conference.conference_id  # Use existing conference_id
             
-            except Exception as e:
-                db.session.rollback()  # Rollback in case of error
-                return jsonify({'error': str(e)}), 400
-        #else:
-            #return jsonify({'message': 'User not found'}), 404
+            publication_id=formatting_id("PBC", Publication, 'publication_id'),  # Ensure unique publication_id
 
+            # Create Publication
+            new_publication = Publication(
+                publication_id=publication_id,
+                research_id=research_id,
+                publication_name=data.get('publication_name'),
+                conference_id=cf_id,
+                journal=data.get('journal'),
+                user_id=data.get('user_id'),  # Ensure user_id is provided in request data
+                date_published=data.get('date_published'),
+                scopus=data.get('scopus')
+            )
+            db.session.add(new_publication)
+            db.session.commit()
+
+            # Audit trail logging
+            """log_audit_trail(
+                user_id=data.get('user_id'),
+                table_name='Publication and Conference',
+                record_id=new_publication.publication_id,
+                operation='CREATE',
+                action_desc='Creating Publication and associated Conference details')"""
+
+            return jsonify({'message': 'Publication and Conference created successfully'}), 201
+
+        except Exception as e:
+            db.session.rollback()  # Rollback in case of error
+            return jsonify({'error': str(e)}), 400
+        
     elif request.method == 'PUT':
         # Handle PUT request - Update an existing publication entry
         data = request.get_json()  # Get the JSON data sent in the request

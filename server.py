@@ -64,8 +64,6 @@ with app.app_context():
 
 
 
-
-
 from routes.auth import auth
 from routes.accounts import accounts
 from routes.dept_prog import deptprogs
