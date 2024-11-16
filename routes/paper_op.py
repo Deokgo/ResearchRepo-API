@@ -188,6 +188,192 @@ def add_paper():
     finally:
         db.session.close()
 
+@paper.route('/update_paper/<research_id>', methods=['PUT'])
+def update_paper(research_id):
+    try:
+        # Get user_id from form data 
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({"error": "User must be logged in to update a paper"}), 401
+
+        # Check if paper exists
+        existing_paper = ResearchOutput.query.filter_by(research_id=research_id).first()
+        if not existing_paper:
+            return jsonify({"error": "Research paper not found"}), 404
+
+        # Get the file and form data
+        file = request.files.get('file')
+        data = request.form
+
+        # Update required fields list
+        required_fields = [
+            'college_id', 'program_id', 'title', 
+            'abstract', 'date_approved', 'research_type', 
+            'adviser_id', 'sdg', 'keywords', 'author_ids', 'panel_ids'
+        ]
+        missing_fields = [field for field in required_fields if field not in data]
+
+        # Check if authors array is empty
+        if 'author_ids' in data and not request.form.getlist('author_ids'):
+            missing_fields.append('author_ids')
+            
+        # Check if panels array is empty
+        if 'panel_ids' in data and not request.form.getlist('panel_ids'):
+            missing_fields.append('panel_ids')
+            
+        # Check if keywords is empty
+        if 'keywords' in data and not data['keywords'].strip():
+            missing_fields.append('keywords')
+
+        if missing_fields:
+            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+
+        # Handle file update if new file is provided
+        if file:
+
+            date_format = '%a, %d %b %Y %H:%M:%S GMT' # Parse the date string
+            parsed_date = datetime.strptime(data['date_approved'], date_format)
+            formatted_date = parsed_date.strftime('%Y-%m-%d')
+
+            # Create directory structure
+            dir_path = os.path.join(
+                UPLOAD_FOLDER, 
+                data['research_type'], 
+                'manuscript', 
+                str(datetime.strptime(formatted_date, '%Y-%m-%d').year),
+                data['college_id'],
+                data['program_id']
+            )
+            os.makedirs(dir_path, exist_ok=True)
+
+            # Delete old file if it exists
+            if existing_paper.full_manuscript and os.path.exists(existing_paper.full_manuscript):
+                os.remove(existing_paper.full_manuscript)
+
+            # Save new file
+            filename = secure_filename(f"{research_id}_manuscript.pdf")
+            file_path = os.path.normpath(os.path.join(dir_path, filename))
+            file.save(file_path)
+            existing_paper.full_manuscript = file_path
+
+        # Update basic paper information
+        existing_paper.college_id = data['college_id']
+        existing_paper.program_id = data['program_id']
+        existing_paper.title = data['title']
+        existing_paper.abstract = data['abstract']
+        existing_paper.date_approved = data['date_approved']
+        existing_paper.research_type = data['research_type']
+        existing_paper.adviser_id = data['adviser_id']
+
+        # Update SDGs
+        # Delete existing SDGs
+        SDG.query.filter_by(research_id=research_id).delete()
+        # Add new SDGs
+        sdg_list = data['sdg'].split(';') if data['sdg'] else []
+        for sdg_id in sdg_list:
+            if sdg_id.strip():
+                new_sdg = SDG(
+                    research_id=research_id,
+                    sdg=sdg_id.strip()
+                )
+                db.session.add(new_sdg)
+
+        # Update panels
+        # Delete existing panels
+        Panel.query.filter_by(research_id=research_id).delete()
+        # Add new panels
+        panel_ids = request.form.getlist('panel_ids')
+        if panel_ids:
+            for panel_id in panel_ids:
+                new_panel = Panel(
+                    research_id=research_id,
+                    panel_id=panel_id
+                )
+                db.session.add(new_panel)
+
+        # Update keywords
+        # Delete existing keywords
+        Keywords.query.filter_by(research_id=research_id).delete()
+        # Add new keywords
+        keywords_str = data.get('keywords')
+        if keywords_str:
+            keywords_list = keywords_str.split(';')
+            for keyword in keywords_list:
+                if keyword.strip():
+                    new_keyword = Keywords(
+                        research_id=research_id,
+                        keyword=keyword.strip()
+                    )
+                    db.session.add(new_keyword)
+
+        # Update authors
+        # Delete existing authors
+        ResearchOutputAuthor.query.filter_by(research_id=research_id).delete()
+        # Add new authors
+        author_ids = request.form.getlist('author_ids')
+        if author_ids:
+            try:
+                # Query author information including last names
+                author_info = db.session.query(
+                    Account.user_id,
+                    UserProfile.last_name
+                ).join(
+                    UserProfile,
+                    Account.user_id == UserProfile.researcher_id
+                ).filter(
+                    Account.user_id.in_(author_ids)
+                ).all()
+
+                # Create a dictionary of author_id to last_name for sorting
+                author_dict = {str(author.user_id): author.last_name for author in author_info}
+                
+                # Sort author_ids based on last names
+                sorted_author_ids = sorted(author_ids, key=lambda x: author_dict[x].lower())
+
+                # Add authors with order based on sorted last names
+                for index, author_id in enumerate(sorted_author_ids, start=1):
+                    new_author = ResearchOutputAuthor(
+                        research_id=research_id,
+                        author_id=author_id,
+                        author_order=index
+                    )
+                    db.session.add(new_author)
+
+            except Exception as e:
+                print(f"Error sorting authors: {str(e)}")
+                raise e
+
+        db.session.commit()
+
+        # Log audit trail
+        auth_services.log_audit_trail(
+            user_id=user_id,
+            table_name='Research_Output',
+            record_id=research_id,
+            operation='UPDATE PAPER',
+            action_desc='Updated research paper'
+        )
+
+        return jsonify({
+            "message": "Research output updated successfully",
+            "research_id": research_id
+        }), 200
+
+    except Exception as e:
+        # If anything fails, rollback database changes
+        db.session.rollback()
+        # If we were in the process of saving a new file, try to delete it
+        if 'file_path' in locals() and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        
+        traceback.print_exc()
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+        
+    finally:
+        db.session.close()
 
 @paper.route('/upload_manuscript', methods=['POST'])
 def upload_manuscript():
