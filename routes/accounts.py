@@ -3,7 +3,7 @@ from models import Account, UserProfile, Role, db
 from services import auth_services
 from werkzeug.security import generate_password_hash
 
-accounts = Blueprint('account', __name__)
+accounts = Blueprint('accounts', __name__)
 
 #created by Nicole Cabansag, for retrieving all users API
 @accounts.route('/users', methods=['GET']) 
@@ -24,6 +24,7 @@ def get_all_users():
                 "last_name": researcher.last_name,
                 "suffix": researcher.suffix,
                 "email": account.email,  # Adding email from Account table
+                "acc_status": account.acc_status,
                 "role": role.role_name  # Adding role from Role table
             })
 
@@ -154,5 +155,18 @@ def search_users():
         return jsonify({"users": result}), 200
     return jsonify({"users": []}), 200
 
+@accounts.route('/fetch_roles', methods=['GET'])
+def fetch_roles():
+    try:
+        #retrieve all roles from the database
+        roles = Role.query.order_by(Role.role_id.asc()).all()
+        roles_list = [{
+            "role_id": role.role_id,
+            "role_name": role.role_name
+        } for role in roles]
 
+        #return the list of roles
+        return jsonify({"roles": roles_list}), 200
 
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving all roles: {str(e)}"}), 404

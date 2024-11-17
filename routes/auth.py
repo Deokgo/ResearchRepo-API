@@ -5,6 +5,7 @@ from models.visitor import Visitor
 from werkzeug.security import check_password_hash
 from services import auth_services, user_srv
 from sqlalchemy.orm import joinedload
+import re
 
 auth = Blueprint('auth', __name__)
 
@@ -66,7 +67,9 @@ def login():
         except Exception as e:
             return jsonify({"message": str(e)}), 500
 
-#created by Nicole Cabansag, for signup API // Modified by Jelly Anne Mallari
+#created by Nicole Cabansag, for signup API VISITORS // Modified by Jelly Anne Mallari
+import re
+
 @auth.route('/signup', methods=['POST']) 
 def add_user():
     data = request.json
@@ -77,9 +80,32 @@ def add_user():
         if not data.get(field):
             return jsonify({"message": f"{field} is required."}), 400
         
+    #email validation
+    email = data.get('email')
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_regex, email):
+        return jsonify({"message": "Invalid email format."}), 400
+    
+    #password validation
+    password = data.get('password')
+    if len(password) < 8:
+        return jsonify({"message": "Password must be at least 8 characters long."}), 400
+    if not re.search(r'[A-Z]', password):
+        return jsonify({"message": "Password must contain at least one uppercase letter."}), 400
+    if not re.search(r'[a-z]', password):
+        return jsonify({"message": "Password must contain at least one lowercase letter."}), 400
+    if not re.search(r'[0-9]', password):
+        return jsonify({"message": "Password must contain at least one number."}), 400
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return jsonify({"message": "Password must contain at least one special character."}), 400
+    
+    #ensure passwords match
+    if password != data.get('confirmPassword'):
+        return jsonify({"message": "Passwords do not match."}), 400
+    
+    #generate user ID and proceed with user creation
     user_id = auth_services.formatting_id('US', Visitor, 'visitor_id')
-
-    response, status_code=user_srv.add_new_user(user_id,data) #role_id assigned to Researcher by default
+    response, status_code = user_srv.add_new_user(user_id, data)  #role_id assigned to Researcher by default
     
     if status_code == 201:
         # Generate a token for the user
@@ -89,14 +115,13 @@ def add_user():
         response_data = response.get_json()  # Extract the JSON data from the original response
         response_data['token'] = token  # Add the token
 
-        #log the successful login in the Audit_Trail
+        # Log the successful login in the Audit_Trail
         auth_services.log_audit_trail(user_id=user_id, table_name='Account and Visitor', record_id=None,
                     operation='SIGNUP', action_desc='Created Account')
 
         return jsonify(response_data), status_code
 
     return response, status_code
-    
 
 # Created by Jelly Anne Mallari, for adding user (admin side)
 @auth.route('/create_account', methods=['POST']) 
