@@ -35,7 +35,11 @@ def add_paper():
         if not file:
             missing_fields.append('file')
         
-         # Check if authors array is empty
+        # Validate if the file is a PDF
+        if file and file.content_type != 'application/pdf':
+            return jsonify({"error": "Invalid file type. Only PDF files are allowed."}), 400
+        
+        # Check if authors array is empty
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
             
@@ -51,7 +55,7 @@ def add_paper():
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
         
         if is_duplicate(data['research_id']):
-            return jsonify({"error": f"Group Code already exists"}), 400
+            return jsonify({"error": "Group Code already exists"}), 400
 
         # First try to save the file
         dir_path = os.path.join(
@@ -187,6 +191,7 @@ def add_paper():
         
     finally:
         db.session.close()
+
 
 @paper.route('/update_paper/<research_id>', methods=['PUT'])
 def update_paper(research_id):
