@@ -10,11 +10,12 @@ from sqlalchemy import func, desc, nulls_last
 
 track = Blueprint('track', __name__)
 
+@track.route('/research_status', methods=['GET'])
 @track.route('/research_status/<research_id>', methods=['GET', 'POST'])
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
-            # Fetch data based on research_id
+            # Initialize base query
             query = (
                 db.session.query(
                     ResearchOutput.research_id,
@@ -23,8 +24,11 @@ def get_research_status(research_id=None):
                 )
                 .join(Publication, Publication.research_id == ResearchOutput.research_id)
                 .join(Status, Status.publication_id == Publication.publication_id)
-                .filter(ResearchOutput.research_id == research_id)
             )
+
+            # Apply filter if research_id is provided
+            if research_id:
+                query = query.filter(ResearchOutput.research_id == research_id)
 
             result = query.all()
 
@@ -38,28 +42,48 @@ def get_research_status(research_id=None):
                 for row in result
             ]
 
+            # Return appropriate response based on query results
             if not data:
-                return jsonify({"error": f"No data found for research_id {research_id}"}), 404
-            
+                return jsonify({
+                    "message": "No records found",
+                    "research_id": research_id
+                }), 404
+
             return jsonify({'dataset': data}), 200
 
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
-            return jsonify({"error": "Database error occurred", "details": str(e)}), 500
+            return jsonify({
+                "error": "Database error occurred",
+                "details": str(e)
+            }), 500
 
     elif request.method == 'POST':
         try:
+            new_status=""
             # Retrieve data from request body (JSON)
-            data = request.get_json()
-            publication_id = data.get('publication_id')
-            status_value = data.get('status')
+            
+            publication = Publication.query.filter(Publication.research_id==research_id).first()
 
-            # Validate input data
-            if not all([publication_id, status_value]):
-                return jsonify({"error": "publication_id and status are required"}), 400
+            if publication is None:
+                return jsonify({"message": "Fill in the forms first"}), 400
+            
+            current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+            if current_status.status == "PULLOUT":
+                return jsonify({"message": "Paper already pulled out"}), 400
+            elif current_status.status is None:
+                new_status="SUBMITTED"
+            elif current_status.status == "SUBMITTED":
+                new_status="ACCEPTED"
+            elif current_status.status == "ACCEPTED":
+                new_status="PUBLISHED"
+            elif current_status.status == "PUBLISHED":
+                return jsonify({"message": "Paper already published"}), 400
+            
+
 
             # Call the function to insert status
-            new_status, error = insert_status(publication_id, status_value)
+            changed_status, error = insert_status(current_status.publication_id, new_status)
 
             if error:
                 return jsonify({"error": "Database error occurred", "details": error}), 500
@@ -67,11 +91,34 @@ def get_research_status(research_id=None):
             # Send email asynchronously (optional)
             # Log audit trail here asynchronously (optional)
 
-            return jsonify({"message": "Status entry created successfully", "status_id": new_status.status_id}), 201
+            return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
             return jsonify({"error": "Database error occurred", "details": str(e)}), 500
-        
+
+@track.route('research_status/pullout/<research_id>',methods=['POST'])    
+def pullout_paper(research_id):
+    publication = Publication.query.filter(Publication.research_id==research_id).first()
+    if publication is None:
+        return jsonify({"message": "No publication."}), 400
+    
+    current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+    if current_status.status is None:
+        return jsonify({"message": "No submission occured."}), 400
+    elif current_status.status == "PUBLISHED":
+        return jsonify({"message": "Paper already published"}), 400
+    else:
+        changed_status, error = insert_status(current_status.publication_id, "PULLOUT")
+        if error:
+                return jsonify({"error": "Database error occurred", "details": error}), 500
+
+            # Send email asynchronously (optional)
+            # Log audit trail here asynchronously (optional)
+        return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
+
+
+
+    return None
 
 @track.route('/publication/<research_id>',methods=['GET','POST','PUT'])
 #@jwt_required()
