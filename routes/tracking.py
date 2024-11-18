@@ -100,6 +100,35 @@ def get_research_status(research_id=None):
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
             return jsonify({"error": "Database error occurred", "details": str(e)}), 500
+        
+@track.route('next_status/<research_id>',methods=['GET'])
+def get_next_status(research_id):
+    new_status=""
+    # Retrieve data from request body (JSON)
+    
+    publication = Publication.query.filter(Publication.research_id==research_id).first()
+
+    if publication is None:
+        new_status="READY"
+    
+    current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+    if current_status.status == "PULLOUT":
+        new_status="PULLOUT"
+    elif current_status.status is None:
+        new_status="SUBMITTED"
+    elif current_status.status == "SUBMITTED":
+        new_status="ACCEPTED"
+    elif current_status.status == "ACCEPTED":
+        new_status="PUBLISHED"
+    elif current_status.status == "PUBLISHED":
+        new_status="COMPLETED"
+
+    # Send email asynchronously (optional)
+    # Log audit trail here asynchronously (optional)
+
+    return jsonify(new_status), 200
+
+
 
 @track.route('research_status/pullout/<research_id>',methods=['POST'])    
 def pullout_paper(research_id):
