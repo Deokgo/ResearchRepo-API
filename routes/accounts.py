@@ -103,9 +103,9 @@ def update_acc(user_id):
 # created by Jelly Mallari for Updating Account API
 @accounts.route('/update_account/<user_id>', methods=['PUT'])
 def update_account(user_id):
-    data = request.json
-
     try:
+        data = request.json
+
         # Retrieve the user's account and researcher information
         user_acc = Account.query.filter_by(user_id=user_id).first()
         researcher_info = UserProfile.query.filter_by(researcher_id=user_id).first()
@@ -113,15 +113,15 @@ def update_account(user_id):
         if not user_acc or not researcher_info:
             return jsonify({"message": "User not found"}), 404
 
-        # Update account fields if provided in the request
-        if data.get('password'):
-            user_acc.user_pw = generate_password_hash(data['password'])
-        if data.get('acc_status'):
-            user_acc.acc_status = data['acc_status']
+        # Validate required fields
+        required_fields = ['college_id', 'program_id', 'first_name', 'last_name']
+        missing_fields = [field for field in required_fields if not data.get(field)]
 
-        # email and role_id cannot be updated
-        if 'email' in data or 'role_id' in data:
-            return jsonify({"message": "email and role_id cannot be updated."}), 400
+        if missing_fields:
+            return jsonify({
+                "message": "College department, program, first name, and last name are required.",
+                "missing_fields": missing_fields
+            }), 400
 
         # Update researcher fields if provided in the request
         if data.get('college_id'):
@@ -130,29 +130,29 @@ def update_account(user_id):
             researcher_info.program_id = data['program_id']
         if data.get('first_name'):
             researcher_info.first_name = data['first_name']
-        if data.get('middle_name'):
-            researcher_info.middle_name = data.get('middle_name')  # Optional
+
+        if 'middle_name' in data and (data['middle_name'] is None or data['middle_name'].strip() == ''):
+            researcher_info.middle_name = None  # Set to null if empty or null
+        elif data.get('middle_name'):
+            researcher_info.middle_name = data['middle_name']
+
+        if 'suffix' in data and (data['suffix'] is None or data['suffix'].strip() == ''):
+            researcher_info.suffix = None  # Set to null if empty or null
+        elif data.get('suffix'):
+            researcher_info.suffix = data['suffix']
+            
         if data.get('last_name'):
             researcher_info.last_name = data['last_name']
-        if data.get('suffix'):
-            researcher_info.suffix = data.get('suffix')  # Optional
 
         # Commit changes to the database
         db.session.commit()
 
         # Log the update event in the Audit_Trail
-        auth_services.log_audit_trail(user_id=user_acc.user_id, table_name='Account', record_id=None,
+        auth_services.log_audit_trail(user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
                                       operation='UPDATE', action_desc='Account information updated')
 
         # Return the updated account and researcher data
         return jsonify({
-            "account": {
-                "user_id": user_acc.user_id,
-                "email": user_acc.email,
-                "user_pw": user_acc.user_pw,
-                "acc_status": user_acc.acc_status,
-                "role": user_acc.role.role_name  
-            },
             "researcher": {
                 "researcher_id": researcher_info.researcher_id,
                 "college_id": researcher_info.college_id,
