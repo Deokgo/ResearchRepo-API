@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from models import Account, UserProfile, Role, db
 from services import auth_services
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 accounts = Blueprint('accounts', __name__)
 
@@ -205,3 +206,62 @@ def fetch_roles():
 
     except Exception as e:
         return jsonify({"message": f"Error retrieving all roles: {str(e)}"}), 404
+    
+@accounts.route('/update_password/<user_id>', methods=['PUT'])
+def update_password(user_id):
+    try:
+        data = request.json
+        required_fields = ['currentPassword', 'newPassword', 'confirmPassword']
+        
+        # Check if all required fields are present
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({"message": f"{field} is required."}), 400
+        
+        current_pw = data.get('currentPassword')
+        user_acc = Account.query.filter_by(user_id=user_id).first()
+
+        if not user_acc:
+            return jsonify({"message": "User not found"}), 404
+
+        # Compare hashed password with the provided plain password
+        if check_password_hash(user_acc.user_pw, current_pw):
+            new_pw = data.get('newPassword')
+            if new_pw == current_pw:
+                return jsonify({"message": "The new password should be different from the current password."}), 404
+            
+            # Validate new password strength
+            password_error = auth_services.validate_password(new_pw)
+            if password_error:
+                return jsonify({"message": password_error}), 400
+            
+            # Ensure passwords match
+            if new_pw != data.get('confirmPassword'):
+                return jsonify({"message": "Passwords do not match."}), 400
+            
+            # Update password
+            user_acc.user_pw = generate_password_hash(new_pw)
+
+            # Log the audit trail
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_acc.user_id,  # Pass actual user_id here
+                    table_name='Account',
+                    record_id=user_acc.user_id,
+                    operation='UPDATE',
+                    action_desc='Account password updated'
+                )
+            except Exception as e:
+                return jsonify({"message": f"Error logging audit trail: {str(e)}"}), 500
+
+            return jsonify({
+                "message": "Password successfully updated.",
+                "account": {
+                    "user_id": user_acc.user_id
+                }
+            }), 200
+        else:
+            return jsonify({"message": "Incorrect current password."}), 400
+
+    except Exception as e:
+        return jsonify({"message": f"An unexpected error occurred: {str(e)}"}), 500

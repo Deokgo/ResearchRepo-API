@@ -2,6 +2,7 @@ import datetime
 from flask import Blueprint, request, jsonify, current_app
 from models import db
 import jwt
+import re
 
 # Function for generating a new ID (for Primary Key)
 def formatting_id(indicator, model_class, id_field):
@@ -66,3 +67,17 @@ def generate_token(user_id):
     except Exception as e:
         print(f"Error generating token: {e}")  # Consider proper logging in production
         return None  # Return None or raise an exception as needed
+    
+# Password Validation Function
+def validate_password(password):
+    if len(password) < 8:
+        return "Password must be at least 8 characters long."
+    if not re.search(r'[A-Z]', password):
+        return "Password must contain at least one uppercase letter."
+    if not re.search(r'[a-z]', password):
+        return "Password must contain at least one lowercase letter."
+    if not re.search(r'[0-9]', password):
+        return "Password must contain at least one number."
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return "Password must contain at least one special character."
+    return None

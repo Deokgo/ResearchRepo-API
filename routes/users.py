@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, json,send_file
 from werkzeug.security import generate_password_hash,check_password_hash
-from app.models import db,Conference,Role, UserProfile,Program,College,Account,Role
+from models import db,Conference,Role, UserProfile,Program,College,Account,Role
 from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
-from app.decorators.acc_decorators import roles_required
-from app.services.logs import formatting_id,log_audit_trail
+#from decorators.acc_decorators import roles_required
+#from services.logs import formatting_id,log_audit_trail
 from uuid import UUID
 from datetime import datetime
 import pandas as pd

@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, json
-from app.models import db,Conference,Role, UserProfile,Program,College
+from models import db,Conference,Role, UserProfile,Program,College
 from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
-from app.services.logs import formatting_id,log_audit_trail
-from app.decorators.acc_decorators import roles_required
+#from services.logs import formatting_id,log_audit_trail
+#from decorators.acc_decorators import roles_required
 
 
 
