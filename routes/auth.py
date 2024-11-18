@@ -11,7 +11,7 @@ auth = Blueprint('auth', __name__)
 
 @auth.route('/login', methods=['POST']) 
 def login():
-    session.clear() # making sure that the session is empty before we store the session
+    session.clear()  # making sure that the session is empty before we store the session
 
     data = request.json
     if data:
@@ -37,6 +37,10 @@ def login():
 
             if user is None:
                 return jsonify({"message": "User not found"}), 404
+
+            # Check if the account is "DEACTIVATED"
+            if user.acc_status == 'DEACTIVATED':  # Assuming `status` is the field storing the account status
+                return jsonify({"message": "Account is deactivated. Please contact support."}), 403
 
             # Compare hashed password with the provided plain password
             if check_password_hash(user.user_pw, password):
@@ -68,7 +72,6 @@ def login():
             return jsonify({"message": str(e)}), 500
 
 #created by Nicole Cabansag, for signup API VISITORS // Modified by Jelly Anne Mallari
-import re
 
 @auth.route('/signup', methods=['POST']) 
 def add_user():

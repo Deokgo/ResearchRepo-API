@@ -25,7 +25,8 @@ def get_all_users():
                 "suffix": researcher.suffix,
                 "email": account.email,  # Adding email from Account table
                 "acc_status": account.acc_status,
-                "role": role.role_name  # Adding role from Role table
+                "role_id": account.role_id,
+                "role_name": role.role_name  # Adding role from Role table
             })
 
         # Return the list of researchers in JSON format
@@ -63,6 +64,40 @@ def get_user_acc_by_id(user_id):
 
     except Exception as e:
         return jsonify({"message": f"Error retrieving user profile: {str(e)}"}), 404
+
+@accounts.route('/update_acc/<user_id>', methods=['PUT'])
+def update_acc(user_id):
+    data = request.json
+    try:
+        user_acc = Account.query.filter_by(user_id=user_id).first()
+
+        if not user_acc:
+            return jsonify({"message": "User not found"}), 404
+        
+        if data.get('acc_status'):
+            user_acc.acc_status = data['acc_status']
+        if data.get('role_id'):
+            user_acc.role_id = data['role_id']  # Ensure correct field assignment
+
+        db.session.commit()
+        
+        auth_services.log_audit_trail(
+            user_id=None,
+            table_name='Account',
+            record_id=user_acc.user_id,
+            operation='UPDATE',
+            action_desc='Account status or role updated'
+        )
+        return jsonify({
+            "account": {
+                "user_id": user_acc.user_id,
+                "acc_status": user_acc.acc_status,
+                "role": user_acc.role.role_name  
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of any error
+        return jsonify({"message": f"Failed to update account: {e}"}), 500
 
 # created by Jelly Mallari for Updating Account API
 @accounts.route('/update_account/<user_id>', methods=['PUT'])
