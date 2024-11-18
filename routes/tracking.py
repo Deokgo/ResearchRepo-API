@@ -15,29 +15,32 @@ track = Blueprint('track', __name__)
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
-            # Initialize base query
+            # Build the query
             query = (
                 db.session.query(
                     ResearchOutput.research_id,
                     Publication.publication_id,
-                    Status.status
+                    Status.status,
+                    Status.timestamp
                 )
                 .join(Publication, Publication.research_id == ResearchOutput.research_id)
                 .join(Status, Status.publication_id == Publication.publication_id)
+                .order_by(Status.timestamp)  # Always order by most recent timestamp
             )
 
             # Apply filter if research_id is provided
             if research_id:
                 query = query.filter(ResearchOutput.research_id == research_id)
 
+            # Fetch results
             result = query.all()
 
             # Process results into a JSON-serializable format
             data = [
                 {
-                    'research_id': row.research_id,
-                    'publication_id': row.publication_id,
-                    'status': row.status
+                    'research_id':row.research_id,
+                    'status': row.status,
+                    'time': row.timestamp.strftime('%B %d, %Y %I:%M %p') if row.timestamp else None
                 }
                 for row in result
             ]
@@ -46,16 +49,18 @@ def get_research_status(research_id=None):
             if not data:
                 return jsonify({
                     "message": "No records found",
-                    "research_id": research_id
+                    "research_id": research_id,
+                    "dataset": []  # Always return an empty array in the 'dataset' key
                 }), 404
 
-            return jsonify({'dataset': data}), 200
+            return jsonify(data), 200
 
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
             return jsonify({
                 "error": "Database error occurred",
-                "details": str(e)
+                "details": str(e),
+                "dataset": []  # Ensure 'dataset' is always an array, even on error
             }), 500
 
     elif request.method == 'POST':
