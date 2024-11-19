@@ -11,7 +11,7 @@ auth = Blueprint('auth', __name__)
 
 @auth.route('/login', methods=['POST']) 
 def login():
-    session.clear()  # making sure that the session is empty before we store the session
+    session.clear()  # Make sure that the session is empty before storing new data
 
     data = request.json
     if data:
@@ -22,57 +22,57 @@ def login():
             return jsonify({"message": "Email and password are required"}), 400
 
         try:
-            # Retrieve the account with the joined user profile, college, and program data
-            user = (
-                Account.query
-                .filter_by(email=email)
-                .options(
-                    joinedload(Account.user_profile)
-                    .joinedload(UserProfile.college),
-                    joinedload(Account.user_profile)
-                    .joinedload(UserProfile.program)
-                )
-                .one_or_none()
-            )
+            # Retrieve the account
+            user = Account.query.filter_by(email=email).one_or_none()
 
             if user is None:
                 return jsonify({"message": "User not found"}), 404
 
             # Check if the account is "DEACTIVATED"
-            if user.acc_status == 'DEACTIVATED':  # Assuming `status` is the field storing the account status
+            if user.acc_status == 'DEACTIVATED':  # Assuming `acc_status` stores account status
                 return jsonify({"message": "Account is deactivated. Please contact support."}), 403
 
             # Compare hashed password with the provided plain password
-            if check_password_hash(user.user_pw, password):
-                # Generate token on successful login
-                token = auth_services.generate_token(user.user_id)
-                session['user_id'] = user.user_id
-
-                # Log successful login in the Audit_Trail
-                auth_services.log_audit_trail(
-                    user_id=user.user_id,
-                    table_name='Account',
-                    record_id=None,
-                    operation='LOGIN',
-                    action_desc='User logged in'
-                )
-
-                return jsonify({
-                    "message": "Login successful",
-                    "user_id": user.user_id,
-                    "role": user.role.role_id,
-                    "college": user.user_profile.college.college_id if user.user_profile.college else None,
-                    "program": user.user_profile.program.program_id if user.user_profile.program else None,
-                    "token": token
-                }), 200
-            else:
+            if not check_password_hash(user.user_pw, password):
                 return jsonify({"message": "Invalid password"}), 401
+
+            # Handle user profile or visitor information
+            user_profile = UserProfile.query.filter_by(researcher_id=user.user_id).one_or_none()
+            visitor_info = Visitor.query.filter_by(visitor_id=user.user_id).one_or_none()
+
+            if user_profile:
+                college_id = user_profile.college_id
+                program_id = user_profile.program_id
+            else:
+                college_id = None
+                program_id = None
+
+            # Generate token on successful login
+            token = auth_services.generate_token(user.user_id)
+            session['user_id'] = user.user_id
+
+            # Log successful login in the Audit_Trail
+            auth_services.log_audit_trail(
+                user_id=user.user_id,
+                table_name='Account',
+                record_id=None,
+                operation='LOGIN',
+                action_desc='User logged in'
+            )
+
+            return jsonify({
+                "message": "Login successful",
+                "user_id": user.user_id,
+                "role": user.role.role_id,
+                "college": college_id,
+                "program": program_id,
+                "token": token
+            }), 200
 
         except Exception as e:
             return jsonify({"message": str(e)}), 500
 
 #created by Nicole Cabansag, for signup API VISITORS // Modified by Jelly Anne Mallari
-
 @auth.route('/signup', methods=['POST']) 
 def add_user():
     data = request.json

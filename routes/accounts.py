@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
-from models import Account, UserProfile, Role, db
+from models import Account, UserProfile, Role, Visitor, db
 from services import auth_services
 from werkzeug.security import generate_password_hash, check_password_hash
-import re
+from sqlalchemy.orm import aliased
 
 accounts = Blueprint('accounts', __name__)
 
@@ -10,61 +10,76 @@ accounts = Blueprint('accounts', __name__)
 @accounts.route('/users', methods=['GET']) 
 def get_all_users():
     try:
-        # Join Account, Researcher, and Role tables
-        researchers = db.session.query(UserProfile, Account, Role).join(Account, UserProfile.researcher_id == Account.user_id) \
-            .join(Role, Account.role_id == Role.role_id).order_by(UserProfile.researcher_id.asc()).all()
+        results = db.session.query(Account, Visitor, UserProfile, Role).outerjoin(
+            Visitor, Visitor.visitor_id == Account.user_id
+        ).outerjoin(
+            UserProfile, UserProfile.researcher_id == Account.user_id
+        ).outerjoin(
+            Role, Role.role_id == Account.role_id
+        ).all()
 
-        researchers_list = []
-        for researcher, account, role in researchers:
-            researchers_list.append({
-                "researcher_id": researcher.researcher_id,
-                "college_id": researcher.college_id,
-                "program_id": researcher.program_id,
-                "first_name": researcher.first_name,
-                "middle_name": researcher.middle_name,
-                "last_name": researcher.last_name,
-                "suffix": researcher.suffix,
-                "email": account.email,  # Adding email from Account table
+        # Processing the results
+        data_list = []
+        for account, visitor, user_profile, role in results:
+            data_list.append({
+                "email": account.email,
                 "acc_status": account.acc_status,
                 "role_id": account.role_id,
-                "role_name": role.role_name  # Adding role from Role table
+                "institution": visitor.institution if visitor else 'Mapúa Malayan Colleges Laguna',
+                "researcher_id": user_profile.researcher_id if user_profile else visitor.visitor_id,
+                "college_id": user_profile.college_id if user_profile else None,
+                "first_name": user_profile.first_name if user_profile else None,
+                "role_name": role.role_name if role else None
             })
 
-        # Return the list of researchers in JSON format
-        return jsonify({"researchers": researchers_list}), 200
+        # Returning the results
+        return jsonify({"researchers": data_list}), 200
 
     except Exception as e:
         return jsonify({"message": f"Error retrieving all users: {str(e)}"}), 404
 
 #created by Nicole Cabansag, for retrieving all user's acc and info by user_id API
-@accounts.route('/users/<user_id>', methods=['GET']) 
+@accounts.route('/users/<user_id>', methods=['GET'])
 def get_user_acc_by_id(user_id):
     try:
-        user_acc = Account.query.filter_by(user_id=user_id).one()
-        researcher_info = UserProfile.query.filter_by(researcher_id=user_id).one()
+        results = db.session.query(Account, Visitor, UserProfile, Role).outerjoin(
+            Visitor, Visitor.visitor_id == Account.user_id
+        ).outerjoin(
+            UserProfile, UserProfile.researcher_id == Account.user_id
+        ).outerjoin(
+            Role, Role.role_id == Account.role_id
+        ).filter(
+            Account.user_id == user_id  # Filter results by user_id
+        ).first()  # Use first() instead of all() to retrieve a single result
 
-        #construct the response in JSON format
+        if not results:
+            return jsonify({"message": "User not found"}), 404
+
+        account, visitor, user_profile, role = results
+
         return jsonify({
             "account": {
-                "user_id": user_acc.user_id,
-                "email": user_acc.email,
-                "user_pw": user_acc.user_pw,
-                "acc_status": user_acc.acc_status,
-                "role": user_acc.role.role_name  
+                "acc_status": account.acc_status,
+                "email": account.email,
+                "role": role.role_id if role else None,  # Handle case where role might be None
+                "role_name": role.role_name if role else None,
+                "user_id": account.user_id,
+                "user_pw": account.user_pw  # Consider avoiding returning the password for security reasons
             },
             "researcher": {
-                "researcher_id": researcher_info.researcher_id,
-                "college_id": researcher_info.college_id,
-                "program_id": researcher_info.program_id,
-                "first_name": researcher_info.first_name,
-                "middle_name": researcher_info.middle_name,
-                "last_name": researcher_info.last_name,
-                "suffix": researcher_info.suffix
+                "college_id": user_profile.college_id if user_profile else None,
+                "first_name": user_profile.first_name if user_profile else visitor.first_name if visitor else None,
+                "last_name": user_profile.last_name if user_profile else visitor.last_name if visitor else None,
+                "middle_name": user_profile.middle_name if user_profile else visitor.middle_name if visitor else None,
+                "program_id": user_profile.program_id if user_profile else None,
+                "researcher_id": user_profile.researcher_id if user_profile else visitor.visitor_id if visitor else None,
+                "suffix": user_profile.suffix if user_profile else visitor.suffix if visitor else None,
+                "institution": visitor.institution if visitor else 'Mapúa Malayan Colleges Laguna'
             }
         }), 200
 
     except Exception as e:
-        return jsonify({"message": f"Error retrieving user profile: {str(e)}"}), 404
+        return jsonify({"message": f"Error retrieving user: {str(e)}"}), 500
 
 @accounts.route('/update_acc/<user_id>', methods=['PUT'])
 def update_acc(user_id):
@@ -106,67 +121,59 @@ def update_account(user_id):
     try:
         data = request.json
 
-        # Retrieve the user's account and researcher information
+        # Retrieve the user's account and associated information
         user_acc = Account.query.filter_by(user_id=user_id).first()
-        researcher_info = UserProfile.query.filter_by(researcher_id=user_id).first()
-
-        if not user_acc or not researcher_info:
+        if not user_acc:
             return jsonify({"message": "User not found"}), 404
 
-        if user_acc.role_id in ['01', '02', '03']:
-            required_fields = ['first_name', 'last_name']
-            message = 'First name and last name are required.'
-        else:
-            required_fields = ['college_id', 'program_id', 'first_name', 'last_name']
+        researcher_info = UserProfile.query.filter_by(researcher_id=user_id).first()
+        visitor_info = Visitor.query.filter_by(visitor_id=user_id).first()
+
+        # Determine required fields and validation message
+        required_fields = ['first_name', 'last_name']
+        message = 'First name and last name are required.'
+        
+        if researcher_info and user_acc.role_id not in ['01', '02', '03']:
+            required_fields = ['college_id', 'program_id'] + required_fields
             message = 'College department, program, first name, and last name are required.'
 
         # Validate required fields
         missing_fields = [field for field in required_fields if not data.get(field)]
-
         if missing_fields:
-            return jsonify({
-                "message": message,
-                "missing_fields": missing_fields
-            }), 400
+            return jsonify({"message": message, "missing_fields": missing_fields}), 400
 
-        # Update researcher fields if provided in the request
-        if data.get('college_id'):
-            researcher_info.college_id = data['college_id']
-        if data.get('program_id'):
-            researcher_info.program_id = data['program_id']
-        if data.get('first_name'):
-            researcher_info.first_name = data['first_name']
+        # Function to update fields
+        def update_fields(target, fields):
+            for field in fields:
+                if field in data:
+                    value = data[field]
+                    setattr(target, field, None if value is None or value.strip() == '' else value)
 
-        if 'middle_name' in data and (data['middle_name'] is None or data['middle_name'].strip() == ''):
-            researcher_info.middle_name = None  # Set to null if empty or null
-        elif data.get('middle_name'):
-            researcher_info.middle_name = data['middle_name']
-
-        if 'suffix' in data and (data['suffix'] is None or data['suffix'].strip() == ''):
-            researcher_info.suffix = None  # Set to null if empty or null
-        elif data.get('suffix'):
-            researcher_info.suffix = data['suffix']
-            
-        if data.get('last_name'):
-            researcher_info.last_name = data['last_name']
+        # Update fields for researcher or visitor
+        if researcher_info:
+            update_fields(researcher_info, ['college_id', 'program_id', 'first_name', 'middle_name', 'last_name', 'suffix'])
+        elif visitor_info and user_acc.role_id == '06':
+            update_fields(visitor_info, ['first_name', 'middle_name', 'last_name', 'suffix'])
 
         # Commit changes to the database
         db.session.commit()
 
         # Log the update event in the Audit_Trail
-        auth_services.log_audit_trail(user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
-                                      operation='UPDATE', action_desc='Account information updated')
+        auth_services.log_audit_trail(
+            user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
+            operation='UPDATE', action_desc='Account information updated'
+        )
 
-        # Return the updated account and researcher data
+        # Return the updated account and researcher/visitor data
         return jsonify({
             "researcher": {
-                "researcher_id": researcher_info.researcher_id,
-                "college_id": researcher_info.college_id,
-                "program_id": researcher_info.program_id,
-                "first_name": researcher_info.first_name,
-                "middle_name": researcher_info.middle_name,
-                "last_name": researcher_info.last_name,
-                "suffix": researcher_info.suffix
+                "researcher_id": researcher_info.researcher_id if researcher_info else visitor_info.visitor_id if visitor_info else None,
+                "college_id": getattr(researcher_info, 'college_id', None),
+                "program_id": getattr(researcher_info, 'program_id', None),
+                "first_name": getattr(researcher_info, 'first_name', getattr(visitor_info, 'first_name', None)),
+                "middle_name": getattr(researcher_info, 'middle_name', getattr(visitor_info, 'middle_name', None)),
+                "last_name": getattr(researcher_info, 'last_name', getattr(visitor_info, 'last_name', None)),
+                "suffix": getattr(researcher_info, 'suffix', getattr(visitor_info, 'suffix', None))
             }
         }), 200
 
