@@ -21,10 +21,11 @@ def get_research_status(research_id=None):
                     ResearchOutput.research_id,
                     Publication.publication_id,
                     Status.status,
-                    Status.timestamp
+                    Status.timestamp,
+                    ResearchOutput.date_approved
                 )
-                .join(Publication, Publication.research_id == ResearchOutput.research_id)
-                .join(Status, Status.publication_id == Publication.publication_id)
+                .outerjoin(Publication, Publication.research_id == ResearchOutput.research_id)
+                .outerjoin(Status, Status.publication_id == Publication.publication_id)
                 .order_by(Status.timestamp)  # Always order by most recent timestamp
             )
 
@@ -39,8 +40,8 @@ def get_research_status(research_id=None):
             data = [
                 {
                     'research_id':row.research_id,
-                    'status': row.status,
-                    'time': row.timestamp.strftime('%B %d, %Y %I:%M %p') if row.timestamp else None
+                    'status': row.status if row.status else "Ready",
+                    'time': row.timestamp.strftime('%B %d, %Y') if row.timestamp else row.date_approved.strftime('%B %d, %Y') 
                 }
                 for row in result
             ]
@@ -105,28 +106,34 @@ def get_research_status(research_id=None):
 def get_next_status(research_id):
     new_status=""
     # Retrieve data from request body (JSON)
-    
-    publication = Publication.query.filter(Publication.research_id==research_id).first()
+    try:
 
-    if publication is None:
-        new_status="READY"
-    
-    current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
-    if current_status.status == "PULLOUT":
-        new_status="PULLOUT"
-    elif current_status.status is None:
+        publication = Publication.query.filter(Publication.research_id==research_id).first()
+
+        if publication is None:
+            new_status="SUBMITTED"
+        
+        current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+        if current_status.status == "PULLOUT":
+            new_status="PULLOUT"
+        elif current_status.status is None:
+            new_status="SUBMITTED"
+        elif current_status.status == "SUBMITTED":
+            new_status="ACCEPTED"
+        elif current_status.status == "ACCEPTED":
+            new_status="PUBLISHED"
+        elif current_status.status == "PUBLISHED":
+            new_status="COMPLETED"
+
+        # Send email asynchronously (optional)
+        # Log audit trail here asynchronously (optional)
+
+        return jsonify(new_status), 200
+    except Exception as e:
+        
         new_status="SUBMITTED"
-    elif current_status.status == "SUBMITTED":
-        new_status="ACCEPTED"
-    elif current_status.status == "ACCEPTED":
-        new_status="PUBLISHED"
-    elif current_status.status == "PUBLISHED":
-        new_status="COMPLETED"
-
-    # Send email asynchronously (optional)
-    # Log audit trail here asynchronously (optional)
-
-    return jsonify(new_status), 200
+        db.session.rollback()  # Rollback in case of error
+        return jsonify(new_status), 200
 
 
 
