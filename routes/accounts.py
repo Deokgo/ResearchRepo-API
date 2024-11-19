@@ -113,13 +113,19 @@ def update_account(user_id):
         if not user_acc or not researcher_info:
             return jsonify({"message": "User not found"}), 404
 
+        if user_acc.role_id in ['01', '02', '03']:
+            required_fields = ['first_name', 'last_name']
+            message = 'First name and last name are required.'
+        else:
+            required_fields = ['college_id', 'program_id', 'first_name', 'last_name']
+            message = 'College department, program, first name, and last name are required.'
+
         # Validate required fields
-        required_fields = ['college_id', 'program_id', 'first_name', 'last_name']
         missing_fields = [field for field in required_fields if not data.get(field)]
 
         if missing_fields:
             return jsonify({
-                "message": "College department, program, first name, and last name are required.",
+                "message": message,
                 "missing_fields": missing_fields
             }), 400
 
