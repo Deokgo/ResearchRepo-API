@@ -65,6 +65,7 @@ with app.app_context():
 
 
 from routes.auth import auth
+from routes.conference import conference
 from routes.accounts import accounts
 from routes.dept_prog import deptprogs
 from routes.dataset import dataset
@@ -76,6 +77,7 @@ from routes.users import users
 
 # Register the blueprint for routes
 app.register_blueprint(auth, url_prefix='/auth')
+app.register_blueprint(conference, url_prefix='/conference')
 app.register_blueprint(accounts, url_prefix='/accounts')
 app.register_blueprint(deptprogs, url_prefix='/deptprogs')
 app.register_blueprint(dataset, url_prefix='/dataset')
