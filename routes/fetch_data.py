@@ -27,7 +27,7 @@ def conferences():
     try:
         if request.method == 'GET':
             # Use the generic function to get all conference records
-            conference_list = Conference.query.all()
+            conference_list = Conference.query.order_by(Conference.conference_title.asc()).all()
 
             conference_list = convert(conference_list,Conference)
             
