@@ -453,50 +453,53 @@ def is_duplicate(group_code):
 @paper.route('/increment_views/<research_id>', methods=['PUT'])
 def increment_views(research_id):
     try:
+        # Get query parameter
+        is_increment = request.args.get('is_increment', 'false').lower() == 'true'
         updated_views = 0
-        # Get user_id from request body instead of session
+
+        # Get user_id from request body
         data = request.get_json()
         user_id = data.get('user_id', 'anonymous')
-        
+
         # Fetch the record using SQLAlchemy query
         view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
-        if view_count:
-            if view_count.view_count is None:
-                updated_views = 1  # Start from 1 if None
+        if is_increment:
+            if view_count:
+                if view_count.view_count is None:
+                    updated_views = 1  # Start from 1 if None
+                else:
+                    updated_views = int(view_count.view_count) + 1
+
+                view_count.view_count = updated_views
+                db.session.commit()
             else:
-                updated_views = int(view_count.view_count) + 1
+                return jsonify({"message": "Record not found"}), 404
 
-            view_count.view_count = updated_views
-            download_count = view_count.download_count or 0  # Default to 0 if None
-            db.session.commit()
+        # Log audit trail only if user_id is available
+        if user_id != 'anonymous':
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_id,
+                    table_name='Research_Output',
+                    record_id=research_id,
+                    operation='VIEW PAPER',
+                    action_desc='Viewed research paper'
+                )
+            except Exception as audit_error:
+                print(f"Audit trail logging failed: {audit_error}")
+                # Continue execution even if audit trail fails
 
-            # Log audit trail only if user_id is available
-            if user_id != 'anonymous':
-                try:
-                    auth_services.log_audit_trail(
-                        user_id=user_id,
-                        table_name='Research_Output',
-                        record_id=research_id,
-                        operation='VIEW PAPER',
-                        action_desc='Viewed research paper'
-                    )
-                except Exception as audit_error:
-                    print(f"Audit trail logging failed: {audit_error}")
-                    # Continue execution even if audit trail fails
+        return jsonify({
+            "message": "View count updated",
+            "updated_views": view_count.view_count,
+            "download_count": view_count.download_count or 0,
+        }), 200
 
-            return jsonify({
-                "message": "View count incremented", 
-                "updated_views": updated_views,
-                "download_count": download_count
-            }), 200
-        else:
-            return jsonify({"message": "Record not found"}), 404
-    
     except Exception as e:
         db.session.rollback()
         print(f"Error in increment_views: {str(e)}")  # Add detailed error logging
         return jsonify({"message": f"Failed to update view counts: {str(e)}"}), 500
-    
+
     finally:
         db.session.close()
 
