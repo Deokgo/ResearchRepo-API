@@ -23,16 +23,31 @@ def convert(records,model):
         return str(e)
 
 @data.route('/conferences', methods =['GET'])
-def conferences():
+def conferences(conference_id=None):
     try:
         if request.method == 'GET':
             # Use the generic function to get all conference records
-            conference_list = Conference.query.order_by(Conference.conference_title.asc()).all()
+            conference_list = Conference.query.distinct(Conference.conference_title).order_by(Conference.conference_title.asc()).all()
 
             conference_list = convert(conference_list,Conference)
             
             # Return the conference data as a JSON response
-            return jsonify(conference_list), 200
+            return jsonify({"conferences": conference_list}), 200
+
+    except Exception as e:
+        # If an error occurs, return a 400 error with the message
+        return jsonify({'error': str(e)}), 400
+    
+@data.route('/conference_details/<cf_id>', methods =['GET'])
+def conference_details(cf_id=None):
+    try:
+        if request.method == 'GET':
+            conference_details = Conference.query.filter(Conference.conference_id==cf_id).first()
+
+            conference_details = convert(conference_details, Conference)
+
+            # Return the conference data as a JSON response
+            return jsonify({"conference_details": conference_details}), 200
 
     except Exception as e:
         # If an error occurs, return a 400 error with the message
