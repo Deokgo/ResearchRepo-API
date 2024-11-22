@@ -165,48 +165,25 @@ def pullout_paper(research_id):
 #@jwt_required()
 def publication_papers(research_id=None):
     if request.method == 'GET':
-        authors_subquery = db.session.query(
-            ResearchOutputAuthor.research_id,
-            func.string_agg(
-                func.concat(
-                    UserProfile.first_name,
-                    ' ',
-                    func.coalesce(UserProfile.middle_name, ''),
-                    ' ',
-                    UserProfile.last_name,
-                    ' ',
-                    func.coalesce(UserProfile.suffix, '')
-                ), '; '
-            ).label('concatenated_authors')
-        ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
-        .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-        .group_by(ResearchOutputAuthor.research_id).subquery()
-
+    
         query = (db.session.query(
-            ResearchOutput.research_id,
-            ResearchOutput.title,
-            authors_subquery.c.concatenated_authors,
-            ResearchOutput.extended_abstract,
             Publication.journal,
             Conference.conference_title,
             Conference.conference_venue,
             Conference.conference_date,
+            Publication.publication_id,
             Publication.publication_name,        
             Publication.date_published,
             Publication.scopus
 
-        )).outerjoin(authors_subquery, ResearchOutput.research_id==authors_subquery.c.research_id)\
-        .outerjoin(Publication,Publication.research_id==ResearchOutput.research_id)\
+        )).join(ResearchOutput,Publication.research_id==ResearchOutput.research_id)\
         .outerjoin(Conference, Conference.conference_id==Publication.conference_id)\
         .filter(ResearchOutput.research_id == research_id)
 
         result=query.all()
         data = [
             {
-                'research_id': row.research_id,
-                'title': row.title,
-                'authors': row.concatenated_authors,
-                'extended_abstract': row.extended_abstract,
+                'publication_id':row.publication_id,
                 'journal': row.journal,
                 'conference_title': row.conference_title,
                 'conference_venue': row.conference_venue,
