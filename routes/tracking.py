@@ -183,18 +183,24 @@ def publication_papers(research_id=None):
         result=query.all()
         data = [
             {
-                'publication_id':row.publication_id,
+                'publication_id': row.publication_id,
                 'journal': row.journal,
                 'conference_title': row.conference_title,
                 'conference_venue': row.conference_venue,
-                'conference_date': row.conference_date,
+                'conference_date': (
+                    row.conference_date.strftime("%B %d, %Y") 
+                    if row.conference_date else None
+                ),
                 'publication_name': row.publication_name,
-                'date_published': row.date_published,
+                'date_published': (
+                    row.date_published.strftime("%B %d, %Y") 
+                    if row.date_published else None
+                ),
                 'scopus': row.scopus
             }
             for row in result
         ]
-        
+         
         return jsonify({"dataset":data}), 200
     elif request.method == 'POST':
         data = request.get_json()  # Get the JSON data sent in the request
