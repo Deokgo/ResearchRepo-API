@@ -234,8 +234,9 @@ def update_paper(research_id):
         if not existing_paper:
             return jsonify({"error": "Research paper not found"}), 404
 
-        # Get the file and form data
+        # Get the files and form data
         file = request.files.get('file')
+        file_ea = request.files.get('extended_abstract')
         data = request.form
 
         # Update required fields list
@@ -261,7 +262,7 @@ def update_paper(research_id):
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
-        # Handle file update if new file is provided
+        # Handle full manuscript update if new file is provided
         if file:
             # Create directory structure
             dir_path = os.path.join(
@@ -283,6 +284,29 @@ def update_paper(research_id):
             file_path = os.path.normpath(os.path.join(dir_path, filename))
             file.save(file_path)
             existing_paper.full_manuscript = file_path
+
+        # Handle extended abstract update if new file is provided
+        if file_ea:
+            # Create directory structure for extended abstract
+            dir_path_ea = os.path.join(
+                UPLOAD_FOLDER, 
+                data['research_type'], 
+                'extended_abstract', 
+                str(datetime.strptime(data['date_approved'], '%Y-%m-%d').year),
+                data['college_id'],
+                data['program_id']
+            )
+            os.makedirs(dir_path_ea, exist_ok=True)
+
+            # Delete old extended abstract if it exists
+            if existing_paper.extended_abstract and os.path.exists(existing_paper.extended_abstract):
+                os.remove(existing_paper.extended_abstract)
+
+            # Save new extended abstract
+            filename_ea = secure_filename(f"{research_id}_extended_abstract.pdf")
+            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+            file_ea.save(file_path_ea)
+            existing_paper.extended_abstract = file_path_ea
 
         # Update basic paper information
         existing_paper.college_id = data['college_id']
@@ -532,3 +556,24 @@ def increment_downloads(research_id):
     
     finally:
         db.session.close()
+
+@paper.route('/view_extended_abstract/<research_id>', methods=['GET'])
+def view_extended_abstract(research_id):
+    try:
+        # Query the database for the extended_abstract using the research_id
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+
+        # Check if research_output exists and if the handle for the extended abstract is available
+        if not research_output or not research_output.extended_abstract:
+            return jsonify({"error": "Extended abstract not found."}), 404
+
+        file_path = os.path.normpath(research_output.extended_abstract)
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found."}), 404
+
+        # Send the file for viewing
+        return send_file(file_path, as_attachment=False)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
