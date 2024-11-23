@@ -211,7 +211,7 @@ def publication_papers(research_id=None):
          
         return jsonify({"dataset":data}), 200
     elif request.method == 'POST':
-        data = request.get_json()  # Get the JSON data sent in the request
+        # Get data from form submission
         try:
             # Check if ResearchOutput exists
             research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
@@ -224,9 +224,8 @@ def publication_papers(research_id=None):
             if not publication:
                 return jsonify({'message': 'Publication Details already existing'}), 400
 
-
             # Check if conference exists or create a new one
-            conference_title = data.get('conference_title')
+            conference_title = request.form.get('conference_title')
             conference = db.session.query(Conference).filter(Conference.conference_title.ilike(conference_title)).first()
 
             if not conference:
@@ -235,15 +234,15 @@ def publication_papers(research_id=None):
 
                 # Parse conference_date into a datetime object
                 conference_date = (
-                    datetime.strptime(data.get('conference_date'), '%Y-%m-%d') 
-                    if data.get('conference_date') else None
+                    datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') 
+                    if request.form.get('conference_date') else None
                 )
 
                 # Create a new Conference
                 conference = Conference(
                     conference_id=cf_id,
-                    conference_title=data.get('conference_title'),
-                    conference_venue=data.get('city') + ", " + data.get('country'),
+                    conference_title=request.form.get('conference_title'),
+                    conference_venue=request.form.get('city') + ", " + request.form.get('country'),
                     conference_date=conference_date
                 )
                 db.session.add(conference)
@@ -252,8 +251,8 @@ def publication_papers(research_id=None):
 
             # Parse date_published into a datetime object
             date_published = (
-                datetime.strptime(data.get('date_published'), '%Y-%m-%d') 
-                if data.get('date_published') else None
+                datetime.strptime(request.form.get('date_published'), '%Y-%m-%d') 
+                if request.form.get('date_published') else None
             )
 
             # Generate a unique publication_id
@@ -263,18 +262,18 @@ def publication_papers(research_id=None):
             new_publication = Publication(
                 publication_id=publication_id,
                 research_id=research_id,
-                publication_name=data.get('publication_name'),
+                publication_name=request.form.get('publication_name'),
                 conference_id=cf_id,
-                journal=data.get('journal'),
+                journal=request.form.get('journal'),
                 date_published=date_published,
-                scopus=data.get('scopus')
+                scopus=request.form.get('scopus')
             )
             db.session.add(new_publication)
             db.session.commit()
 
             # Audit trail logging
             """log_audit_trail(
-                user_id=data.get('user_id'),
+                user_id=request.form.get('user_id'),
                 table_name='Publication and Conference',
                 record_id=new_publication.publication_id,
                 operation='CREATE',
@@ -285,7 +284,6 @@ def publication_papers(research_id=None):
         except Exception as e:
             db.session.rollback()  # Rollback in case of error
             return jsonify({'error': str(e)}), 400
-        
     elif request.method == 'PUT':
         # Handle PUT request - Update an existing publication entry
         data = request.get_json()  # Get the JSON data sent in the request
