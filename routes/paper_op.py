@@ -235,17 +235,12 @@ def update_paper(research_id):
 
         # Handle file update if new file is provided
         if file:
-
-            date_format = '%a, %d %b %Y %H:%M:%S GMT' # Parse the date string
-            parsed_date = datetime.strptime(data['date_approved'], date_format)
-            formatted_date = parsed_date.strftime('%Y-%m-%d')
-
             # Create directory structure
             dir_path = os.path.join(
                 UPLOAD_FOLDER, 
                 data['research_type'], 
                 'manuscript', 
-                str(datetime.strptime(formatted_date, '%Y-%m-%d').year),
+                str(datetime.strptime(data['date_approved'], '%Y-%m-%d').year),
                 data['college_id'],
                 data['program_id']
             )
