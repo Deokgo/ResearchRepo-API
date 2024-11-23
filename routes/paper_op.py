@@ -21,22 +21,33 @@ def add_paper():
 
         # Get the file and form data
         file = request.files.get('file')
+        file_ea = request.files.get('extended_abstract')
         data = request.form  # Get form data
+
+        print("Received file:", request.files.get("file"))
+        print("Received extended abstract:", request.files.get("extended_abstract"))
         
-        # Update required fields list
+        # Required Fields
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
             'abstract', 'date_approved', 'research_type', 
             'adviser_id', 'sdg', 'keywords', 'author_ids', 'panel_ids'
         ]
-        missing_fields = [field for field in required_fields if field not in data]
-        
-        # Add file to validation
+
+        # Validate non-file fields
+        missing_fields = [field for field in required_fields if field not in data or not data[field].strip()]
+
+        # Validate files separately
         if not file:
+            print('Missing file')
             missing_fields.append('file')
+
+        if not file_ea:
+            print('Missing extended abstract')
+            missing_fields.append('extended_abstract')
         
         # Validate if the file is a PDF
-        if file and file.content_type != 'application/pdf':
+        if (file and file.content_type != 'application/pdf') or (file_ea and file_ea.content_type != 'application/pdf'):
             return jsonify({"error": "Invalid file type. Only PDF files are allowed."}), 400
         
         # Check if authors array is empty
@@ -57,7 +68,7 @@ def add_paper():
         if is_duplicate(data['research_id']):
             return jsonify({"error": "Group Code already exists"}), 400
 
-        # First try to save the file
+        # First try to save the manuscript
         dir_path = os.path.join(
             UPLOAD_FOLDER, 
             data['research_type'], 
@@ -71,6 +82,22 @@ def add_paper():
         filename = secure_filename(f"{data['research_id']}_manuscript.pdf")
         file_path = os.path.normpath(os.path.join(dir_path, filename))
         file.save(file_path)
+
+        # First try to save the extended_abstract 
+        dir_path_ea = os.path.join(
+            UPLOAD_FOLDER, 
+            data['research_type'], 
+            'extended_abstract', 
+            str(datetime.now().year),  # Use the current year
+            data['college_id'],
+            data['program_id']
+        )
+
+        os.makedirs(dir_path_ea, exist_ok=True)
+
+        filename_ea = secure_filename(f"{data['research_id']}_extended_abstract.pdf")
+        file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+        file_ea.save(file_path_ea)
         
         # If file save succeeds, proceed with database operations
         philippine_tz = pytz.timezone('Asia/Manila')
@@ -85,6 +112,7 @@ def add_paper():
             date_approved=data['date_approved'],
             research_type=data['research_type'],
             full_manuscript=file_path,  # Save the file path
+            extended_abstract = file_path_ea,
             adviser_id=data['adviser_id'],
             user_id=user_id,
             date_uploaded=current_datetime,
@@ -374,48 +402,6 @@ def update_paper(research_id):
         
     finally:
         db.session.close()
-
-@paper.route('/upload_manuscript', methods=['POST'])
-def upload_manuscript():
-    try:
-        # Get file and form data
-        file = request.files['file']
-        research_type = request.form['research_type']
-        year = request.form['year']
-        department = request.form['department']
-        program = request.form['program']
-        research_id = request.form['group_code']
-
-        # Create directory structure if it doesn't exist
-        dir_path = os.path.join(
-            UPLOAD_FOLDER, research_type, 'manuscript', year, department, program
-        )
-        os.makedirs(dir_path, exist_ok=True)
-
-        # Save the file
-        filename = secure_filename(f"{research_id}_manuscript.pdf")
-        file_path = os.path.join(dir_path, filename)
-        file_path = os.path.normpath(file_path)
-        file.save(file_path)
-
-        # Update handle of research output
-        print(f"Group Code for Manuscript Upload: {research_id}")
-        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
-
-        if research_output:
-            research_output.full_manuscript = file_path
-            db.session.commit()
-            print(f"Updated Manuscript Path in Database: {file_path}")
-        else:
-            return jsonify({"error": "Research output not found for the given group code."}), 404
-
-        return jsonify({"message": "File uploaded successfully."}), 201
-
-    except Exception as e:
-        # Log the error
-        print(f"Error during manuscript upload: {e}")
-        return jsonify({"error": str(e)}), 500
-
 
 @paper.route('/view_manuscript/<research_id>', methods=['GET'])
 def view_manuscript(research_id):
