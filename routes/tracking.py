@@ -181,12 +181,20 @@ def publication_papers(research_id=None):
         .filter(ResearchOutput.research_id == research_id)
 
         result=query.all()
+
         data = [
             {
                 'publication_id': row.publication_id,
                 'journal': row.journal,
                 'conference_title': row.conference_title,
-                'conference_venue': row.conference_venue,
+                'city': (
+                    row.conference_venue.split(',', 1)[0].strip() 
+                    if row.conference_venue else None
+                    ),
+                'country': (
+                    row.conference_venue.split(',', 1)[1].strip() 
+                    if row.conference_venue and ',' in row.conference_venue else None
+                    ),
                 'conference_date': (
                     row.conference_date.strftime("%B %d, %Y") 
                     if row.conference_date else None
@@ -210,6 +218,12 @@ def publication_papers(research_id=None):
 
             if not research_output:
                 return jsonify({'message': 'ResearchOutput not found'}), 404
+            
+            publication = db.session.query(Publication).filter(Publication.research_id == research_id).first() is None
+
+            if not publication:
+                return jsonify({'message': 'Publication Details already existing'}), 400
+
 
             # Check if conference exists or create a new one
             conference_title = data.get('conference_title')
@@ -219,18 +233,31 @@ def publication_papers(research_id=None):
                 # Generate a unique conference_id
                 cf_id = formatting_id("CF", Conference, 'conference_id')
 
+                # Parse conference_date into a datetime object
+                conference_date = (
+                    datetime.strptime(data.get('conference_date'), '%Y-%m-%d') 
+                    if data.get('conference_date') else None
+                )
+
                 # Create a new Conference
                 conference = Conference(
                     conference_id=cf_id,
                     conference_title=data.get('conference_title'),
-                    conference_venue=data.get('conference_venue'),
-                    conference_date=data.get('conference_date')
+                    conference_venue=data.get('city') + ", " + data.get('country'),
+                    conference_date=conference_date
                 )
                 db.session.add(conference)
             else:
                 cf_id = conference.conference_id  # Use existing conference_id
-            
-            publication_id=formatting_id("PBC", Publication, 'publication_id'),  # Ensure unique publication_id
+
+            # Parse date_published into a datetime object
+            date_published = (
+                datetime.strptime(data.get('date_published'), '%Y-%m-%d') 
+                if data.get('date_published') else None
+            )
+
+            # Generate a unique publication_id
+            publication_id = formatting_id("PBC", Publication, 'publication_id')
 
             # Create Publication
             new_publication = Publication(
@@ -239,8 +266,7 @@ def publication_papers(research_id=None):
                 publication_name=data.get('publication_name'),
                 conference_id=cf_id,
                 journal=data.get('journal'),
-                user_id=data.get('user_id'),  # Ensure user_id is provided in request data
-                date_published=data.get('date_published'),
+                date_published=date_published,
                 scopus=data.get('scopus')
             )
             db.session.add(new_publication)
