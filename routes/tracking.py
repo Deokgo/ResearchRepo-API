@@ -66,31 +66,37 @@ def get_research_status(research_id=None):
 
     elif request.method == 'POST':
         try:
-            new_status=""
+            new_status = ""
             # Retrieve data from request body (JSON)
-            
-            publication = Publication.query.filter(Publication.research_id==research_id).first()
+            publication = Publication.query.filter(Publication.research_id == research_id).first()
 
             if publication is None:
                 return jsonify({"message": "Fill in the forms first"}), 400
             
+            # Retrieve the latest status
             current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
-            if current_status.status == "PULLOUT":
-                return jsonify({"message": "Paper already pulled out"}), 400
-            elif current_status.status is None:
-                new_status="SUBMITTED"
-            elif current_status.status == "SUBMITTED":
-                new_status="ACCEPTED"
-            elif current_status.status == "ACCEPTED":
-                new_status="PUBLISHED"
-            elif current_status.status == "PUBLISHED":
-                return jsonify({"message": "Paper already published"}), 400
-            
 
+            # Handle case where current_status is None
+            if current_status is None:
+                # If no status exists, set the initial status to "SUBMITTED"
+                new_status = "SUBMITTED"
+                # Call the function to insert the new status for the publication
+                changed_status, error = insert_status(publication.publication_id, new_status)
+            else:
+                # If there is a current status, handle status transitions
+                if current_status.status == "PULLOUT":
+                    return jsonify({"message": "Paper already pulled out"}), 400
+                elif current_status.status == "SUBMITTED":
+                    new_status = "ACCEPTED"
+                elif current_status.status == "ACCEPTED":
+                    new_status = "PUBLISHED"
+                elif current_status.status == "PUBLISHED":
+                    return jsonify({"message": "Paper already published"}), 400
 
-            # Call the function to insert status
-            changed_status, error = insert_status(current_status.publication_id, new_status)
+                # Call the function to insert the new status
+                changed_status, error = insert_status(current_status.publication_id, new_status)
 
+            # If there was an error inserting the status, handle it
             if error:
                 return jsonify({"error": "Database error occurred", "details": error}), 500
 
@@ -98,9 +104,12 @@ def get_research_status(research_id=None):
             # Log audit trail here asynchronously (optional)
 
             return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
+
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
             return jsonify({"error": "Database error occurred", "details": str(e)}), 500
+
+
         
 @track.route('next_status/<research_id>',methods=['GET'])
 def get_next_status(research_id):
@@ -284,9 +293,9 @@ def publication_papers(research_id=None):
         except Exception as e:
             db.session.rollback()  # Rollback in case of error
             return jsonify({'error': str(e)}), 400
-    elif request.method == 'PUT':
+    if request.method == 'PUT':
         # Handle PUT request - Update an existing publication entry
-        data = request.get_json()  # Get the JSON data sent in the request
+        data = request.form  # Use form-data instead of JSON
 
         try:
             # Check if ResearchOutput exists
@@ -302,14 +311,14 @@ def publication_papers(research_id=None):
                     publication.date_published = data.get('date_published', publication.date_published)
                     publication.scopus = data.get('scopus', publication.scopus)
 
-
                     conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
-                    # Otherwise, update existing conference details
-                    conference.conference_title = data.get('conference_title', conference.conference_title)
-                    conference.conference_venue = data.get('conference_venue', conference.conference_venue)
-                    conference.conference_date = data.get('conference_date', conference.conference_date)
+                    # Update existing conference details
+                    if conference:
+                        conference.conference_title = data.get('conference_title', conference.conference_title)
+                        conference.conference_venue = data.get('conference_venue', conference.conference_venue)
+                        conference.conference_date = data.get('conference_date', conference.conference_date)
 
-                    publication.conference = conference
+                        publication.conference = conference
 
                     db.session.commit()
                     return jsonify({'message': 'Publication updated successfully'}), 200
