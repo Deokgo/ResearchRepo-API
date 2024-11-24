@@ -218,7 +218,7 @@ def publication_papers(research_id=None):
             for row in result
         ]
          
-        return jsonify({"dataset":data}), 200
+        return jsonify({"dataset": [dict(row) for row in data]}), 200
     elif request.method == 'POST':
         # Get data from form submission
         try:
