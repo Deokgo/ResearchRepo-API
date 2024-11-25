@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from services.tracking_services import insert_status
 from sqlalchemy import func, desc, nulls_last
+from services.mail import send_notification_email
 
 
 track = Blueprint('track', __name__)
@@ -101,6 +102,9 @@ def get_research_status(research_id=None):
                 return jsonify({"error": "Database error occurred", "details": error}), 500
 
             # Send email asynchronously (optional)
+            send_notification_email("2021jakgmallari@live.mcl.edu.ph",
+                                "NEW PUBLICATION STATUS UPDATE",
+                                f'Research paper by {research_id} has been updated to {changed_status}.')
             # Log audit trail here asynchronously (optional)
 
             return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
@@ -135,6 +139,7 @@ def get_next_status(research_id):
             new_status="COMPLETED"
 
         # Send email asynchronously (optional)
+        
         # Log audit trail here asynchronously (optional)
 
         return jsonify(new_status), 200
@@ -163,6 +168,9 @@ def pullout_paper(research_id):
                 return jsonify({"error": "Database error occurred", "details": error}), 500
 
             # Send email asynchronously (optional)
+        send_notification_email("2021jakgmallari@live.mcl.edu.ph",
+                                "NOTIFICATION",
+                                f'Research paper by {research_id} has been pulled out.')
             # Log audit trail here asynchronously (optional)
         return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 

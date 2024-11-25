@@ -6,7 +6,7 @@ from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from models import db
 from config import Config
-from flask_mail import Mail
+from flask_mailman import Mail
 
 #Initialize the app
 app = Flask(__name__)
