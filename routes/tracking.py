@@ -308,7 +308,9 @@ def publication_papers(research_id=None):
                 if publication:
                     publication.journal = data.get('journal', publication.journal)
                     publication.publication_name = data.get('publication_name', publication.publication_name)
-                    publication.date_published = data.get('date_published', publication.date_published)
+                    # Validate the date
+                    publication.date_published = parse_date(data.get('date_published')) or publication.date_published
+                    publication.scopus = data.get('scopus', publication.scopus)
                     publication.scopus = data.get('scopus', publication.scopus)
 
                     conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
@@ -330,3 +332,13 @@ def publication_papers(research_id=None):
         except Exception as e:
             db.session.rollback()  # Rollback in case of error
             return jsonify({'error': str(e)}), 400
+
+from datetime import datetime
+def parse_date(date_string):
+    """Parse a date string or return None if invalid."""
+    try:
+        if date_string:  # Check if the value is not None or empty
+            return datetime.strptime(date_string, "%Y-%m-%d").date()
+        return None
+    except (ValueError, TypeError):
+        return None
