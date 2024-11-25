@@ -2,7 +2,7 @@
 # created by Nicole Cabansag (Oct. 7, 2024)
 
 from flask import Blueprint, jsonify
-from sqlalchemy import func, desc, nulls_last
+from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db
 
@@ -378,3 +378,19 @@ def fetch_ordered_dataset(research_id=None):
             } for row in result]
 
     return jsonify({"dataset": [dict(row) for row in data]})
+
+@dataset.route('/fetch_date_range', methods=['GET'])
+def fetch_date_range():
+    result = db.session.query(
+        func.min(extract('year', ResearchOutput.date_uploaded)).label('min_year'),
+        func.max(extract('year', ResearchOutput.date_uploaded)).label('max_year')
+    ).one()
+
+    # Prepare the result as a JSON object
+    response = {
+        "min_year": int(result.min_year) if result.min_year else None,  # Convert to int if not None
+        "max_year": int(result.max_year) if result.max_year else None   # Convert to int if not None
+    }
+
+    # Return as a JSON response
+    return jsonify({"date_range": response})

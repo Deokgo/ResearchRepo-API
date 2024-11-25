@@ -19,13 +19,7 @@ def add_paper():
         if not user_id:
             return jsonify({"error": "User must be logged in to add a paper"}), 401
 
-        # Get the file and form data
-        file = request.files.get('file')
-        file_ea = request.files.get('extended_abstract')
         data = request.form  # Get form data
-
-        print("Received file:", request.files.get("file"))
-        print("Received extended abstract:", request.files.get("extended_abstract"))
         
         # Required Fields
         required_fields = [
@@ -37,18 +31,21 @@ def add_paper():
         # Validate non-file fields
         missing_fields = [field for field in required_fields if field not in data or not data[field].strip()]
 
-        # Validate files separately
+       # Validate the manuscript (required)
+        file = request.files.get('file')
         if not file:
-            print('Missing file')
-            missing_fields.append('file')
+            return jsonify({"error": "Manuscript file is required."}), 400
 
-        if not file_ea:
-            print('Missing extended abstract')
-            missing_fields.append('extended_abstract')
-        
-        # Validate if the file is a PDF
-        if (file and file.content_type != 'application/pdf') or (file_ea and file_ea.content_type != 'application/pdf'):
-            return jsonify({"error": "Invalid file type. Only PDF files are allowed."}), 400
+        if file.content_type != 'application/pdf':
+            return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
+
+        # Validate the extended abstract (optional)
+        file_ea = request.files.get('extended_abstract')
+        if file_ea and file_ea.content_type != 'application/pdf':
+            return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
+
+        print("Received file:", request.files.get("file"))
+        print("Received extended abstract:", request.files.get("extended_abstract"))
         
         # Check if authors array is empty
         if 'author_ids' in data and not request.form.getlist('author_ids'):
@@ -68,7 +65,7 @@ def add_paper():
         if is_duplicate(data['research_id']):
             return jsonify({"error": "Group Code already exists"}), 400
 
-        # First try to save the manuscript
+        # Save the manuscript
         dir_path = os.path.join(
             UPLOAD_FOLDER, 
             data['research_type'], 
@@ -83,21 +80,22 @@ def add_paper():
         file_path = os.path.normpath(os.path.join(dir_path, filename))
         file.save(file_path)
 
-        # First try to save the extended_abstract 
-        dir_path_ea = os.path.join(
-            UPLOAD_FOLDER, 
-            data['research_type'], 
-            'extended_abstract', 
-            str(datetime.now().year),  # Use the current year
-            data['college_id'],
-            data['program_id']
-        )
+        # Save the extended abstract (if provided)
+        file_path_ea = None  # Default to None if no extended abstract is provided
+        if file_ea:
+            dir_path_ea = os.path.join(
+                UPLOAD_FOLDER, 
+                data['research_type'], 
+                'extended_abstract', 
+                str(datetime.now().year),  # Use the current year
+                data['college_id'],
+                data['program_id']
+            )
+            os.makedirs(dir_path_ea, exist_ok=True)
 
-        os.makedirs(dir_path_ea, exist_ok=True)
-
-        filename_ea = secure_filename(f"{data['research_id']}_extended_abstract.pdf")
-        file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
-        file_ea.save(file_path_ea)
+            filename_ea = secure_filename(f"{data['research_id']}_extended_abstract.pdf")
+            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+            file_ea.save(file_path_ea)
         
         # If file save succeeds, proceed with database operations
         philippine_tz = pytz.timezone('Asia/Manila')
@@ -111,8 +109,8 @@ def add_paper():
             abstract=data['abstract'],
             date_approved=data['date_approved'],
             research_type=data['research_type'],
-            full_manuscript=file_path,  # Save the file path
-            extended_abstract = file_path_ea,
+            full_manuscript=file_path,  # Save the manuscript file path
+            extended_abstract=file_path_ea,  # This could be None
             adviser_id=data['adviser_id'],
             user_id=user_id,
             date_uploaded=current_datetime,
