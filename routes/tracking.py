@@ -220,49 +220,74 @@ def publication_papers(research_id=None):
          
         return jsonify({"dataset": [dict(row) for row in data]}), 200
     elif request.method == 'POST':
-        # Get data from form submission
         try:
+            # Get the form data
+            journal_type = request.form.get('journal')
+
+            # Validate form fields based on journal type
+            if journal_type == "journal":
+                # Validate required fields for "journal"
+                required_fields = ['publication_name', 'journal', 'date_published', 'scopus']
+                missing_fields = [field for field in required_fields if not request.form.get(field)]
+                if missing_fields:
+                    return jsonify({'error': f"Missing required fields for journal: {', '.join(missing_fields)}"}), 400
+                
+                # Check for unexpected conference fields
+                forbidden_fields = ['conference_title', 'city', 'country', 'conference_date']
+                extra_fields = [field for field in forbidden_fields if request.form.get(field)]
+                if extra_fields:
+                    return jsonify({'error': f"Unexpected fields for journal: {', '.join(extra_fields)}"}), 400
+
+            elif journal_type == "proceeding":
+                # Validate required fields for "proceeding"
+                required_fields = [
+                    'publication_name', 'journal', 'date_published', 'scopus', 
+                    'conference_title', 'city', 'country', 'conference_date'
+                ]
+                missing_fields = [field for field in required_fields if not request.form.get(field)]
+                if missing_fields:
+                    return jsonify({'error': f"Missing required fields for proceeding: {', '.join(missing_fields)}"}), 400
+
+            else:
+                return jsonify({'error': 'Invalid journal type specified'}), 400
+
             # Check if ResearchOutput exists
             research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
-
             if not research_output:
                 return jsonify({'message': 'ResearchOutput not found'}), 404
-            
-            publication = db.session.query(Publication).filter(Publication.research_id == research_id).first() is None
 
-            if not publication:
+            # Check if Publication already exists
+            publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+            if publication:
                 return jsonify({'message': 'Publication Details already existing'}), 400
 
             # Check if conference exists or create a new one
             conference_title = request.form.get('conference_title')
-            conference = db.session.query(Conference).filter(Conference.conference_title.ilike(conference_title)).first()
+            conference = db.session.query(Conference).filter(
+                        Conference.conference_title.ilike(conference_title) if conference_title else False
+                    ).first()
 
-            if not conference:
+
+            if not conference and journal_type == "proceeding":
                 # Generate a unique conference_id
                 cf_id = formatting_id("CF", Conference, 'conference_id')
 
                 # Parse conference_date into a datetime object
-                conference_date = (
-                    datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') 
-                    if request.form.get('conference_date') else None
-                )
+                conference_date = datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d')
 
                 # Create a new Conference
                 conference = Conference(
                     conference_id=cf_id,
                     conference_title=request.form.get('conference_title'),
-                    conference_venue=request.form.get('city') + ", " + request.form.get('country'),
+                    conference_venue=f"{request.form.get('city')}, {request.form.get('country')}",
                     conference_date=conference_date
                 )
                 db.session.add(conference)
             else:
-                cf_id = conference.conference_id  # Use existing conference_id
+                cf_id = conference.conference_id if conference else None
 
             # Parse date_published into a datetime object
-            date_published = (
-                datetime.strptime(request.form.get('date_published'), '%Y-%m-%d') 
-                if request.form.get('date_published') else None
-            )
+            date_published = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d')
 
             # Generate a unique publication_id
             publication_id = formatting_id("PBC", Publication, 'publication_id')
@@ -280,7 +305,7 @@ def publication_papers(research_id=None):
             db.session.add(new_publication)
             db.session.commit()
 
-            # Audit trail logging
+            # Audit trail logging (uncomment when log_audit_trail is implemented)
             """log_audit_trail(
                 user_id=request.form.get('user_id'),
                 table_name='Publication and Conference',
@@ -288,50 +313,77 @@ def publication_papers(research_id=None):
                 operation='CREATE',
                 action_desc='Creating Publication and associated Conference details')"""
 
-            return jsonify({'message': 'Publication and Conference created successfully'}), 201
+            return jsonify({'message': 'Data uploaded successfully'}), 201
 
         except Exception as e:
             db.session.rollback()  # Rollback in case of error
             return jsonify({'error': str(e)}), 400
-    if request.method == 'PUT':
+
+    elif request.method == 'PUT':
         # Handle PUT request - Update an existing publication entry
         data = request.form  # Use form-data instead of JSON
 
         try:
             # Check if ResearchOutput exists
             research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
-            
-            if research_output:
-                # Now update the Publication
-                publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
 
-                if publication:
-                    publication.journal = data.get('journal', publication.journal)
-                    publication.publication_name = data.get('publication_name', publication.publication_name)
-                    # Validate the date
-                    publication.date_published = parse_date(data.get('date_published')) or publication.date_published
-                    publication.scopus = data.get('scopus', publication.scopus)
-                    publication.scopus = data.get('scopus', publication.scopus)
-
-                    conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
-                    # Update existing conference details
-                    if conference:
-                        conference.conference_title = data.get('conference_title', conference.conference_title)
-                        conference.conference_venue = data.get('conference_venue', conference.conference_venue)
-                        conference.conference_date = data.get('conference_date', conference.conference_date)
-
-                        publication.conference = conference
-
-                    db.session.commit()
-                    return jsonify({'message': 'Publication updated successfully'}), 200
-                else:
-                    return jsonify({'message': 'Publication not found'}), 404
-            else:
+            if not research_output:
                 return jsonify({'message': 'ResearchOutput not found'}), 404
-        
+
+            # Check if Publication exists
+            publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+
+            if not publication:
+                return jsonify({'message': 'Publication not found'}), 404
+
+            # Determine the type of publication
+            journal_type = data.get('journal')
+
+            # Validate required fields based on journal type
+            if journal_type == "journal":
+                required_fields = ['publication_name', 'journal', 'date_published', 'scopus']
+                missing_fields = [field for field in required_fields if field not in data or not data.get(field)]
+                if missing_fields:
+                    return jsonify({'error': f"Missing required fields for journal: {', '.join(missing_fields)}"}), 400
+
+                forbidden_fields = ['conference_title', 'conference_venue', 'conference_date']
+                extra_fields = [field for field in forbidden_fields if data.get(field)]
+                if extra_fields:
+                    return jsonify({'error': f"Unexpected fields for journal: {', '.join(extra_fields)}"}), 400
+
+            elif journal_type == "proceeding":
+                required_fields = [
+                    'publication_name', 'journal', 'date_published', 'scopus',
+                    'conference_title', 'conference_venue', 'conference_date'
+                ]
+                missing_fields = [field for field in required_fields if field not in data or not data.get(field)]
+                if missing_fields:
+                    return jsonify({'error': f"Missing required fields for proceeding: {', '.join(missing_fields)}"}), 400
+
+            else:
+                return jsonify({'error': 'Invalid journal type specified'}), 400
+
+            # Update Publication fields
+            publication.journal = data.get('journal', publication.journal)
+            publication.publication_name = data.get('publication_name', publication.publication_name)
+            publication.date_published = parse_date(data.get('date_published')) or publication.date_published
+            publication.scopus = data.get('scopus', publication.scopus)
+
+            # Update Conference details if it's a proceeding
+            if journal_type == "proceeding":
+                conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
+                if conference:
+                    conference.conference_title = data.get('conference_title', conference.conference_title)
+                    conference.conference_venue = data.get('conference_venue', conference.conference_venue)
+                    conference.conference_date = parse_date(data.get('conference_date')) or conference.conference_date
+
+            db.session.commit()
+            return jsonify({'message': 'Publication updated successfully'}), 200
+
         except Exception as e:
             db.session.rollback()  # Rollback in case of error
             return jsonify({'error': str(e)}), 400
+
 
 from datetime import datetime
 def parse_date(date_string):
