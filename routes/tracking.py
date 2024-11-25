@@ -257,6 +257,8 @@ def publication_papers(research_id=None):
                 db.session.add(conference)
             else:
                 cf_id = conference.conference_id  # Use existing conference_id
+            if request.form.get('journal')=='journal':
+                cf_id=None
 
             # Parse date_published into a datetime object
             date_published = (
@@ -296,6 +298,7 @@ def publication_papers(research_id=None):
     if request.method == 'PUT':
         # Handle PUT request - Update an existing publication entry
         data = request.form  # Use form-data instead of JSON
+        print("Form Data:", dict(request.form))
 
         try:
             # Check if ResearchOutput exists
@@ -304,25 +307,38 @@ def publication_papers(research_id=None):
             if research_output:
                 # Now update the Publication
                 publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+                print("Publication Content:", vars(publication))
 
                 if publication:
+                
+                    # Handle journal or proceeding logic
+                    if data.get('journal') == "journal":
+                        publication.conference_id = None
+                    elif data.get('journal') == "proceeding":
+                        print("proceeding!!")
+                        conferences = db.session.query(Conference).filter(Conference.conference_title == data.get('conference_title')).first()
+                        print("Conferences:", vars(conferences))
+                        # Create a new conference if needed
+                        if not conferences:
+                            print("new cf!!")
+                            cf_id = formatting_id("CF", Conference, 'conference_id')
+                            conference = Conference(
+                                conference_title=data.get('conference_title'),
+                                conference_venue=data.get('conference_venue'),
+                                conference_date=data.get('conference_date'),
+                            )
+                            db.session.add(conference)
+                        else:
+                            publication.conference_id = conferences.conference_id
+
+                     # Update publication fields
                     publication.journal = data.get('journal', publication.journal)
                     publication.publication_name = data.get('publication_name', publication.publication_name)
-                    # Validate the date
                     publication.date_published = parse_date(data.get('date_published')) or publication.date_published
                     publication.scopus = data.get('scopus', publication.scopus)
-                    publication.scopus = data.get('scopus', publication.scopus)
-
-                    conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
-                    # Update existing conference details
-                    if conference:
-                        conference.conference_title = data.get('conference_title', conference.conference_title)
-                        conference.conference_venue = data.get('conference_venue', conference.conference_venue)
-                        conference.conference_date = data.get('conference_date', conference.conference_date)
-
-                        publication.conference = conference
-
                     db.session.commit()
+                    publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+                    print("Publication UPDATED Content:", vars(publication))
                     return jsonify({'message': 'Publication updated successfully'}), 200
                 else:
                     return jsonify({'message': 'Publication not found'}), 404

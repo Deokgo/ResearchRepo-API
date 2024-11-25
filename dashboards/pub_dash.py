@@ -122,8 +122,6 @@ class PublicationDash:
 
         sorted_keywords_count = keywords_count.sort_values(by='Count', ascending=False).reset_index(drop=True)
 
-        # Display the resulting DataFrame
-        print(sorted_keywords_count)
 
 
 
@@ -407,9 +405,7 @@ class PublicationDash:
         
         # Group by 'year' for uploaded data
         author_count_per_year1 = df.groupby('year')['author_count'].sum().reset_index()
-        
-        # Display the result
-        print(author_count_per_year)
+    
         
         # Merge both dataframes so that we can overlay them on the same plot
         # We assume 'published_year' and 'year' are related but different contexts
