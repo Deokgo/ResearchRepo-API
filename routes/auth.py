@@ -62,10 +62,6 @@ def login():
 
             return jsonify({
                 "message": "Login successful",
-                "user_id": user.user_id,
-                "role": user.role.role_id,
-                "college": college_id,
-                "program": program_id,
                 "token": token
             }), 200
 
@@ -152,3 +148,36 @@ def create_account():
         return jsonify(response_data), status_code
 
     return response, status_code
+
+@auth.route('/me', methods=['GET'])
+@auth_services.token_required  
+def get_user_details():
+    user_id = session.get('user_id')
+    
+    try:
+        user = Account.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        user_profile = UserProfile.query.filter_by(researcher_id=user.user_id).one_or_none()
+        
+        return jsonify({
+            "user_id": user.user_id,
+            "role": user.role.role_id,
+            "college": user_profile.college_id if user_profile else None,
+            "program": user_profile.program_id if user_profile else None
+        }), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@auth.route('/validate-session', methods=['GET'])
+@auth_services.token_required
+def validate_session():
+    """Endpoint to validate the current session/token"""
+    try:
+        # The @token_required decorator already validates the token
+        # If we reach here, the token is valid
+        return jsonify({"message": "Token is valid"}), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500

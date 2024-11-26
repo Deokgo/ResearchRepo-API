@@ -1,8 +1,10 @@
 import datetime
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, session
 from models import db
 import jwt
 import re
+from functools import wraps
+from models.account import Account
 
 # Function for generating a new ID (for Primary Key)
 def formatting_id(indicator, model_class, id_field):
@@ -57,7 +59,7 @@ def generate_token(user_id):
     """Generate a JWT token for the user with a 24-hour expiration."""
     payload = {
         'user_id': user_id,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # Token expiry time
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)  # Token expiry time
     }
 
     try:
@@ -81,3 +83,40 @@ def validate_password(password):
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         return "Password must contain at least one special character."
     return None
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return jsonify({'message': 'Token is missing!'}), 401
+
+        if not token:
+            return jsonify({'message': 'Token is missing!'}), 401
+
+        try:
+            # Decode the token
+            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["HS256"])
+            user_id = data['user_id']
+            
+            # Store user_id in session
+            session['user_id'] = user_id
+
+            # Verify if user still exists in database
+            current_user = Account.query.get(user_id)
+            if not current_user:
+                return jsonify({'message': 'User not found!'}), 401
+
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired!'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Invalid token!'}), 401
+
+        return f(*args, **kwargs)
+
+    return decorated
