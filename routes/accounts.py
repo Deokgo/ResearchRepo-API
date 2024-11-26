@@ -341,7 +341,6 @@ def add_bulk_users():
 
             # Create new user
             user_id = auth_services.formatting_id('US', Account, 'user_id')
-            print(user_id)
             user = Account(user_id=user_id,email=email, user_pw=hashed_password, role_id=role_id)
             db.session.add(user)
             db.session.commit()

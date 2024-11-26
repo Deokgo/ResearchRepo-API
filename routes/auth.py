@@ -5,10 +5,18 @@ from models.visitor import Visitor
 from werkzeug.security import check_password_hash
 from services import auth_services, user_srv
 from sqlalchemy.orm import joinedload
+from services.mail import send_otp_email
+from services.otp import generate_otp
 import re
+from datetime import datetime,timedelta,timezone
 import jwt
 
 auth = Blueprint('auth', __name__)
+
+def get_redis_client():
+    redis_client = current_app.redis_client
+    return redis_client
+
 
 @auth.route('/login', methods=['POST']) 
 def login():
@@ -227,3 +235,57 @@ def refresh():
         return jsonify({"message": "Refresh token has expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"message": "Invalid refresh token"}), 401
+    
+@auth.route('/send_otp', methods=['POST'])
+def send_registration_otp():
+    try:
+        email = request.json['email']
+
+        # Check if the user already exists
+        user_exists = Account.query.filter_by(email=email).first() is not None
+        if user_exists:
+            return jsonify({"error": "User already exists"}), 409
+
+        redis_client = get_redis_client()
+        otp_key = f"otp:{email}"  # Unique key for each user (using email)
+        
+        # Check if an OTP already exists
+        existing_otp = redis_client.get(otp_key)
+        if existing_otp:
+            return jsonify({"error": "An OTP has already been sent. Please wait before requesting a new one."}), 429
+
+        # Generate and store a new OTP
+        otp = generate_otp()
+        redis_client.setex(otp_key, timedelta(minutes=5), otp)
+
+        # Send OTP email
+        send_otp_email(email, 'Your OTP Code', f'Your OTP code is {otp}')
+        
+        return jsonify({"message": "OTP sent successfully. Please verify your email.", "otp": otp})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    
+@auth.route('/verify_otp', methods=['POST'])
+def verify_registration_otp():
+    try:
+        email = request.json['email']
+        otp_input = request.json['otp']
+
+        redis_client = get_redis_client()
+        otp_key = f"otp:{email}"
+        otp_stored = redis_client.get(otp_key)
+
+        if otp_stored is None:
+            return jsonify({"error": "OTP request not found or expired."}), 400
+
+        # Verify OTP
+        if otp_input != otp_stored:
+            return jsonify({"error": "Invalid OTP."}), 400
+
+        # OTP is valid, proceed to next step of registration
+        # Cleanup: Delete the OTP from Redis after it has been used
+        redis_client.delete(otp_key)
+
+        return jsonify({"message": "OTP verified. You can now complete your registration."})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400

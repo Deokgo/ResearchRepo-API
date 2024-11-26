@@ -7,6 +7,17 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from models import db
 from config import Config
 from flask_mailman import Mail
+import redis
+
+def initialize_redis(app):
+    """Initialize Redis and attach it to the app."""
+    redis_client = redis.StrictRedis(
+        host=app.config['REDIS_HOST'],
+        port=app.config['REDIS_PORT'],
+        db=app.config['REDIS_DB'],
+        decode_responses=True
+    )
+    app.redis_client = redis_client
 
 #Initialize the app
 app = Flask(__name__)
@@ -21,6 +32,7 @@ app.config.from_object(Config)
 db.init_app(app)
 mail = Mail(app)
 migrate = Migrate(app, db)
+initialize_redis(app)
 
 
 
