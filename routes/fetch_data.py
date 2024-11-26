@@ -3,6 +3,7 @@ from models import db,Conference,Role, UserProfile,Program,College
 from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
 #from services.logs import formatting_id,log_audit_trail
 #from decorators.acc_decorators import roles_required
+import os
 
 
 
@@ -93,24 +94,71 @@ def colleges(current_college=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
         try:
-            data = request.get_json()  # Assuming the request body contains a JSON payload
+            # Get user_id from form data 
+            user_id = request.form.get('user_id')
+            if not user_id:
+                return jsonify({"error": "User must be logged in to add college"}), 401
 
-            # Extracting values from the JSON data
-            college_id = data.get('college_id')
-            college_name = data.get('college_name')
-
-            # Check if data is valid
-            if not college_id or not college_name:
-                return jsonify({'error': 'College ID and Name are required'}), 400
+            data = request.form  # Get form data
+            
+            # Required fields list
+            required_fields = [
+                'college_id', 'college_name'
+            ]
+            missing_fields = [field for field in required_fields if field not in data]
+            
+            if missing_fields:
+                return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
             # Check if the college already exists
-            existing_college = College.query.filter((College.college_id == college_id) | (College.college_name == college_name)).first()
+            existing_college = College.query.filter((College.college_id == data['college_id']) | (College.college_name == data['college_name'])).first()
 
             if existing_college:
                 return jsonify({'error': 'College with this ID or Name already exists'}), 400
 
-            # Create a new college instance
-            new_college = College(college_id=college_id, college_name=college_name)
+            color_attrb = request.form.get('college_color')
+            if color_attrb:
+                # Define the path to the JSON file
+                json_file_path = os.path.join('./src/data', 'colorAttribute.json')
+
+                # Ensure file exists and is readable
+                if not os.path.exists(json_file_path):
+                    return jsonify({"error": f"Color attribute file not found: {json_file_path}"}), 400
+                
+                # Read the existing JSON file
+                try:
+                    with open(json_file_path, 'r') as file:
+                        color_data = json.load(file)
+                except json.JSONDecodeError:
+                    # Handle corrupted JSON file
+                    color_data = {"colorAttribute": []}
+                    return jsonify({'error': 'File: {json_file_path}, had been corrupted'}), 400
+
+                # Find existing color entry
+                existing_color = next((item for item in color_data['colorAttribute'] 
+                               if item['id'] == data['college_id']), None)
+                
+                if existing_color:
+                    return jsonify({'error': 'Color attribute already exist, please try again!'}), 400
+                else:
+                    # Add new color entry
+                    color_data['colorAttribute'].append({
+                        'id': data['college_id'],
+                        'color': request.form.get('college_color')
+                    })
+
+                # Write the updated data back to the JSON file
+                with open(json_file_path, 'w') as file:
+                    json.dump(color_data, file, indent=2)
+
+                return jsonify({"message": "Color attribute added successfully"}), 200
+                
+
+            # Create a new college instance       
+            new_college = College(
+                college_id=data['college_id'],
+                college_name=data['college_name']
+            )
 
             # Add to the session and commit to the database
             db.session.add(new_college)
