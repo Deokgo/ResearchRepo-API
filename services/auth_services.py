@@ -1,5 +1,5 @@
 import datetime
-from flask import Blueprint, request, jsonify, current_app, session
+from flask import Blueprint, request, jsonify, current_app, session, make_response
 from models import db
 import jwt
 import re
@@ -53,22 +53,6 @@ def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
         db.session.rollback()
         # Log the error message to a file or monitoring system
         print(f"Error logging audit trail: {e}")  # Change this to a logging call in production
-
-# Function to generate a JWT token
-def generate_token(user_id):
-    """Generate a JWT token for the user with a 24-hour expiration."""
-    payload = {
-        'user_id': user_id,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)  # Token expiry time
-    }
-
-    try:
-        # Encode the token using the secret key
-        token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
-        return token
-    except Exception as e:
-        print(f"Error generating token: {e}")  # Consider proper logging in production
-        return None  # Return None or raise an exception as needed
     
 # Password Validation Function
 def validate_password(password):
@@ -120,3 +104,39 @@ def token_required(f):
         return f(*args, **kwargs)
 
     return decorated
+
+def generate_tokens(user_id):
+    """Generate both access and refresh tokens for the user."""
+    # Access token - short lived (15 minutes)
+    access_token_payload = {
+        'user_id': user_id,
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15),
+        'type': 'access'
+    }
+    
+    # Refresh token - longer lived (7 days)
+    refresh_token_payload = {
+        'user_id': user_id,
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7),
+        'type': 'refresh'
+    }
+    
+    try:
+        access_token = jwt.encode(access_token_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+        refresh_token = jwt.encode(refresh_token_payload, current_app.config['REFRESH_SECRET_KEY'], algorithm='HS256')
+        return access_token, refresh_token
+    except Exception as e:
+        print(f"Error generating tokens: {e}")
+        return None, None
+
+def set_refresh_token_cookie(response, refresh_token):
+    """Set refresh token as HTTP-only cookie"""
+    response.set_cookie(
+        'refresh_token',
+        refresh_token,
+        httponly=True,
+        secure=True,  # Only send over HTTPS
+        samesite='Strict',
+        max_age=7 * 24 * 60 * 60  # 7 days in seconds
+    )
+    return response

@@ -6,6 +6,7 @@ from werkzeug.security import check_password_hash
 from services import auth_services, user_srv
 from sqlalchemy.orm import joinedload
 import re
+import jwt
 
 auth = Blueprint('auth', __name__)
 
@@ -48,9 +49,19 @@ def login():
                 program_id = None
 
             # Generate token on successful login
-            token = auth_services.generate_token(user.user_id)
-            session['user_id'] = user.user_id
+            access_token, refresh_token = auth_services.generate_tokens(user.user_id)
+            
+            if not access_token or not refresh_token:
+                return jsonify({"message": "Error generating tokens"}), 500
 
+            response = jsonify({
+                "message": "Login successful",
+                "token": access_token
+            })
+            
+            # Set refresh token as HTTP-only cookie
+            auth_services.set_refresh_token_cookie(response, refresh_token)
+            
             # Log successful login in the Audit_Trail
             auth_services.log_audit_trail(
                 user_id=user.user_id,
@@ -60,10 +71,7 @@ def login():
                 action_desc='User logged in'
             )
 
-            return jsonify({
-                "message": "Login successful",
-                "token": token
-            }), 200
+            return response, 200
 
         except Exception as e:
             return jsonify({"message": str(e)}), 500
@@ -181,3 +189,41 @@ def validate_session():
         return jsonify({"message": "Token is valid"}), 200
     except Exception as e:
         return jsonify({"message": str(e)}), 500
+
+# Add new endpoint for token refresh
+@auth.route('/refresh', methods=['POST'])
+def refresh():
+    refresh_token = request.cookies.get('refresh_token')
+    
+    if not refresh_token:
+        return jsonify({"message": "Refresh token missing"}), 401
+        
+    try:
+        # Decode the refresh token
+        payload = jwt.decode(
+            refresh_token, 
+            current_app.config['REFRESH_SECRET_KEY'], 
+            algorithms=["HS256"]
+        )
+        
+        # Verify token type
+        if payload.get('type') != 'refresh':
+            return jsonify({"message": "Invalid token type"}), 401
+            
+        # Generate new access token
+        access_token, new_refresh_token = auth_services.generate_tokens(payload['user_id'])
+        
+        response = jsonify({
+            "message": "Token refreshed successfully",
+            "token": access_token
+        })
+        
+        # Set new refresh token
+        auth_services.set_refresh_token_cookie(response, new_refresh_token)
+        
+        return response, 200
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Refresh token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid refresh token"}), 401
