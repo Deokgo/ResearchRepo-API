@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, Response
 from models import Account, UserProfile, Role, Visitor, db
 from services import auth_services
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,8 +7,10 @@ from datetime import datetime
 import pandas as pd
 import random
 import string
-from io import BytesIO
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from io import BytesIO, StringIO
+import csv
+
 
 accounts = Blueprint('accounts', __name__)
 
@@ -300,10 +302,12 @@ def generate_password(length=8):
 # Content-Type': 'multipart/form-data'
 @accounts.route('/bulk', methods=['POST'])
 def add_bulk_users():
-
+    required_fields = ["email", "first_name", "middle_initial", "surname", "suffix"]
     try:
         # Validate and retrieve `role_id`
         role_id = request.form.get('role_id')
+        college = request.form.get('college')
+        program = request.form.get('program')
         if not role_id:
             return jsonify({"error": "Role ID is required"}), 400
         
@@ -323,63 +327,115 @@ def add_bulk_users():
         
         if not file.filename.endswith('.csv'):
             return jsonify({"error": "Only CSV files are allowed"}), 400
-
-        # Read and process CSV
-        df = pd.read_csv(file)
-        df.columns = df.columns.str.lower()
         
-        if 'email' not in df.columns:
-            return jsonify({"error": "'email' column not found in the uploaded CSV"}), 400
-
-        # Clean up the data
-        df = df.dropna(subset=['email'])
-        df = df[df['email'].str.strip() != '']
-        
-        # Track successful records
-        records = []
-        for email in df['email']:
-            email = email.strip()
-            password = generate_password()
-            hashed_password = generate_password_hash(password)
+        try:
+            # Read and process CSV
+            df = pd.read_csv(file)
+            df.columns = df.columns.str.lower()
             
-            # Check if user already exists
-            if Account.query.filter_by(email=email).first():
-                print(f"{email} already exists")
-                continue
+            # Check for missing fields
+            missing_fields = set(required_fields) - set(df.columns)
+            if missing_fields:
+                return jsonify({
+                    "error": "The uploaded CSV is missing required fields",
+                    "missing_fields": list(missing_fields)
+                }), 400
+            
+            if 'email' not in df.columns:
+                return jsonify({"error": "'email' column not found in the uploaded CSV"}), 400
 
-            # Create new user
-            user_id = auth_services.formatting_id('US', Account, 'user_id')
-            user = Account(user_id=user_id,email=email, user_pw=hashed_password, role_id=role_id)
-            db.session.add(user)
-            db.session.commit()
+            # Clean up the data
+            df = df.dropna(subset=['email'])
+            df = df[df['email'].str.strip() != '']
+            
+            # Track successful records
+            records = []
+            for _, row in df.iterrows():
+                email = row['email'].strip()
+                password = generate_password()
+                hashed_password = generate_password_hash(password)
+                
+                # Check if user already exists
+                if Account.query.filter_by(email=email).first():
+                    print(f"{email} already exists")
+                    continue
+                
+                try:
+                    # Create new user
+                    user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
+                    user = Account(user_id=user_id, email=email, user_pw=hashed_password, role_id=role_id)
+                    db.session.add(user)
+                    
+                    # Create user profile
+                    profile = UserProfile(
+                        researcher_id=user_id,
+                        college_id=college,
+                        program_id=program,
+                        first_name=row['first_name'],
+                        middle_name=row['middle_initial'],
+                        last_name=row['surname'],
+                        suffix=row['suffix']
+                    )
+                    db.session.add(profile)
+                    db.session.commit()
+                    
+                    # Append record for output file
+                    records.append({
+                        'email': email,
+                        'password': password,
+                        'first_name': row['first_name'],
+                        'middle_initial': row['middle_initial'],
+                        'surname': row['surname'],
+                        'suffix': row['suffix']
+                    })
+                
+                except Exception as e:
+                    print(f"Error processing {email}: {e}")
+                    db.session.rollback()
+                
+            # If no new users were created
+            if not records:
+                return jsonify({"message": "No new users were added. All emails already exist."}), 200
 
-            # Append record for output file
-            records.append({'email': email, 'password': password})
-        
+            # Create output CSV
+            output_df = pd.DataFrame(records)
+            output = BytesIO()
+            output_df.to_csv(output, index=False)
+            output.seek(0)
+            
+            #log_audit_trail(user_id=current_user, table_name='Account', record_id=None,
+            #                              operation='CREATE ACCOUNTS', action_desc=f'Created {len(output_df)} accounts through csv file.')
 
-        # If no new users were created
-        if not records:
-            return jsonify({"message": "No new users were added. All emails already exist."}), 200
-
-        # Create output CSV
-        output_df = pd.DataFrame(records)
-        output = BytesIO()
-        output_df.to_csv(output, index=False)
-        output.seek(0)
-        
-        #log_audit_trail(user_id=current_user, table_name='Account', record_id=None,
-        #                              operation='CREATE ACCOUNTS', action_desc=f'Created {len(output_df)} accounts through csv file.')
-
-        current_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # Return the file as an attachment
-        return send_file(
-            output,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=f"{current_timestamp}_Accounts_{role_name}.csv"
-        )
+            current_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Return the file as an attachment
+            return send_file(
+                output,
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name=f"{current_timestamp}_Accounts_{role_name}.csv"
+            )
+        except Exception as e:
+            return jsonify({"error": f"Failed to process the CSV file: {str(e)}"}), 500
 
     except Exception as e:
         # Handle any other exceptions gracefully
         return jsonify({'error': str(e)}), 400
+
+
+@accounts.route('/get_template', methods=['GET'])
+def generate_csv_template():
+    # Define the fields
+    fields = ["email", "first_name", "middle_initial", "surname", "suffix"]
+    
+    # Create an in-memory buffer for the CSV data
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fields)
+    
+    # Write the header
+    writer.writeheader()
+    
+    # Return the buffer as a response
+    response = Response(buffer.getvalue(), content_type='text/csv')
+    response.headers["Content-Disposition"] = "attachment; filename=import_accounts_template.csv"
+    return response
     
