@@ -5,12 +5,13 @@ from flask import Blueprint, jsonify
 from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db
-
+from flask_jwt_extended import jwt_required, get_jwt_identity
 dataset = Blueprint('dataset', __name__)
 
 # used for research tracking
 @dataset.route('/fetch_dataset', methods=['GET'])
 @dataset.route('/fetch_dataset/<research_id>', methods=['GET'])
+@jwt_required()
 def retrieve_dataset(research_id=None):
     # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
@@ -193,6 +194,7 @@ def retrieve_dataset(research_id=None):
 # used for manage papers and collections
 @dataset.route('/fetch_ordered_dataset', methods=['GET'])
 @dataset.route('/fetch_ordered_dataset/<research_id>', methods=['GET'])
+@jwt_required()
 def fetch_ordered_dataset(research_id=None):
     # Subquery to get the latest status for each publication
     latest_status_subquery = db.session.query(
@@ -380,6 +382,7 @@ def fetch_ordered_dataset(research_id=None):
     return jsonify({"dataset": [dict(row) for row in data]})
 
 @dataset.route('/fetch_date_range', methods=['GET'])
+@jwt_required()
 def fetch_date_range():
     result = db.session.query(
         func.min(extract('year', ResearchOutput.date_uploaded)).label('min_year'),

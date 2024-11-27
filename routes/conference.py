@@ -3,14 +3,16 @@ from models import db, Conference
 from services import auth_services
 from datetime import datetime
 import traceback
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 conference = Blueprint('conference', __name__)
 
 @conference.route('/add_conference', methods=['POST'])
+@jwt_required()
 def add_conference():
     try:
         # Get user_id from form data 
-        user_id = request.form.get('user_id')
+        user_id = get_jwt_identity()
         if not user_id:
             return jsonify({"error": "User must be logged in to add conference"}), 401
 

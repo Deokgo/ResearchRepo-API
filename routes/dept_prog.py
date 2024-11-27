@@ -2,10 +2,12 @@
 
 from flask import Blueprint, jsonify, request
 from models import College, Program
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 deptprogs = Blueprint('deptprogs', __name__)
 
 @deptprogs.route('/college_depts', methods=['GET'])
+@jwt_required()
 def get_all_college_depts():
     try:
         #retrieve all colleges from the database
@@ -23,15 +25,10 @@ def get_all_college_depts():
         return jsonify({"message": f"Error retrieving all college departments: {str(e)}"}), 404
 
 #route to get all programs by college_id
-@deptprogs.route('/programs', methods=['GET']) 
-def get_programs_by_college():
+@deptprogs.route('/programs/<department>', methods=['GET'])
+@jwt_required()
+def get_programs_by_dept(department):
     try:
-        #get the department from the request query parameters
-        department = request.args.get('department')
-
-        if not department:
-            return jsonify({"message": "department parameter is required"}), 400
-
         #retrieve programs by the provided college_id
         progs = Program.query.filter_by(college_id=department).all()
 
@@ -52,6 +49,7 @@ def get_programs_by_college():
         return jsonify({"message": f"Error retrieving all programs: {str(e)}"}), 500
 
 @deptprogs.route('/fetch_programs', methods=['GET'])
+@jwt_required()
 def get_all_programs():
     try:
         #retrieve all programs from the database

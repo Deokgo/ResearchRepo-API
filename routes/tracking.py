@@ -13,6 +13,7 @@ track = Blueprint('track', __name__)
 
 @track.route('/research_status', methods=['GET'])
 @track.route('/research_status/<research_id>', methods=['GET', 'POST'])
+@jwt_required()
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
@@ -116,6 +117,7 @@ def get_research_status(research_id=None):
 
         
 @track.route('next_status/<research_id>',methods=['GET'])
+@jwt_required()
 def get_next_status(research_id):
     new_status=""
     # Retrieve data from request body (JSON)
@@ -152,6 +154,7 @@ def get_next_status(research_id):
 
 
 @track.route('research_status/pullout/<research_id>',methods=['POST'])    
+@jwt_required()
 def pullout_paper(research_id):
     publication = Publication.query.filter(Publication.research_id==research_id).first()
     if publication is None:
@@ -179,7 +182,7 @@ def pullout_paper(research_id):
     return None
 
 @track.route('/publication/<research_id>',methods=['GET','POST','PUT'])
-#@jwt_required()
+@jwt_required()
 def publication_papers(research_id=None):
     if request.method == 'GET':
     

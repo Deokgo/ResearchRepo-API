@@ -9,7 +9,11 @@ from services.mail import send_otp_email
 from services.otp import generate_otp
 import re
 from datetime import datetime,timedelta,timezone
-import jwt
+from flask_jwt_extended import (
+    get_jwt_identity,
+    create_access_token,
+    jwt_required
+)
 
 auth = Blueprint('auth', __name__)
 
@@ -20,8 +24,6 @@ def get_redis_client():
 
 @auth.route('/login', methods=['POST']) 
 def login():
-    session.clear()  # Make sure that the session is empty before storing new data
-
     data = request.json
     if data:
         email = data.get('email')
@@ -31,46 +33,26 @@ def login():
             return jsonify({"message": "Email and password are required"}), 400
 
         try:
-            # Retrieve the account
             user = Account.query.filter_by(email=email).one_or_none()
 
             if user is None:
                 return jsonify({"message": "User not found"}), 404
 
-            # Check if the account is "DEACTIVATED"
-            if user.acc_status == 'DEACTIVATED':  # Assuming `acc_status` stores account status
+            if user.acc_status == 'DEACTIVATED':
                 return jsonify({"message": "Account is deactivated. Please contact support."}), 403
 
-            # Compare hashed password with the provided plain password
             if not check_password_hash(user.user_pw, password):
                 return jsonify({"message": "Invalid password"}), 401
 
-            # Handle user profile or visitor information
-            user_profile = UserProfile.query.filter_by(researcher_id=user.user_id).one_or_none()
-            visitor_info = Visitor.query.filter_by(visitor_id=user.user_id).one_or_none()
-
-            if user_profile:
-                college_id = user_profile.college_id
-                program_id = user_profile.program_id
-            else:
-                college_id = None
-                program_id = None
-
-            # Generate token on successful login
-            access_token, refresh_token = auth_services.generate_tokens(user.user_id)
+            # Generate just the access token
+            access_token = create_access_token(identity=user.user_id)
             
-            if not access_token or not refresh_token:
-                return jsonify({"message": "Error generating tokens"}), 500
-
             response = jsonify({
                 "message": "Login successful",
                 "token": access_token
             })
             
-            # Set refresh token as HTTP-only cookie
-            auth_services.set_refresh_token_cookie(response, refresh_token)
-            
-            # Log successful login in the Audit_Trail
+            # Log successful login
             auth_services.log_audit_trail(
                 user_id=user.user_id,
                 table_name='Account',
@@ -166,9 +148,9 @@ def create_account():
     return response, status_code
 
 @auth.route('/me', methods=['GET'])
-@auth_services.token_required  
+@jwt_required()
 def get_user_details():
-    user_id = session.get('user_id')
+    user_id = get_jwt_identity()
     
     try:
         user = Account.query.get(user_id)
@@ -188,54 +170,15 @@ def get_user_details():
         return jsonify({"message": str(e)}), 500
 
 @auth.route('/validate-session', methods=['GET'])
-@auth_services.token_required
+@jwt_required()
 def validate_session():
     """Endpoint to validate the current session/token"""
-    try:
-        # The @token_required decorator already validates the token
-        # If we reach here, the token is valid
-        return jsonify({"message": "Token is valid"}), 200
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
+    return jsonify({"message": "Token is valid"}), 200
 
-# Add new endpoint for token refresh
-@auth.route('/refresh', methods=['POST'])
-def refresh():
-    refresh_token = request.cookies.get('refresh_token')
-    
-    if not refresh_token:
-        return jsonify({"message": "Refresh token missing"}), 401
-        
-    try:
-        # Decode the refresh token
-        payload = jwt.decode(
-            refresh_token, 
-            current_app.config['REFRESH_SECRET_KEY'], 
-            algorithms=["HS256"]
-        )
-        
-        # Verify token type
-        if payload.get('type') != 'refresh':
-            return jsonify({"message": "Invalid token type"}), 401
-            
-        # Generate new access token
-        access_token, new_refresh_token = auth_services.generate_tokens(payload['user_id'])
-        
-        response = jsonify({
-            "message": "Token refreshed successfully",
-            "token": access_token
-        })
-        
-        # Set new refresh token
-        auth_services.set_refresh_token_cookie(response, new_refresh_token)
-        
-        return response, 200
-        
-    except jwt.ExpiredSignatureError:
-        return jsonify({"message": "Refresh token has expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"message": "Invalid refresh token"}), 401
-    
+@auth.route('/logout', methods=['POST'])
+def logout():
+    return jsonify({"message": "Logout successful"}), 200
+
 @auth.route('/send_otp', methods=['POST'])
 def send_registration_otp():
     try:

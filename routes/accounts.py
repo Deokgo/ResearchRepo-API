@@ -8,11 +8,13 @@ import pandas as pd
 import random
 import string
 from io import BytesIO
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 accounts = Blueprint('accounts', __name__)
 
 #created by Nicole Cabansag, for retrieving all users API
 @accounts.route('/users', methods=['GET']) 
+@jwt_required()
 def get_all_users():
     try:
         results = db.session.query(Account, Visitor, UserProfile, Role).outerjoin(
@@ -45,6 +47,7 @@ def get_all_users():
 
 #created by Nicole Cabansag, for retrieving all user's acc and info by user_id API
 @accounts.route('/users/<user_id>', methods=['GET'])
+@jwt_required()
 def get_user_acc_by_id(user_id):
     try:
         results = db.session.query(Account, Visitor, UserProfile, Role).outerjoin(
@@ -87,6 +90,7 @@ def get_user_acc_by_id(user_id):
         return jsonify({"message": f"Error retrieving user: {str(e)}"}), 500
 
 @accounts.route('/update_acc/<user_id>', methods=['PUT'])
+@jwt_required()
 def update_acc(user_id):
     data = request.json
     try:
@@ -122,6 +126,7 @@ def update_acc(user_id):
 
 # created by Jelly Mallari for Updating Account API
 @accounts.route('/update_account/<user_id>', methods=['PUT'])
+@jwt_required()
 def update_account(user_id):
     try:
         data = request.json
@@ -190,6 +195,7 @@ def update_account(user_id):
         db.session.close()  # Ensure the session is closed
 
 @accounts.route('/search_user', methods=['GET'])
+@jwt_required()
 def search_users():
     query = request.args.get('query', '')
     if query:
@@ -210,6 +216,7 @@ def search_users():
     return jsonify({"users": []}), 200
 
 @accounts.route('/fetch_roles', methods=['GET'])
+@jwt_required()
 def fetch_roles():
     try:
         #retrieve all roles from the database
@@ -226,6 +233,7 @@ def fetch_roles():
         return jsonify({"message": f"Error retrieving all roles: {str(e)}"}), 404
     
 @accounts.route('/update_password/<user_id>', methods=['PUT'])
+@jwt_required()
 def update_password(user_id):
     try:
         data = request.json

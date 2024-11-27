@@ -6,12 +6,14 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import pytz
 import traceback
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 paper = Blueprint('paper', __name__)
 UPLOAD_FOLDER = './research_repository'
 
 
 @paper.route('/add_paper', methods=['POST'])
+@jwt_required()
 def add_paper():
     try:
         # Get user_id from form data 
@@ -220,6 +222,7 @@ def add_paper():
 
 
 @paper.route('/update_paper/<research_id>', methods=['PUT'])
+@jwt_required()
 def update_paper(research_id):
     try:
         # Get user_id from form data 
@@ -454,6 +457,7 @@ def is_duplicate(group_code):
     return research_output is not None
 
 @paper.route('/increment_views/<research_id>', methods=['PUT'])
+@jwt_required()
 def increment_views(research_id):
     try:
         # Get query parameter
@@ -508,6 +512,7 @@ def increment_views(research_id):
 
 
 @paper.route('/increment_downloads/<research_id>', methods=['PUT'])
+@jwt_required()
 def increment_downloads(research_id):
     try:
         updated_downloads = 0

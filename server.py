@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flask_migrate import Migrate #install this module in your terminal
 import psycopg2
@@ -8,6 +8,9 @@ from models import db
 from config import Config
 from flask_mailman import Mail
 import redis
+from flask_jwt_extended import JWTManager, get_jwt, create_access_token, get_jwt_identity
+from datetime import datetime, timezone, timedelta
+import json
 
 def initialize_redis(app):
     """Initialize Redis and attach it to the app."""
@@ -22,7 +25,7 @@ def initialize_redis(app):
 #Initialize the app
 app = Flask(__name__)
 
-CORS(app)
+CORS(app, supports_credentials=True)
 
 #database Configuration
 app.config.from_object(Config)
@@ -33,8 +36,26 @@ db.init_app(app)
 mail = Mail(app)
 migrate = Migrate(app, db)
 initialize_redis(app)
+jwt = JWTManager(app)
 
-
+@app.after_request
+def refresh_expiring_jwts(response):
+    try:
+        exp_timestamp = get_jwt()["exp"]
+        now = datetime.now(timezone.utc)
+        target_timestamp = datetime.timestamp(now + timedelta(minutes=30))
+        
+        # If token is about to expire (less than 30 min remaining)
+        if target_timestamp > exp_timestamp:
+            access_token = create_access_token(identity=get_jwt_identity())
+            data = response.get_json()
+            if type(data) is dict:
+                data["token"] = access_token
+                response.data = json.dumps(data)
+        return response
+    except (RuntimeError, KeyError):
+        # Case where there is no valid JWT
+        return response
 
 # Function that checks the database if it exists or not
 def check_db(db_name, user, password, host='localhost', port='5432'):

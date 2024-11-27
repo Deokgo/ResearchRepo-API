@@ -40,6 +40,7 @@ def conferences(conference_id=None):
         return jsonify({'error': str(e)}), 400
     
 @data.route('/conference_details/<cf_id>', methods =['GET'])
+@jwt_required()
 def conference_details(cf_id=None):
     try:
         if request.method == 'GET':
@@ -55,6 +56,7 @@ def conference_details(cf_id=None):
         return jsonify({'error': str(e)}), 400
     
 @data.route('/roles', methods =['GET'])
+@jwt_required()
 def user_roles():
     try:
         if request.method == 'GET':
@@ -72,7 +74,7 @@ def user_roles():
 
 @data.route('/colleges', methods =['GET','POST','DELETE'])
 @data.route('/colleges/<current_college>', methods =['GET','PUT'])
-#@jwt_required()
+@jwt_required()
 def colleges(current_college=None):
     #current_user = get_jwt_identity()
     if request.method == 'GET':
@@ -208,7 +210,7 @@ def colleges(current_college=None):
     
 @data.route('/programs', methods =['GET','DELETE'])
 @data.route('/programs/<college>', methods =['GET','POST'])
-#@jwt_required()
+@jwt_required()
 def programs(college=None):
     #current_user = get_jwt_identity()
     if request.method == 'GET':

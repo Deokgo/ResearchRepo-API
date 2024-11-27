@@ -5,7 +5,6 @@ from datetime import datetime,timedelta,timezone
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', "b'\x06F\x83X\xe1\x94\xd6\x1f\x89bU\xf5\xbfd\xa4\xda\xb2T\xf7\x0b{\xc0\xaf\xc2'")
-    REFRESH_SECRET_KEY = os.environ.get('REFRESH_SECRET_KEY', "b'.\xafK\x12^\x91\xc9\x8bP\xa7\xec\xa2p\x1e\xab\xd5:4)?!\xef\xea\xba'")
     SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:Papasa01!@localhost:5432/Research_Data_Integration_System'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -17,8 +16,10 @@ class Config:
     REDIS_PORT = 6379  
     REDIS_DB = 0 
 
-    JWT_TOKEN_EXPIRES = timedelta(hours=4)
-
+    # JWT Configuration
+    JWT_SECRET_KEY = SECRET_KEY
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=3)
+    
     MAIL_SERVER = "dev.institutional-repository.mcl-ccis.net"
     MAIL_PORT = 465  # Using SSL, as recommended
     MAIL_USE_SSL = True
@@ -26,5 +27,3 @@ class Config:
     MAIL_USERNAME = "info@dev.institutional-repository.mcl-ccis.net"
     MAIL_PASSWORD = ";b_DcJ;SRU$n"  # Replace with the actual email account password
     DEFAULT_SENDER = "info@dev.institutional-repository.mcl-ccis.net"
-
-    
