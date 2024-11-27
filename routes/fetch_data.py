@@ -114,50 +114,14 @@ def colleges(current_college=None):
             existing_college = College.query.filter((College.college_id == data['college_id']) | (College.college_name == data['college_name'])).first()
 
             if existing_college:
-                return jsonify({'error': 'College with this ID or Name already exists'}), 400
+                return jsonify({'error': 'College with this ID or Name already exists'}), 400               
 
-            color_attrb = request.form.get('college_color')
-            if color_attrb:
-                # Define the path to the JSON file
-                json_file_path = os.path.join('./src/data', 'colorAttribute.json')
-
-                # Ensure file exists and is readable
-                if not os.path.exists(json_file_path):
-                    return jsonify({"error": f"Color attribute file not found: {json_file_path}"}), 400
-                
-                # Read the existing JSON file
-                try:
-                    with open(json_file_path, 'r') as file:
-                        color_data = json.load(file)
-                except json.JSONDecodeError:
-                    # Handle corrupted JSON file
-                    color_data = {"colorAttribute": []}
-                    return jsonify({'error': 'File: {json_file_path}, had been corrupted'}), 400
-
-                # Find existing color entry
-                existing_color = next((item for item in color_data['colorAttribute'] 
-                               if item['id'] == data['college_id']), None)
-                
-                if existing_color:
-                    return jsonify({'error': 'Color attribute already exist, please try again!'}), 400
-                else:
-                    # Add new color entry
-                    color_data['colorAttribute'].append({
-                        'id': data['college_id'],
-                        'color': request.form.get('college_color')
-                    })
-
-                # Write the updated data back to the JSON file
-                with open(json_file_path, 'w') as file:
-                    json.dump(color_data, file, indent=2)
-
-                return jsonify({"message": "Color attribute added successfully"}), 200
-                
 
             # Create a new college instance       
             new_college = College(
                 college_id=data['college_id'],
-                college_name=data['college_name']
+                college_name=data['college_name'],
+                color_code=data.get('college_color')
             )
 
             # Add to the session and commit to the database

@@ -12,7 +12,8 @@ def get_all_college_depts():
         depts = College.query.order_by(College.college_id.asc()).all()
         dept_list = [{
             "college_id": dept.college_id,
-            "college_name": dept.college_name
+            "college_name": dept.college_name,
+            "color_code": dept.color_code
         } for dept in depts]
 
         #return the list of colleges
