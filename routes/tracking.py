@@ -10,10 +10,10 @@ from services.mail import send_notification_email
 
 
 track = Blueprint('track', __name__)
-
+@jwt_required
 @track.route('/research_status', methods=['GET'])
 @track.route('/research_status/<research_id>', methods=['GET', 'POST'])
-@jwt_required()
+
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
@@ -42,7 +42,7 @@ def get_research_status(research_id=None):
             data = [
                 {
                     'research_id':row.research_id,
-                    'status': row.status if row.status else "Ready",
+                    'status': row.status if row.status else "READY",
                     'time': row.timestamp.strftime('%B %d, %Y') if row.timestamp else row.date_approved.strftime('%B %d, %Y') 
                 }
                 for row in result
@@ -103,8 +103,7 @@ def get_research_status(research_id=None):
                 return jsonify({"error": "Database error occurred", "details": error}), 500
 
             # Send email asynchronously (optional)
-            send_notification_email("2021jakgmallari@live.mcl.edu.ph",
-                                "NEW PUBLICATION STATUS UPDATE",
+            send_notification_email("NEW PUBLICATION STATUS UPDATE",
                                 f'Research paper by {research_id} has been updated to {changed_status}.')
             # Log audit trail here asynchronously (optional)
 
@@ -171,8 +170,7 @@ def pullout_paper(research_id):
                 return jsonify({"error": "Database error occurred", "details": error}), 500
 
             # Send email asynchronously (optional)
-        send_notification_email("2021jakgmallari@live.mcl.edu.ph",
-                                "NOTIFICATION",
+        send_notification_email("NOTIFICATION",
                                 f'Research paper by {research_id} has been pulled out.')
             # Log audit trail here asynchronously (optional)
         return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
