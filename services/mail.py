@@ -17,8 +17,8 @@ def send_otp_email(to_email, subject, body):
         email.send()
 
 def send_notification_email(subject, body):
-    fetcher = ResearchDataFetcher()
-    users = fetcher.get_data_from_model(Account)
+    users = Account.query.filter(Account.role_id == '02').all()
+
 
     if not users:
         print("No users found. No emails will be sent.")
