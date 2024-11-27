@@ -116,7 +116,6 @@ def colleges(current_college=None):
             if existing_college:
                 return jsonify({'error': 'College with this ID or Name already exists'}), 400               
 
-
             # Create a new college instance       
             new_college = College(
                 college_id=data['college_id'],
@@ -137,13 +136,15 @@ def colleges(current_college=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'PUT':
         try:
+            
             if current_college is None:
                 return jsonify({'error': 'College is required'}), 400
 
-            data = request.get_json()  # Assuming the request body contains a JSON payload
+            data = request.form
 
             # Extracting values from the JSON data
             college_name = data.get('college_name')
+            color_code = data.get('color_code')
 
             # Check if the data is valid
             if not college_name:
@@ -159,8 +160,12 @@ def colleges(current_college=None):
             if existing_college:
                 return jsonify({'error': 'College with this name already exists'}), 400
 
-            # Update the college name
+            # Update the college name and color_code if given
             college.college_name = college_name
+            
+            if color_code:
+                college.colo_code = color_code
+
             db.session.commit()
             #log_audit_trail(user_id=current_user, table_name='College', record_id=None,
             #                          operation='UPDATED COLLEGE', action_desc=f'Updated {college.college_id}.')
