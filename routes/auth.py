@@ -79,6 +79,9 @@ def add_user():
         
     #email validation
     email = data.get('email')
+    found_email = Account.query.filter_by(email=email).one_or_none()
+    if found_email:
+            return jsonify({"message": "Email already exists"}), 409
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     if not re.match(email_regex, email):
         return jsonify({"message": "Invalid email format."}), 400
