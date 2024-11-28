@@ -104,10 +104,10 @@ def get_research_status(research_id=None):
 
             # Send email asynchronously (optional)
             send_notification_email("NEW PUBLICATION STATUS UPDATE",
-                                f'Research paper by {research_id} has been updated to {changed_status}.')
+                                f'Research paper by {research_id} has been updated to {changed_status.status}.')
             # Log audit trail here asynchronously (optional)
 
-            return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status}), 201
+            return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback in case of an error
