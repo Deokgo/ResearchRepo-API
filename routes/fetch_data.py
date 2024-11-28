@@ -72,8 +72,8 @@ def user_roles():
         # If an error occurs, return a 400 error with the message
         return jsonify({'error': str(e)}), 400
 
-@data.route('/colleges', methods =['GET','POST','DELETE'])
-@data.route('/colleges/<current_college>', methods =['GET','PUT'])
+@data.route('/colleges', methods =['GET','POST'])
+@data.route('/colleges/<current_college>', methods =['GET','PUT','DELETE'])
 @jwt_required()
 def colleges(current_college=None):
     #current_user = get_jwt_identity()
@@ -137,8 +137,7 @@ def colleges(current_college=None):
             # If an error occurs, return a 400 error with the message
             return jsonify({'error': str(e)}), 400
     elif request.method == 'PUT':
-        try:
-            
+        try:   
             if current_college is None:
                 return jsonify({'error': 'College is required'}), 400
 
@@ -180,28 +179,23 @@ def colleges(current_college=None):
         
     if request.method == 'DELETE':
         try:
-            data = request.get_json()  # Expecting a list of college IDs to delete
+            if current_college is None:
+                return jsonify({'error': 'College is required'}), 400
 
-            # Validate that the input is a list
-            print(data)
-            if not isinstance(data, list):
-                return jsonify({'error': 'Request body must be a list of college IDs'}), 400
-
-            # Collect college IDs that exist in the database
-            colleges_to_delete = College.query.filter(College.college_id.in_(data)).all()
-
-            if not colleges_to_delete:
-                return jsonify({'error': 'No matching colleges found'}), 404
-
-            # Delete colleges from the database
-            for college in colleges_to_delete:
-                db.session.delete(college)
-
+            # Check if the college exists
+            college = College.query.filter_by(college_id=current_college).first()
+        
+            if not college:
+                return jsonify({'error': 'No matching college found'}), 404
+            
+             # Delete college from the database
+            db.session.delete(college)
             db.session.commit()
+
             #log_audit_trail(user_id=current_user, table_name='College', record_id=None,
             #                          operation='DELETED COLLEGE', action_desc=f'deleted {colleges_to_delete}.')
 
-            return jsonify({'message': f'{len(colleges_to_delete)} colleges deleted successfully'}), 200
+            return jsonify({'message': f'{current_college} college deleted successfully'}), 200
 
         except Exception as e:
             # If an error occurs, return a 400 error with the message
