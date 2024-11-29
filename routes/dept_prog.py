@@ -55,6 +55,7 @@ def get_all_programs():
         #retrieve all programs from the database
         progs = Program.query.order_by(Program.program_id.asc()).all()
         prog_list = [{
+            "college_id": prog.college_id,
             "program_id": prog.program_id,
             "program_name": prog.program_name
         } for prog in progs]

@@ -202,17 +202,17 @@ def colleges(current_college=None):
             return jsonify({'error': str(e)}), 400
         
     
-@data.route('/programs', methods =['GET','DELETE'])
-@data.route('/programs/<college>', methods =['GET','POST'])
+@data.route('/programs', methods =['GET','POST'])
+@data.route('/programs/<current_program>', methods =['GET','PUT','DELETE'])
 @jwt_required()
-def programs(college=None):
+def programs(current_program=None):
     #current_user = get_jwt_identity()
     if request.method == 'GET':
         try:
             query = db.session.query(College,Program).join(Program, Program.college_id==College.college_id).order_by(College.college_id,Program.program_id)
 
-            if college:
-                query = query.filter(College.college_id==college)
+            if current_program:
+                query = query.filter(Program.program_id==current_program)
             
             query = query.all()
 
@@ -232,54 +232,111 @@ def programs(college=None):
             # If an error occurs, return a 400 error with the message
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
-        # Handle POST request to create a new program
-        print(college)
-        if college is None:
-            return jsonify({'error': 'Please specify the college'}), 401
         try:
-            data = request.get_json()
-            program_id = data.get('program_id')
-            program_name = data.get('program_name')
+            # Get user_id from form data 
+            user_id = request.form.get('user_id')
+            if not user_id:
+                return jsonify({"error": "User must be logged in to add college"}), 401
 
-            if not program_id or not program_name:
-                return jsonify({'error': 'Missing college_id or program_name'}), 400
+            data = request.form  # Get form data
             
-            program_exists = Program.query.filter(Program.program_id==program_id,Program.program_name==program_name).first() is not None
+            # Required fields list
+            required_fields = [
+                'college_id', 'program_id', 'program_name'
+            ]
+            missing_fields = [field for field in required_fields if field not in data]
+            
+            if missing_fields:
+                return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
-            if program_exists:
-                return jsonify({'error': 'Program is already existing.'}), 401
-            
-            new_program = Program(program_id=program_id,college_id = college, program_name=program_name)
+            # Check if the college exists
+            existing_college = Program.query.filter(Program.college_id == data['college_id']).first()
+
+            if not existing_college:
+                return jsonify({'error': 'College should be existing, please try again!'}), 400  
+
+            # Check if the program exists
+            existing_program = Program.query.filter((Program.program_id == data['program_id']) | (Program.program_name == data['program_name'])).first()
+
+            if existing_program:
+                return jsonify({'error': 'Program with this ID or Name already exists'}), 400             
+
+            # Create a new college instance       
+            new_program = Program(
+                program_id=data['program_id'],
+                college_id=data['college_id'],
+                program_name=data['program_name'],
+            )
+
+            # Add to the session and commit to the database
             db.session.add(new_program)
             db.session.commit()
 
-            return jsonify({
-                'message': 'Program created successfully',
-            }), 201
+            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
+            #                          operation='ADDED PROGRAM', action_desc=f'Added {new_program.program_id}.')
+
+            return jsonify({'message': 'Program added successfully'}), 201
 
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
-    elif request.method == 'DELETE':
-        # Handle DELETE request to remove multiple programs using program_id
-        try:
-            data = request.get_json()  # Expecting a list of program_ids in the body
+    elif request.method == 'PUT':
+        try:   
+            if current_program is None:
+                return jsonify({'error': 'Program is required'}), 400
 
-            if not isinstance(data, list):
-                return jsonify({'error': 'Missing program_ids or program_ids is not a list'}), 400
+            data = request.form
 
-            # Fetch the programs to delete by program_id
-            programs_to_delete = Program.query.filter(Program.program_id.in_(data)).all()
+            # Extracting values from the JSON data
+            programe_name = data.get('program_name')
 
-            if not programs_to_delete:
-                return jsonify({'error': 'No programs found with the given program_ids'}), 404
+            # Check if the data is valid
+            if not programe_name:
+                return jsonify({'error': 'Program Name is required'}), 400
 
-            # Delete the programs
-            for program in programs_to_delete:
-                db.session.delete(program)
+            # Check if the program exists
+            program = Program.query.filter_by(program_id=current_program).first()
+            if not program:
+                return jsonify({'error': 'Program not found'}), 404
+
+            # Check if the new program name already exists (excluding the current program)
+            existing_program = Program.query.filter(Program.program_name == programe_name, Program.program_id != current_program).first()
+            if existing_program:
+                return jsonify({'error': 'Program with this name already exists'}), 400
+
+            # Update the program name
+            program.program_name = programe_name
+
             db.session.commit()
+            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
+            #                          operation='UPDATED PROGRAM', action_desc=f'Updated {program.program_id}.')
 
-            return jsonify({'message': f'{len(programs_to_delete)} program(s) deleted successfully'}), 200
+            return jsonify({'message': 'Program updated successfully'}), 200
 
         except Exception as e:
+            # If an error occurs, return a 400 error with the message
+            return jsonify({'error': str(e)}), 400
+        
+    if request.method == 'DELETE':
+        try:
+            if current_program is None:
+                return jsonify({'error': 'College is required'}), 400
+
+            # Check if the program exists
+            program = Program.query.filter_by(program_id=current_program).first()
+        
+            if not program:
+                return jsonify({'error': 'No matching program found'}), 404
+            
+             # Delete program from the database
+            db.session.delete(program)
+            db.session.commit()
+
+            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
+            #                          operation='DELETED PROGRAM', action_desc=f'deleted {program}.')
+
+            return jsonify({'message': f'{current_program} program deleted successfully'}), 200
+
+        except Exception as e:
+            # If an error occurs, return a 400 error with the message
             return jsonify({'error': str(e)}), 400
