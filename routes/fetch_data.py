@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, json
 from models import db,Conference,Role, UserProfile,Program,College
+from services import auth_services
 from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
 #from services.logs import formatting_id,log_audit_trail
 #from decorators.acc_decorators import roles_required
@@ -129,8 +130,14 @@ def colleges(current_college=None):
             db.session.add(new_college)
             db.session.commit()
 
-            #log_audit_trail(user_id=current_user, table_name='College', record_id=None,
-            #                          operation='ADDED COLLEGE', action_desc=f'Added {new_college.college_id}.')
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=user_id,
+                table_name='College',
+                record_id=data['college_id'],
+                operation='ADD NEW COLLEGE',
+                action_desc='Added college department'
+            )
 
             return jsonify({'message': 'College added successfully'}), 201
         except Exception as e:
@@ -168,9 +175,16 @@ def colleges(current_college=None):
                 college.colo_code = color_code
 
             db.session.commit()
-            #log_audit_trail(user_id=current_user, table_name='College', record_id=None,
-            #                          operation='UPDATED COLLEGE', action_desc=f'Updated {college.college_id}.')
 
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=None,
+                table_name='College',
+                record_id=current_college,
+                operation='UPDATE COLLEGE',
+                action_desc='Update college department'
+            )
+        
             return jsonify({'message': 'College updated successfully'}), 200
 
         except Exception as e:
@@ -192,8 +206,15 @@ def colleges(current_college=None):
             db.session.delete(college)
             db.session.commit()
 
-            #log_audit_trail(user_id=current_user, table_name='College', record_id=None,
-            #                          operation='DELETED COLLEGE', action_desc=f'deleted {colleges_to_delete}.')
+
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=None,
+                table_name='College',
+                record_id=current_college,
+                operation='DELETE COLLEGE',
+                action_desc='Delete college department'
+            )
 
             return jsonify({'message': f'{current_college} college deleted successfully'}), 200
 
@@ -272,8 +293,14 @@ def programs(current_program=None):
             db.session.add(new_program)
             db.session.commit()
 
-            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
-            #                          operation='ADDED PROGRAM', action_desc=f'Added {new_program.program_id}.')
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=user_id,
+                table_name='Program',
+                record_id=data['program_id'],
+                operation='ADD NEW PROGRAM',
+                action_desc='Add program'
+            )
 
             return jsonify({'message': 'Program added successfully'}), 201
 
@@ -308,8 +335,15 @@ def programs(current_program=None):
             program.program_name = programe_name
 
             db.session.commit()
-            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
-            #                          operation='UPDATED PROGRAM', action_desc=f'Updated {program.program_id}.')
+
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=None,
+                table_name='Program',
+                record_id=current_program,
+                operation='UPDATE PROGRAM',
+                action_desc='Update program'
+            )
 
             return jsonify({'message': 'Program updated successfully'}), 200
 
@@ -332,8 +366,14 @@ def programs(current_program=None):
             db.session.delete(program)
             db.session.commit()
 
-            #log_audit_trail(user_id=current_user, table_name='Program', record_id=None,
-            #                          operation='DELETED PROGRAM', action_desc=f'deleted {program}.')
+            # Log audit trail
+            auth_services.log_audit_trail(
+                user_id=None,
+                table_name='Program',
+                record_id=current_program,
+                operation='DELETE PROGRAM',
+                action_desc='Delete program'
+            )
 
             return jsonify({'message': f'{current_program} program deleted successfully'}), 200
 
