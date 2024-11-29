@@ -14,6 +14,7 @@ from flask_jwt_extended import (
     create_access_token,
     jwt_required
 )
+import json
 
 auth = Blueprint('auth', __name__)
 
@@ -103,8 +104,7 @@ def add_user():
     if password != data.get('confirmPassword'):
         return jsonify({"message": "Passwords do not match."}), 400
     
-    #generate user ID and proceed with user creation
-    user_id = auth_services.formatting_id('US', Visitor, 'visitor_id')
+    user_id = auth_services.formatting_id('US', Account, 'user_id')
     response, status_code = user_srv.add_new_user(user_id, data)  #role_id assigned to Researcher by default
     
     if status_code == 201:
@@ -116,8 +116,13 @@ def add_user():
         response_data['token'] = token  # Add the token
 
         # Log the successful login in the Audit_Trail
-        auth_services.log_audit_trail(user_id=user_id, table_name='Account and Visitor', record_id=None,
-                    operation='SIGNUP', action_desc='Created Account')
+        auth_services.log_audit_trail(
+            user_id=user_id, 
+            table_name='Account and Visitor', 
+            record_id=None,
+            operation='SIGNUP', 
+            action_desc='Created Account'
+        )
 
         return jsonify(response_data), status_code
 

@@ -326,7 +326,7 @@ def add_bulk_users():
             hashed_password = generate_password_hash(password)
             
             # Create user account
-            user_id = auth_services.formatting_id('US', UserProfile, 'researcher_id')
+            user_id = auth_services.formatting_id('US', Account, 'user_id')
             new_account = Account(
                 user_id=user_id,
                 email=email,
@@ -399,7 +399,6 @@ def generate_csv_template():
     return response
     
 @accounts.route('/check_email', methods=['GET'])
-@jwt_required()
 def check_email():
     email = request.args.get('email')
     exists = Account.query.filter_by(email=email).first() is not None
