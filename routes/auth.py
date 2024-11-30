@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app, session
-from models.account import Account
+from models.account import Account, db
 from models.user_profile import UserProfile
 from models.visitor import Visitor
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from services import auth_services, user_srv
 from sqlalchemy.orm import joinedload
 from services.mail import send_otp_email
@@ -191,11 +191,16 @@ def logout():
 def send_registration_otp():
     try:
         email = request.json['email']
+        is_password_reset = request.json.get('isPasswordReset', False)
 
-        # Check if the user already exists
-        user_exists = Account.query.filter_by(email=email).first() is not None
-        if user_exists:
-            return jsonify({"error": "User already exists"}), 409
+        if not is_password_reset:
+            user_exists = Account.query.filter_by(email=email).first() is not None
+            if user_exists:
+                return jsonify({"error": "User already exists"}), 409
+        else:
+            user_exists = Account.query.filter_by(email=email).first() is not None
+            if not user_exists:
+                return jsonify({"error": "No account found with this email"}), 404
 
         redis_client = get_redis_client()
         otp_key = f"otp:{email}"  # Unique key for each user (using email)
@@ -240,3 +245,46 @@ def verify_registration_otp():
         return jsonify({"message": "OTP verified. You can now complete your registration."})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@auth.route('/reset_password', methods=['POST'])
+def reset_password():
+    try:
+        data = request.json
+        email = data.get('email')
+        new_password = data.get('newPassword')
+
+        if not email or not new_password:
+            return jsonify({"message": "Email and new password are required"}), 400
+
+        # Find the user account
+        user = Account.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        # Validate password strength
+        password_error = auth_services.validate_password(new_password)
+        if password_error:
+            return jsonify({"message": password_error}), 400
+
+        try:
+            # Update the password
+            user.user_pw = generate_password_hash(new_password)
+            db.session.commit()
+
+            # Log the password reset
+            auth_services.log_audit_trail(
+                user_id=user.user_id,
+                table_name='Account',
+                record_id=user.user_id,
+                operation='UPDATE',
+                action_desc='Password reset completed'
+            )
+
+            return jsonify({"message": "Password reset successful"}), 200
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": f"Database error: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"message": f"An error occurred: {str(e)}"}), 500
