@@ -69,6 +69,7 @@ def login():
 
 #created by Nicole Cabansag, for signup API VISITORS // Modified by Jelly Anne Mallari
 @auth.route('/signup', methods=['POST']) 
+@jwt_required()
 def add_user():
     data = request.json
 
@@ -184,7 +185,18 @@ def validate_session():
     return jsonify({"message": "Token is valid"}), 200
 
 @auth.route('/logout', methods=['POST'])
+@jwt_required()
 def logout():
+    # Get the current user's identity
+    user_id = get_jwt_identity()
+    # Log the logout operation
+    auth_services.log_audit_trail(
+        user_id=user_id,
+        table_name='Account',
+        record_id=None,
+        operation='LOGOUT',
+        action_desc='User logged out'
+    )
     return jsonify({"message": "Logout successful"}), 200
 
 @auth.route('/send_otp', methods=['POST'])

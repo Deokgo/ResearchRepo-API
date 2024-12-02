@@ -6,8 +6,6 @@ from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
 #from decorators.acc_decorators import roles_required
 import os
 
-
-
 data = Blueprint('data',__name__)
 
 def convert(records,model):
@@ -97,11 +95,6 @@ def colleges(current_college=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
         try:
-            # Get user_id from form data 
-            user_id = request.form.get('user_id')
-            if not user_id:
-                return jsonify({"error": "User must be logged in to add college"}), 401
-
             data = request.form  # Get form data
             
             # Required fields list
@@ -131,11 +124,13 @@ def colleges(current_college=None):
             db.session.commit()
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
                 user_id=user_id,
                 table_name='College',
                 record_id=data['college_id'],
-                operation='ADD NEW COLLEGE',
+                operation='CREATE',
                 action_desc='Added college department'
             )
 
@@ -177,12 +172,14 @@ def colleges(current_college=None):
             db.session.commit()
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=None,
+                user_id=user_id,
                 table_name='College',
                 record_id=current_college,
-                operation='UPDATE COLLEGE',
-                action_desc='Update college department'
+                operation='UPDATE',
+                action_desc='Updated college department'
             )
         
             return jsonify({'message': 'College updated successfully'}), 200
@@ -208,12 +205,14 @@ def colleges(current_college=None):
 
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=None,
+                user_id=user_id,
                 table_name='College',
                 record_id=current_college,
-                operation='DELETE COLLEGE',
-                action_desc='Delete college department'
+                operation='DELETE',
+                action_desc='Deleted college department'
             )
 
             return jsonify({'message': f'{current_college} college deleted successfully'}), 200
@@ -254,11 +253,6 @@ def programs(current_program=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
         try:
-            # Get user_id from form data 
-            user_id = request.form.get('user_id')
-            if not user_id:
-                return jsonify({"error": "User must be logged in to add college"}), 401
-
             data = request.form  # Get form data
             
             # Required fields list
@@ -294,12 +288,14 @@ def programs(current_program=None):
             db.session.commit()
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
                 user_id=user_id,
                 table_name='Program',
                 record_id=data['program_id'],
-                operation='ADD NEW PROGRAM',
-                action_desc='Add program'
+                operation='CREATE',
+                action_desc='Added program'
             )
 
             return jsonify({'message': 'Program added successfully'}), 201
@@ -337,12 +333,14 @@ def programs(current_program=None):
             db.session.commit()
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=None,
+                user_id=user_id,
                 table_name='Program',
                 record_id=current_program,
-                operation='UPDATE PROGRAM',
-                action_desc='Update program'
+                operation='UPDATE',
+                action_desc='Updated program'
             )
 
             return jsonify({'message': 'Program updated successfully'}), 200
@@ -367,12 +365,14 @@ def programs(current_program=None):
             db.session.commit()
 
             # Log audit trail
+            # Get the current user's identity
+            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=None,
+                user_id=user_id,
                 table_name='Program',
                 record_id=current_program,
-                operation='DELETE PROGRAM',
-                action_desc='Delete program'
+                operation='DELETE',
+                action_desc='Deleted program'
             )
 
             return jsonify({'message': f'{current_program} program deleted successfully'}), 200

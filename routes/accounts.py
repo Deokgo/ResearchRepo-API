@@ -109,8 +109,10 @@ def update_acc(user_id):
 
         db.session.commit()
         
+        # Get the current user's identity
+        user_id = get_jwt_identity()
         auth_services.log_audit_trail(
-            user_id=None,
+            user_id=user_id,
             table_name='Account',
             record_id=user_acc.user_id,
             operation='UPDATE',
@@ -129,7 +131,6 @@ def update_acc(user_id):
 
 # created by Jelly Mallari for Updating Account API
 @accounts.route('/update_account/<user_id>', methods=['PUT'])
-@jwt_required()
 def update_account(user_id):
     try:
         data = request.json
@@ -174,7 +175,7 @@ def update_account(user_id):
         # Log the update event in the Audit_Trail
         auth_services.log_audit_trail(
             user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
-            operation='UPDATE', action_desc='Account information updated'
+            operation='UPDATE', action_desc='Account profile updated'
         )
 
         # Return the updated account and researcher/visitor data
