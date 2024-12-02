@@ -60,6 +60,22 @@ def fetch_operations():
 
     return jsonify({"operations": operations})
 
+# For filtering purposes (operations)
+@auditlogs.route('/fetch_roles', methods=['GET'])
+@jwt_required()
+def fetch_roles():
+    # Perform the SQLAlchemy query to get distinct operations
+    distinct_operations = (
+        db.session.query(Role.role_name)
+        .distinct()
+        .all()
+    )
+
+    # Convert the result into a list of operations
+    operations = [op[0] for op in distinct_operations]  # Extract the first element of each tuple
+
+    return jsonify({"roles": operations})
+
 @auditlogs.route('/fetch_date_range', methods=['GET'])
 @jwt_required()
 def fetch_date_range():
