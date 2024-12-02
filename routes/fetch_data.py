@@ -265,7 +265,7 @@ def programs(current_program=None):
                 return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
             # Check if the college exists
-            existing_college = Program.query.filter(Program.college_id == data['college_id']).first()
+            existing_college = College.query.filter(College.college_id == data['college_id']).first()
 
             if not existing_college:
                 return jsonify({'error': 'College should be existing, please try again!'}), 400  
