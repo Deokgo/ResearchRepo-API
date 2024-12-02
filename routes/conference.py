@@ -62,7 +62,7 @@ def add_conference():
             user_id=user_id,
             table_name='Conference',
             record_id=new_conference.conference_id,
-            operation='ADD CONFERENCE',
+            operation='CREATE',
             action_desc='Added new conference'
         )
 

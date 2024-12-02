@@ -16,10 +16,8 @@ UPLOAD_FOLDER = './research_repository'
 @jwt_required()
 def add_paper():
     try:
-        # Get user_id from form data 
-        user_id = request.form.get('user_id')
-        if not user_id:
-            return jsonify({"error": "User must be logged in to add a paper"}), 401
+        # Get the current user's identity
+        user_id = get_jwt_identity()
 
         data = request.form  # Get form data
         
@@ -196,7 +194,7 @@ def add_paper():
             user_id=user_id,
             table_name='Research_Output',
             record_id=new_paper.research_id,
-            operation='ADD NEW PAPER',
+            operation='CREATE',
             action_desc='Added research paper'
         )
 
@@ -225,10 +223,8 @@ def add_paper():
 @jwt_required()
 def update_paper(research_id):
     try:
-        # Get user_id from form data 
-        user_id = request.form.get('user_id')
-        if not user_id:
-            return jsonify({"error": "User must be logged in to update a paper"}), 401
+        # Get the current user's identity
+        user_id = get_jwt_identity()
 
         # Check if paper exists
         existing_paper = ResearchOutput.query.filter_by(research_id=research_id).first()
@@ -403,7 +399,7 @@ def update_paper(research_id):
             user_id=user_id,
             table_name='Research_Output',
             record_id=research_id,
-            operation='UPDATE PAPER',
+            operation='UPDATE',
             action_desc='Updated research paper'
         )
 
@@ -466,7 +462,6 @@ def increment_views(research_id):
 
         # Get user_id from request body
         data = request.get_json()
-        user_id = data.get('user_id', 'anonymous')
 
         # Fetch the record using SQLAlchemy query
         view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
@@ -482,19 +477,19 @@ def increment_views(research_id):
             else:
                 return jsonify({"message": "Record not found"}), 404
 
-        # Log audit trail only if user_id is available
-        if user_id != 'anonymous':
-            try:
-                auth_services.log_audit_trail(
-                    user_id=user_id,
-                    table_name='Research_Output',
-                    record_id=research_id,
-                    operation='VIEW PAPER',
-                    action_desc='Viewed research paper'
-                )
-            except Exception as audit_error:
-                print(f"Audit trail logging failed: {audit_error}")
-                # Continue execution even if audit trail fails
+        # Get the current user's identity
+        user_id = get_jwt_identity()
+        try:
+            auth_services.log_audit_trail(
+                user_id=user_id,
+                table_name='Research_Output',
+                record_id=research_id,
+                operation='VIEW',
+                action_desc='Viewed research paper'
+            )
+        except Exception as audit_error:
+            print(f"Audit trail logging failed: {audit_error}")
+            # Continue execution even if audit trail fails
 
         return jsonify({
             "message": "View count updated",
@@ -518,7 +513,6 @@ def increment_downloads(research_id):
         updated_downloads = 0
         # Get user_id from request body
         data = request.get_json()
-        user_id = data.get('user_id', 'anonymous')
         
         # Fetch the record using SQLAlchemy query
         download_count = ResearchOutput.query.filter_by(research_id=research_id).first()
@@ -531,19 +525,19 @@ def increment_downloads(research_id):
             download_count.download_count = updated_downloads
             db.session.commit()
 
-            # Log audit trail only if user_id is available
-            if user_id != 'anonymous':
-                try:
-                    auth_services.log_audit_trail(
-                        user_id=user_id,
-                        table_name='Research_Output',
-                        record_id=research_id,
-                        operation='DOWNLOAD PAPER',
-                        action_desc='Downloaded research paper'
-                    )
-                except Exception as audit_error:
-                    print(f"Audit trail logging failed: {audit_error}")
-                    # Continue execution even if audit trail fails
+            # Get the current user's identity
+            user_id = get_jwt_identity()
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_id,
+                    table_name='Research_Output',
+                    record_id=research_id,
+                    operation='DOWNLOAD',
+                    action_desc='Downloaded research paper'
+                )
+            except Exception as audit_error:
+                print(f"Audit trail logging failed: {audit_error}")
+                # Continue execution even if audit trail fails
 
             return jsonify({
                 "message": "Download count incremented", 

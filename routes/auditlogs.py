@@ -19,6 +19,7 @@ def fetch_logs(hours=None):
         db.session.query(Account, AuditTrail, Role)
         .join(AuditTrail, Account.user_id == AuditTrail.user_id)
         .join(Role, Account.role_id == Role.role_id)
+        .order_by(desc(AuditTrail.change_datetime))
     )
 
     if hours:

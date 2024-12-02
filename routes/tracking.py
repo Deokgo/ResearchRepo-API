@@ -105,7 +105,16 @@ def get_research_status(research_id=None):
             # Send email asynchronously (optional)
             send_notification_email("NEW PUBLICATION STATUS UPDATE",
                                 f'Research paper by {research_id} has been updated to {changed_status.status}.')
+            
             # Log audit trail here asynchronously (optional)
+            # Get the current user's identity
+            user_id = get_jwt_identity()
+            log_audit_trail(
+                user_id=user_id,
+                table_name='Publication and Status',
+                record_id=research_id,
+                operation='UPDATE',
+                action_desc='Updated research output status')
 
             return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
@@ -139,10 +148,6 @@ def get_next_status(research_id):
         elif current_status.status == "PUBLISHED":
             new_status="COMPLETED"
 
-        # Send email asynchronously (optional)
-        
-        # Log audit trail here asynchronously (optional)
-
         return jsonify(new_status), 200
     except Exception as e:
         
@@ -172,12 +177,19 @@ def pullout_paper(research_id):
             # Send email asynchronously (optional)
         send_notification_email("NOTIFICATION",
                                 f'Research paper by {research_id} has been pulled out.')
-            # Log audit trail here asynchronously (optional)
+
+        # Log audit trail here asynchronously (optional)
+        # Get the current user's identity
+        user_id = get_jwt_identity()
+        log_audit_trail(
+                user_id=user_id,
+                table_name='Publication and Status',
+                record_id=research_id,
+                operation='UPDATE',
+                action_desc='Updated research output status')
+            
         return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
-
-
-    return None
 
 @track.route('/publication/<research_id>',methods=['GET','POST','PUT'])
 @jwt_required()
@@ -292,12 +304,14 @@ def publication_papers(research_id=None):
             db.session.commit()
 
             # Audit trail logging
-            """log_audit_trail(
-                user_id=request.form.get('user_id'),
+            # Get the current user's identity
+            user_id = get_jwt_identity()
+            log_audit_trail(
+                user_id=user_id,
                 table_name='Publication and Conference',
                 record_id=new_publication.publication_id,
                 operation='CREATE',
-                action_desc='Creating Publication and associated Conference details')"""
+                action_desc='Added Publication and associated Conference details')
 
             return jsonify({'message': 'Publication and Conference created successfully'}), 201
 
@@ -348,6 +362,17 @@ def publication_papers(research_id=None):
                     db.session.commit()
                     publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
                     print("Publication UPDATED Content:", vars(publication))
+
+                    # Log audit trail here asynchronously (optional)
+                    # Get the current user's identity
+                    user_id = get_jwt_identity()
+                    log_audit_trail(
+                            user_id=user_id,
+                            table_name='Publication and Status',
+                            record_id=research_id,
+                            operation='UPDATE',
+                            action_desc='Updated research output publication data')
+                    
                     return jsonify({'message': 'Publication updated successfully'}), 200
                 else:
                     return jsonify({'message': 'Publication not found'}), 404
