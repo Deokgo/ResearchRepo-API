@@ -6,6 +6,7 @@ import pandas as pd
 from models import  Account, AuditTrail, Role, db
 from datetime import datetime, timedelta
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from pytz import timezone
 
 auditlogs = Blueprint('auditlogs', __name__)
 
@@ -38,7 +39,7 @@ def fetch_logs(hours=None):
             "operation": audit_trail.operation,
             "table_name": audit_trail.table_name,
             "record_id": audit_trail.record_id if audit_trail.record_id is not None else 'N/A',
-            "changed_datetime": audit_trail.change_datetime,
+            "changed_datetime": audit_trail.change_datetime.strftime('%Y-%m-%d %H:%M:%S'),  # Format directly without timezone conversion
             "action_desc": audit_trail.action_desc,
             "role_name": role.role_name
         })
