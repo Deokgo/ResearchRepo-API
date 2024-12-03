@@ -4,13 +4,14 @@ from flask_migrate import Migrate #install this module in your terminal
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from models import db
+from models import db, check_db
 from config import Config
 from flask_mailman import Mail
 import redis
 from flask_jwt_extended import JWTManager, get_jwt, create_access_token, get_jwt_identity
 from datetime import datetime, timezone, timedelta
 import json
+from urllib.parse import urlparse
 
 def initialize_redis(app):
     """Initialize Redis and attach it to the app."""
@@ -22,6 +23,29 @@ def initialize_redis(app):
     )
     app.redis_client = redis_client
 
+def initialize_db(app):
+    """Initialize the database and check table creation."""
+    db.init_app(app)
+    database_uri = app.config['SQLALCHEMY_DATABASE_URI']
+    parsed_uri = urlparse(database_uri)
+
+    db_user = parsed_uri.username
+    db_password = parsed_uri.password
+    db_host = parsed_uri.hostname
+    db_port = parsed_uri.port
+    db_name = parsed_uri.path.lstrip('/')
+
+    check_db(
+        db_name=db_name,
+        user=db_user,
+        password=db_password,
+        host=db_host,
+        port=db_port
+    )
+    
+    with app.app_context():
+        db.create_all()
+
 #Initialize the app
 app = Flask(__name__)
 
@@ -30,9 +54,7 @@ CORS(app, supports_credentials=True)
 #database Configuration
 app.config.from_object(Config)
 
-
-# Initialize the database
-db.init_app(app)
+initialize_db(app)
 mail = Mail(app)
 migrate = Migrate(app, db)
 initialize_redis(app)
@@ -57,45 +79,10 @@ def refresh_expiring_jwts(response):
         # Case where there is no valid JWT
         return response
 
-# Function that checks the database if it exists or not
-def check_db(db_name, user, password, host='localhost', port='5432'):
-    try:
-        # Connect to the default 'postgres' database to manage other databases
-        connection = psycopg2.connect(user=user, password=password, host=host, port=port, dbname='postgres')
-        connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)  # To execute CREATE DATABASE outside transactions
-        cursor = connection.cursor()
-
-        # Use parameterized query to prevent SQL injection
-        cursor.execute(sql.SQL("SELECT 1 FROM pg_database WHERE datname = %s"), [db_name])
-        exists = cursor.fetchone()
-
-        if not exists:
-            # Create the new database if it doesn't exist
-            cursor.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(db_name)))
-            print(f"Database '{db_name}' created successfully.")
-        else:
-            print(f"Database '{db_name}' already exists.")
-    except Exception as error:
-        print(f"Error while creating or checking database: {error}")
-    finally:
-        if connection:
-            cursor.close()
-            connection.close()
 
 # Function to check if the tables have any data
 def has_table_data(session, table_model):
     return session.query(table_model).first() is not None
-
-
-# Check if the database exists and create it if not
-check_db('Research_Data_Integration_System', 'postgres', 'Papasa01!')
-
-# Ensure tables are created after the database check
-with app.app_context():
-    db.create_all()  # This will create all the tables based on your SQLAlchemy models
-    print("Tables created successfully.")
-
-
 
 from routes.auth import auth
 from routes.conference import conference
