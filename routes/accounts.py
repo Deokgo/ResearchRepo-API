@@ -308,7 +308,7 @@ def add_bulk_users():
     try:
         # Get the user data
         users_data = request.form.get('users')  # This will be a JSON string
-        
+        user_id = get_jwt_identity()
         if not users_data:
             return jsonify({"error": "Missing user data"}), 400
             
@@ -327,9 +327,9 @@ def add_bulk_users():
             hashed_password = generate_password_hash(password)
             
             # Create user account
-            user_id = auth_services.formatting_id('US', Account, 'user_id')
+            acc_id = auth_services.formatting_id('US', Account, 'user_id')
             new_account = Account(
-                user_id=user_id,
+                user_id=acc_id,
                 email=email,
                 user_pw=hashed_password,
                 role_id=user['roleId']
@@ -338,7 +338,7 @@ def add_bulk_users():
             
             # Create user profile
             profile = UserProfile(
-                researcher_id=user_id,
+                researcher_id=acc_id,
                 college_id=user['collegeId'],
                 program_id=user['programId'],
                 first_name=user['firstName'],
@@ -357,6 +357,15 @@ def add_bulk_users():
                 'surname': user['surname'],
                 'suffix': user['suffix']
             })
+            
+            # Log the audit trail for each user created
+            auth_services.log_audit_trail(
+                user_id=user_id,
+                table_name='Account',
+                record_id=acc_id,
+                operation='CREATE',
+                action_desc='Added user'
+            )
             
         db.session.commit()
         
