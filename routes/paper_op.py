@@ -477,20 +477,6 @@ def increment_views(research_id):
             else:
                 return jsonify({"message": "Record not found"}), 404
 
-        # Get the current user's identity
-        user_id = get_jwt_identity()
-        try:
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='Research_Output',
-                record_id=research_id,
-                operation='VIEW',
-                action_desc='Viewed research paper'
-            )
-        except Exception as audit_error:
-            print(f"Audit trail logging failed: {audit_error}")
-            # Continue execution even if audit trail fails
-
         return jsonify({
             "message": "View count updated",
             "updated_views": view_count.view_count,
@@ -524,20 +510,6 @@ def increment_downloads(research_id):
 
             download_count.download_count = updated_downloads
             db.session.commit()
-
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            try:
-                auth_services.log_audit_trail(
-                    user_id=user_id,
-                    table_name='Research_Output',
-                    record_id=research_id,
-                    operation='DOWNLOAD',
-                    action_desc='Downloaded research paper'
-                )
-            except Exception as audit_error:
-                print(f"Audit trail logging failed: {audit_error}")
-                # Continue execution even if audit trail fails
 
             return jsonify({
                 "message": "Download count incremented", 

@@ -4,7 +4,7 @@ from services import auth_services
 
 class AuditTrail(db.Model):
     __tablename__ = 'audit_trail'
-    audit_id = db.Column(db.String(16), primary_key=True)
+    audit_id = db.Column(db.String(18), primary_key=True)
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
     table_name = db.Column(db.String(50))
     record_id = db.Column(db.String(16))

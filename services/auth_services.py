@@ -14,23 +14,33 @@ from flask_jwt_extended import (
     unset_jwt_cookies
 )
 
-# Function for generating a new ID (for Primary Key)
 def formatting_id(indicator, model_class, id_field):
-    """Generate a new ID based on the current date and last entry."""
+    """
+    Generate a new ID based on the current date and last entry.
+    
+    For 'AUD', format as 'AUD-YYYYMMDD-XXXXX' with five-digit increment.
+    For others, format as 'indicator-YYYYMMDD-XXX' with three-digit increment.
+    """
     current_date_str = datetime.datetime.now().strftime('%Y%m%d')
-
+    
+    # Set the format and increment based on the indicator
+    if indicator == "AUD":
+        sequence_length = 5
+    else:
+        sequence_length = 3
+    
     # Query the last entry for the current date to get the latest ID
     last_entry = model_class.query.filter(getattr(model_class, id_field).like(f'{indicator}-{current_date_str}-%')) \
                                   .order_by(getattr(model_class, id_field).desc()) \
                                   .first()
-
+    
     # Determine the next sequence number
     if last_entry:
         last_sequence = int(getattr(last_entry, id_field).split('-')[-1])
-        next_sequence = f"{last_sequence + 1:03d}"
+        next_sequence = f"{last_sequence + 1:0{sequence_length}d}"
     else:
-        next_sequence = "001"  # Start with 001 if no previous entry
-
+        next_sequence = f"{1:0{sequence_length}d}"  # Start with the correct zero-padded sequence
+    
     # Generate the new ID
     generated_id = f"{indicator}-{current_date_str}-{next_sequence}"
     return generated_id
