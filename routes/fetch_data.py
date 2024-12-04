@@ -5,6 +5,7 @@ from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
 #from services.logs import formatting_id,log_audit_trail
 #from decorators.acc_decorators import roles_required
 import os
+from flask import session
 
 data = Blueprint('data',__name__)
 
@@ -71,6 +72,31 @@ def user_roles():
         # If an error occurs, return a 400 error with the message
         return jsonify({'error': str(e)}), 400
 
+@data.route('/college', methods=['GET'])
+@jwt_required()
+def college():
+    try:
+        # Example researcher ID for testing
+        researcher_id = get_jwt_identity()
+
+        # Query the database
+        college = (
+            db.session.query(UserProfile.college_id)
+            .filter(UserProfile.researcher_id == researcher_id)
+            .first()
+        )
+
+        if college:
+            # Serialize the result
+            session['college_id'] = college.college_id
+            return jsonify({'college_id': college.college_id}), 200
+        else:
+            return jsonify({'error': 'College not found for the given researcher ID'}), 404
+
+    except Exception as e:
+        # Return an error response
+        return jsonify({'error': str(e)}), 400
+    
 @data.route('/colleges', methods =['GET','POST'])
 @data.route('/colleges/<current_college>', methods =['GET','PUT','DELETE'])
 @jwt_required()
