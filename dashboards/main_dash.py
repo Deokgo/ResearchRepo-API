@@ -23,14 +23,9 @@ class MainDashboard:
         """
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/dashboard/overview/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
-        self.palette_dict = {
-            'MITL': 'red',
-            'ETYCB': 'yellow',
-            'CCIS': 'green',
-            'CAS': 'blue',
-            'CHS': 'orange'
-        }
 
+        self.palette_dict = db_manager.get_college_colors()
+        
         # Get default values
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_statuses = db_manager.get_unique_values('status')

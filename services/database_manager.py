@@ -119,6 +119,17 @@ class DatabaseManager:
             session.close()
 
         return self.df
+    
+    def get_college_colors(self):
+        session = self.Session()
+        
+        query = session.query(College.college_id, College.color_code)
+        colleges = query.all()
+
+        # Convert the list of tuples into a dictionary
+        college_colors = {college_id: color_code for college_id, color_code in colleges}
+    
+        return college_colors
 
     def get_unique_values(self, column_name):
         if self.df is not None and column_name in self.df.columns:
