@@ -94,6 +94,7 @@ from routes.tracking import track
 from routes.fetch_data import data
 from routes.users import users
 from routes.auditlogs import auditlogs
+from routes.pydash import pydash
 
 # Register the blueprint for routes
 app.register_blueprint(auth, url_prefix='/auth')
@@ -106,11 +107,13 @@ app.register_blueprint(track, url_prefix='/track')
 app.register_blueprint(data, url_prefix='/data')
 app.register_blueprint(users, url_prefix='/users')
 app.register_blueprint(auditlogs, url_prefix='/auditlogs')
+app.register_blueprint(pydash, url_prefix='/dash')
 
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.main_dash import MainDashboard
 from dashboards.pub_dash import PublicationDash
 from knowledgegraph.knowledgegraph import create_kg_sdg
+from dashboards.sampledash import DashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
 
@@ -126,6 +129,7 @@ def create_dash_apps(app):
             PublicationDash(app)
             create_main_dashboard(app)
             create_kg_sdg(app)
+            DashApp(app)
             # print("Dash apps created successfully.")
             # print("Available routes:")
             # for rule in app.url_map.iter_rules():

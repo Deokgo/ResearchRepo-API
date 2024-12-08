@@ -110,7 +110,7 @@ def add_user():
     
     if status_code == 201:
         # Generate a token for the user
-        token = auth_services.generate_tokens(user_id)
+        token = create_access_token(identity=user_id)
 
         # Modify the response to include the token
         response_data = response.get_json()  # Extract the JSON data from the original response

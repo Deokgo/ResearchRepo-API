@@ -140,6 +140,25 @@ class DatabaseManager:
         else:
             return []  # Return an empty list if the column doesn't exist or has no values
 
+    def get_unique_values_by(self, column_name, condition_column=None, condition_value=None):
+        if self.df is not None and column_name in self.df.columns:
+            if condition_column and condition_column in self.df.columns:
+                # Apply the condition
+                unique_values = self.df[self.df[condition_column] == condition_value][column_name].dropna().unique()
+            else:
+                # No condition, get all unique values
+                unique_values = self.df[column_name].dropna().unique()
+
+            if len(unique_values) == 0:
+                print(f"Warning: Column '{column_name}' contains no unique values.")
+            
+            return unique_values
+        else:
+            print(f"Error: Column '{column_name}' does not exist in the DataFrame.")
+            return []
+
+
+
     def get_columns(self):
         return self.df.columns.tolist() if self.df is not None else []
 
@@ -183,6 +202,17 @@ class DatabaseManager:
         if self.df is not None:
             filtered_df = self.df[
                 (self.df['college_id'].isin(selected_colleges)) & 
+                (self.df['status'].isin(selected_status)) & 
+                (self.df['year'].between(selected_years[0], selected_years[1]))
+            ]
+            return filtered_df
+        else:
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+    
+    def get_filtered_data_bycollege(self, selected_program, selected_status, selected_years):
+        if self.df is not None:
+            filtered_df = self.df[
+                (self.df['program_id'].isin(selected_program)) & 
                 (self.df['status'].isin(selected_status)) & 
                 (self.df['year'].between(selected_years[0], selected_years[1]))
             ]
