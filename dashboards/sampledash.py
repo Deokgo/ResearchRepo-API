@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 from urllib.parse import parse_qs, urlparse
-
 from . import db_manager
 
 def default_if_empty(selected_values, default_values):
@@ -16,6 +15,7 @@ def default_if_empty(selected_values, default_values):
 
 
 class DashApp:
+    #user_college = ''
     def __init__(self, server, title=None, college=None, program=None, **kwargs):
         self.dash_app = Dash(__name__,
                              server=server,
@@ -120,7 +120,7 @@ class DashApp:
         text_display = dbc.Container([
             dbc.Row([
                 dbc.Col(
-                    self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', 'MITL')))),
+                    self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.user_college)))),
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 ),
                 dbc.Col(
@@ -144,7 +144,7 @@ class DashApp:
                     style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                 )
             ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
-        ], style={"padding": "2rem"})
+        ], style={"padding": "2rem"}, id="text-display-container")
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
@@ -159,7 +159,6 @@ class DashApp:
         self.dash_app.layout = html.Div([
             # URL tracking
             dcc.Location(id='url', refresh=False),
-
             dbc.Container([
                 dbc.Row([
                     dbc.Col([
@@ -394,7 +393,8 @@ class DashApp:
             [
                 Output('user-role', 'children'),
                 Output('college-info', 'children'),
-                Output('program-info', 'children')
+                Output('program-info', 'children'),
+                Output('text-display-container', 'children')
             ],
             Input('url', 'search')  # Capture the query string in the URL
         )
@@ -420,8 +420,28 @@ class DashApp:
             self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
             print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
 
-            self.user_college = self.college
-            print(f'self.user_college: {self.user_college}')
+            DashApp.user_college = self.college
+            print(f'self.user_college: {DashApp.user_college}')
 
             # Return the role, college, and program information
-            return user_role_message, html.H3(f'College: {self.college}'), html.H3(f'Program: {self.program}')
+            return user_role_message, html.H3(f'College: {self.college}'), html.H3(f'Program: {self.program}'), dbc.Container([
+                dbc.Row([
+                    dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
+                    dbc.Col(
+                        self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                    dbc.Col(
+                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                    dbc.Col(
+                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', self.college)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                    dbc.Col(
+                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', self.college)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                    dbc.Col(
+                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', self.college)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
+                    # Add other display cards similarly...
+                ])
+            ])
