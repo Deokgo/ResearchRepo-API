@@ -27,6 +27,8 @@ class DashApp:
 
         self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
+        self.default_programs = []
+        self.user_college = ''
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
@@ -47,6 +49,7 @@ class DashApp:
                 ),
             ],
             className="mb-4",
+            style={"display": "none", "opacity": "0.5"},  # Disable interaction and style for visual feedback
         )
 
         program = html.Div(
@@ -114,6 +117,35 @@ class DashApp:
             style={"border": "2px solid #0A438F", "height": "95vh", "display": "flex", "flexDirection": "column"}
         )
 
+        text_display = dbc.Container([
+            dbc.Row([
+                dbc.Col(
+                    self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                ),
+                dbc.Col(
+                    self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', 'MITL')))),
+                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                )
+            ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
+        ], style={"padding": "2rem"})
+
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
                     dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
@@ -140,50 +172,140 @@ class DashApp:
                         html.Div(id='user-role'),
                         html.Div(id='college-info'),
                         html.Div(id='program-info'),
-                        main_dash,
+                        dbc.Row(text_display),
+                        dbc.Row(main_dash),
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])
             ], fluid=True, className="dbc dbc-ag-grid", style={"overflow": "hidden"})
         ])
-    def get_program_colors(self, df):
-        unique_programs = df['program_id'].unique()
-        random_colors = px.colors.qualitative.Plotly[:len(unique_programs)]
-        self.program_colors = {program: random_colors[i % len(random_colors)] for i, program in enumerate(unique_programs)}
+
+    def create_display_card(self, title, value):
+        """
+        Create a display card for showing metrics.
+        """
+        return html.Div([
+            html.Div([
+                html.H5(title, style={'textAlign': 'center'}),
+                html.H2(value, style={'textAlign': 'center'})
+            ], style={
+                "border": "2px solid #0A438F",    # Border color
+                "borderRadius": "10px",           # Rounded corners
+                "padding": "10px",                # Padding inside the card
+                "width": "170px",                 # Fixed width
+                "height": "150px",                # Fixed height
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "margin": "0"
+            })
+        ])
+
+    def get_program_colors(self, df, color_column='program_id'):
+        """
+        Generate a color mapping for the unique values in the specified column of the DataFrame.
+
+        Args:
+            df (pd.DataFrame): The DataFrame containing data.
+            color_column (str): The column for which unique values will be colored (default is 'program_id').
+
+        Updates:
+            self.program_colors: A dictionary mapping unique values in the color_column to colors.
+        """
+        unique_values = df[color_column].unique()
+        random_colors = px.colors.qualitative.Plotly[:len(unique_values)]
+        self.program_colors = {value: random_colors[i % len(random_colors)] for i, value in enumerate(unique_values)}
+
     
-    def update_line_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data_bycollege(selected_colleges, selected_status, selected_years)
-        
-        if len(selected_colleges) == 1:
+    def update_line_plot(self, selected_program, selected_status, selected_years):
+        # Fetch filtered data
+        df = db_manager.get_filtered_data_bycollege(selected_program, selected_status, selected_years)
+
+        if len(selected_program) == 1:
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'program_id'
-            title = f'Number of Research Outputs for {selected_colleges[0]}'
-            self.get_program_colors(grouped_df) 
+            title = f'Number of Research Outputs for {selected_program[0]}'
         else:
-            grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'college_id'
+            df = df[df['program_id'].isin(selected_program)]
+            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
+            color_column = 'program_id'
             title = 'Number of Research Outputs per College'
-
+        
+        # Generate a dynamic color mapping based on unique values in the color_column
+        unique_values = grouped_df[color_column].unique()
+        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
+                            for i, value in enumerate(unique_values)}
+        
+        # Generate the line plot
         fig_line = px.line(
-            grouped_df, 
-            x='year', 
-            y='TitleCount', 
-            color=color_column, 
+            grouped_df,
+            x='year',
+            y='TitleCount',
+            color=color_column,
             markers=True,
-            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors
+            color_discrete_map=color_discrete_map
         )
         
+        # Update the layout for aesthetics and usability
         fig_line.update_layout(
             title=title,
             xaxis_title='Academic Year',
             yaxis_title='Number of Publications',
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
+            height=400
+        )
+        
+        return fig_line
+
+    def update_pie_chart(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+
+        if len(selected_programs) == 1:
+            # Handle single program selection
+            program_id = selected_programs[0]
+            filtered_df = df[df['program_id'] == program_id]
+            detail_counts = filtered_df.groupby('year').size().reset_index(name='count')  # Group by year and count
+            title = f"Research Outputs for Program {program_id}"
+
+            # Create the pie chart for yearly contribution
+            fig_pie = px.pie(
+                data_frame=detail_counts,
+                names='year',
+                values='count',
+                color='year',
+                labels={'year': 'Year', 'count': 'Number of Research Outputs'},
+            )
+        else:
+            # Handle multiple programs
+            detail_counts = df.groupby('program_id').size().reset_index(name='count')
+            title = "Research Outputs per Program"
+
+            # Generate a dynamic color mapping based on unique values in the `program_id`
+            unique_values = detail_counts['program_id'].unique()
+            color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
+                                for i, value in enumerate(unique_values)}
+
+            # Create the pie chart
+            fig_pie = px.pie(
+                data_frame=detail_counts,
+                names='program_id',
+                values='count',
+                color='program_id',
+                color_discrete_map=color_discrete_map,
+                labels={'program_id': 'Program', 'count': 'Number of Research Outputs'},
+            )
+
+        # Update layout
+        fig_pie.update_layout(
+            template='plotly_white',
+            margin=dict(l=0, r=0, t=30, b=0),
             height=400,
-            showlegend=False  
+            title=title
         )
 
-        return fig_line
+        return fig_pie
 
     def add_callbacks(self):
         @self.dash_app.callback(
@@ -212,15 +334,25 @@ class DashApp:
                 Input('years', 'value')
             ]
         )
-        def update_lineplot(selected_colleges, selected_status, selected_years):
+        def update_lineplot(selected_programs, selected_status, selected_years):
             # Fallback to defaults if inputs are not provided
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
 
             # Update the line plot with filtered data
-            return self.update_line_plot(selected_colleges, selected_status, selected_years)
+            return self.update_line_plot(selected_programs, selected_status, selected_years)
         
+        @self.dash_app.callback(
+            Output('college_pie_chart', 'figure'),
+            [Input('program', 'value'), Input('status', 'value'), Input('years', 'value')]
+        )
+        def update_pie_chart_callback(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_pie_chart(selected_programs, selected_status, selected_years)
+
         @self.dash_app.callback(
         Output('program', 'options'),  # Update the program options based on the selected college
         Input('college', 'value')  # Trigger when the college checklist changes
@@ -235,9 +367,19 @@ class DashApp:
 
             # Return the options for the program checklist
             return [{'label': program, 'value': program} for program in program_options]
-        
-        
-        """Define common callbacks that all dashboards share."""
+
+        @self.dash_app.callback(
+            [
+                Output("program", "value"),
+                Output("status", "value"),
+                Output("years", "value"),
+            ],
+            Input("reset_button", "n_clicks"),
+            prevent_initial_call=True
+        )
+        def reset_filters(n_clicks):
+            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            
         @self.dash_app.callback(
             Output('output-container', 'children'),
             Input('common-button', 'n_clicks')
@@ -274,6 +416,12 @@ class DashApp:
                 user_role_message = html.H3('Welcome User! Your access is limited.')
             else:
                 user_role_message = html.H3('Welcome Guest! Please log in.')
+            
+            self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
+            print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
+
+            self.user_college = self.college
+            print(f'self.user_college: {self.user_college}')
 
             # Return the role, college, and program information
             return user_role_message, html.H3(f'College: {self.college}'), html.H3(f'Program: {self.program}')

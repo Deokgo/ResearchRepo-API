@@ -144,7 +144,14 @@ class DatabaseManager:
         if self.df is not None and column_name in self.df.columns:
             if condition_column and condition_column in self.df.columns:
                 # Apply the condition
-                unique_values = self.df[self.df[condition_column] == condition_value][column_name].dropna().unique()
+                filtered_df = self.df[self.df[condition_column] == condition_value]
+                
+                # Debug: print filtered dataframe
+                print(f"Filtered DataFrame for {condition_column} == {condition_value}:\n")
+                
+                # Get unique values from the filtered data
+                unique_values = filtered_df[column_name].dropna().unique()
+                print(f'unique values: {unique_values}')
             else:
                 # No condition, get all unique values
                 unique_values = self.df[column_name].dropna().unique()
@@ -158,19 +165,27 @@ class DatabaseManager:
             return []
 
 
-
     def get_columns(self):
         return self.df.columns.tolist() if self.df is not None else []
 
-    def filter_data(self, column_name, value, invert=False):
+    def filter_data(self, column_name1, value1, column_name2=None, value2=None, invert=False):
         if self.df is not None:
-            if column_name in self.df.columns:
-                if invert:
-                    return self.df[self.df[column_name] != value]
+            if column_name1 in self.df.columns and (column_name2 is None or column_name2 in self.df.columns):
+                if column_name2 is None:
+                    # Single column filter
+                    if invert:
+                        return self.df[self.df[column_name1] != value1]
+                    else:
+                        return self.df[self.df[column_name1] == value1]
                 else:
-                    return self.df[self.df[column_name] == value]
+                    # Two-column filter
+                    if invert:
+                        return self.df[(self.df[column_name1] != value1) | (self.df[column_name2] != value2)]
+                    else:
+                        return self.df[(self.df[column_name1] == value1) & (self.df[column_name2] == value2)]
             else:
-                raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+                missing_column = column_name1 if column_name1 not in self.df.columns else column_name2
+                raise ValueError(f"Column '{missing_column}' does not exist in the DataFrame.")
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
 
