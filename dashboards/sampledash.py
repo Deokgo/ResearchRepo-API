@@ -119,30 +119,7 @@ class DashApp:
 
         text_display = dbc.Container([
             dbc.Row([
-                dbc.Col(
-                    self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.user_college)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', 'MITL')))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', 'MITL')))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', 'MITL')))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', 'MITL')))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', 'MITL')))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                )
+                
             ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
         ], style={"padding": "2rem"}, id="text-display-container")
 
