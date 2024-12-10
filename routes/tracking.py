@@ -10,10 +10,10 @@ from services.mail import send_notification_email
 
 
 track = Blueprint('track', __name__)
-@jwt_required
+
 @track.route('/research_status', methods=['GET'])
 @track.route('/research_status/<research_id>', methods=['GET', 'POST'])
-
+@jwt_required
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
