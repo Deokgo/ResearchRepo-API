@@ -38,8 +38,11 @@ def start_dash():
 
         if account_info.role_id == "02":
             dash_url = f"{base_url}/dashboard/overview/"
-        else:
+        elif account_info.role_id == "04":
             dash_url = f"{base_url}/sample/?{query_string}"
+        elif account_info.role_id == "05":
+            #dash_url = f"{base_url}/sample/?{query_string}"
+            dash_url = f"{base_url}/progchairdash/?{query_string}"
 
         print(f"Generated Dash URL: {dash_url}")
 

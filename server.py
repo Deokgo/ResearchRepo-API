@@ -114,6 +114,7 @@ from dashboards.main_dash import MainDashboard
 from dashboards.pub_dash import PublicationDash
 from knowledgegraph.knowledgegraph import create_kg_sdg
 from dashboards.sampledash import DashApp
+from dashboards.progchairdash import ProgDashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
 
@@ -130,6 +131,7 @@ def create_dash_apps(app):
             create_main_dashboard(app)
             create_kg_sdg(app)
             DashApp(app)
+            ProgDashApp(app)
             # print("Dash apps created successfully.")
             # print("Available routes:")
             # for rule in app.url_map.iter_rules():
