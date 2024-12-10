@@ -15,7 +15,6 @@ def default_if_empty(selected_values, default_values):
 
 
 class DashApp:
-    #user_college = ''
     def __init__(self, server, title=None, college=None, program=None, **kwargs):
         self.dash_app = Dash(__name__,
                              server=server,
@@ -28,12 +27,17 @@ class DashApp:
         self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_programs = []
-        self.user_college = ''
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
         self.set_layout()
         self.add_callbacks()
+
+        self.all_sdgs = [
+            'SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 
+            'SDG 8', 'SDG 9', 'SDG 10', 'SDG 11', 'SDG 12', 'SDG 13', 
+            'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17'
+        ]
 
     def set_layout(self):
         """Common layout shared across all dashboards."""
@@ -130,8 +134,25 @@ class DashApp:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
+        sub_dash1 = dbc.Container([
+                dbc.Row([
+                    dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                ], style={"margin": "10px"})
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
+        sub_dash3 = dbc.Container([
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
+        sub_dash2 = dbc.Container([
+                dbc.Row([
+                    dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                ], style={"margin": "10px"})
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         self.dash_app.layout = html.Div([
             # URL tracking
@@ -142,14 +163,18 @@ class DashApp:
                         html.H1(self.title),
                         html.P(self.college),
                         html.P(self.program),
-                        html.Button('Click Me', id='common-button'),
+                        #html.Button('Click Me', id='common-button'),
                         html.Div(id='output-container'),
                         # Placeholder for displaying user role, college, and program information
                         html.Div(id='user-role'),
                         html.Div(id='college-info'),
                         html.Div(id='program-info'),
+                        # Contets of the Dash App
                         dbc.Row(text_display),
                         dbc.Row(main_dash),
+                        dbc.Row(sub_dash1),
+                        dbc.Row(sub_dash3),
+                        dbc.Row(sub_dash2),
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])
@@ -282,6 +307,210 @@ class DashApp:
         )
 
         return fig_pie
+    
+    def update_research_type_bar_plot(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        if df.empty:
+            return px.bar(title="No data available")
+        
+        fig = go.Figure()
+
+            #self.get_program_colors(df) 
+        status_count = df.groupby(['research_type', 'program_id']).size().reset_index(name='Count')
+        pivot_df = status_count.pivot(index='research_type', columns='program_id', values='Count').fillna(0)
+
+        sorted_programs = sorted(pivot_df.columns)
+        title = f"Comparison of Research Output Type Across Programs"
+
+        # Generate a dynamic color mapping based on unique values in the `program_id`
+        unique_values = status_count['program_id'].unique()
+        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
+                            for i, value in enumerate(unique_values)}
+
+        for program in sorted_programs:
+            fig.add_trace(go.Bar(
+                x=pivot_df.index,
+                y=pivot_df[program],
+                name=program,
+                marker_color=color_discrete_map[program]
+            ))
+
+        fig.update_layout(
+            barmode='group',
+            xaxis_title='Research Type',  
+            yaxis_title='Number of Research Outputs',  
+            title=title
+        )
+
+        return fig
+    
+    def update_research_status_bar_plot(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        if df.empty:
+            return px.bar(title="No data available")
+        
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
+
+        fig = go.Figure()
+
+        #self.get_program_colors(df) 
+        status_count = df.groupby(['status', 'program_id']).size().reset_index(name='Count')
+        pivot_df = status_count.pivot(index='status', columns='program_id', values='Count').fillna(0)
+
+        sorted_programs = sorted(pivot_df.columns)
+        title = f"Comparison of Research Status Across Program/s"
+
+        # Generate a dynamic color mapping based on unique values in the `program_id`
+        unique_values = status_count['program_id'].unique()
+        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
+                            for i, value in enumerate(unique_values)}
+
+        for program in sorted_programs:
+            fig.add_trace(go.Bar(
+                x=pivot_df.index,
+                y=pivot_df[program],
+                name=program,
+                marker_color=color_discrete_map[program]
+            ))
+
+        fig.update_layout(
+            barmode='group',
+            xaxis_title='Research Status',  
+            yaxis_title='Number of Research Outputs',  
+            title=title,
+            xaxis=dict(
+                tickvals=status_order,  # This should match the unique statuses in pivot_df index
+                ticktext=status_order    # This ensures that the order of the statuses is displayed correctly
+            )
+        )
+
+        # Ensure the x-axis is sorted in the defined order
+        fig.update_xaxes(categoryorder='array', categoryarray=status_order)
+        return fig
+    
+    def update_sdg_chart(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        
+        if df.empty:
+            return px.bar(title="No data available")
+
+        df_copy = df.copy()
+
+        #self.get_program_colors(df)
+        df_copy = df_copy.set_index('program_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
+        df_copy['sdg'] = df_copy['sdg'].str.strip()
+        df_copy = df_copy.drop(columns=['level_1'])
+        sdg_count = df_copy.groupby(['sdg', 'program_id']).size().reset_index(name='Count')
+        pivot_df = sdg_count.pivot(index='sdg', columns='program_id', values='Count').reindex(self.all_sdgs).fillna(0)
+        pivot_df['Total'] = pivot_df.sum(axis=1)
+        pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
+        pivot_df = pivot_df.reindex(self.all_sdgs)
+
+        sorted_programs = sorted(pivot_df.columns)  # Sort programs alphabetically
+        pivot_df = pivot_df[sorted_programs]  # Reorder the columns in pivot_df by the sorted program list
+        title = f'Program/s Targeting Each SDG'
+
+        if pivot_df.empty:
+            print("Pivot DataFrame is empty after processing")
+            return px.bar(title="No data available")
+
+        fig = go.Figure()
+
+        # Generate a dynamic color mapping based on unique values in the `program_id`
+        unique_values = sdg_count['program_id'].unique()
+        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
+                            for i, value in enumerate(unique_values)}
+
+        for program in sorted_programs:
+            fig.add_trace(go.Bar(
+                y=pivot_df.index,
+                x=pivot_df[program],
+                name=program,
+                orientation='h',
+                marker_color=color_discrete_map[program]
+            ))
+
+        fig.update_layout(
+            barmode='stack',
+            xaxis_title='Count',
+            yaxis_title='SDG Targeted',
+            title=title,
+            yaxis=dict(
+                autorange='reversed',
+                tickvals=self.all_sdgs,
+                ticktext=self.all_sdgs
+            )
+        )
+        
+        return fig
+
+    def create_publication_bar_chart(self, selected_programs, selected_status, selected_years):  # Modified by Nicole Cabansag
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        
+        df = df[df['scopus'] != 'N/A']
+        self.get_program_colors(df)
+        grouped_df = df.groupby(['scopus', 'program_id']).size().reset_index(name='Count')
+        x_axis = 'program_id'
+        xaxis_title = 'Programs'
+        title = f'Scopus vs. Non-Scopus per Program'
+        
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color='scopus',
+            barmode='group',
+            color_discrete_map={
+            'SCOPUS': 'red',
+            'NON-SCOPUS': 'blue'
+            },
+            labels={'scopus': 'Scopus vs. Non-Scopus'}
+        )
+        
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
+    
+    def update_publication_format_bar_plot(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
+
+
+        grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+        x_axis = 'program_id'
+        xaxis_title = 'Programs'
+        title = f'Publication Formats per Program'
+
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color='journal',
+            barmode='group',
+            color_discrete_map={
+            'journal': 'blue',
+            'proceeding': 'red'
+            },
+            labels={'journal': 'Publication Format'}
+        )
+        
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
 
     def add_callbacks(self):
         @self.dash_app.callback(
@@ -328,6 +557,74 @@ class DashApp:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return self.update_pie_chart(selected_programs, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('research_type_bar_plot', 'figure'),
+            [
+                Input('program', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_research_type_bar_plot(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_research_type_bar_plot(selected_programs, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('research_status_bar_plot', 'figure'),
+            [
+                Input('program', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_research_status_bar_plot(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_research_status_bar_plot(selected_programs, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('sdg_bar_plot', 'figure'),
+            [
+                Input('program', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_sdg_chart(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_sdg_chart(selected_programs, selected_status, selected_years)
+
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_bar_plot', 'figure'),
+            [Input('program', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value')]
+        )
+        def create_publication_bar_chart(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_publication_bar_chart(selected_programs, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('proceeding_conference_bar_plot', 'figure'),
+            [
+                Input('program', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value')
+            ]
+        )
+        def update_publication_format_bar_plot(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_publication_format_bar_plot(selected_programs, selected_status, selected_years)
 
         @self.dash_app.callback(
         Output('program', 'options'),  # Update the program options based on the selected college
@@ -356,6 +653,7 @@ class DashApp:
         def reset_filters(n_clicks):
             return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
             
+        """
         @self.dash_app.callback(
             Output('output-container', 'children'),
             Input('common-button', 'n_clicks')
@@ -364,13 +662,14 @@ class DashApp:
             if n_clicks is None:
                 return "Button not clicked yet"
             return f"Button clicked {n_clicks} times"
+        """
         
         # Callback to update content based on the user role and other URL parameters
         @self.dash_app.callback(
             [
-                Output('user-role', 'children'),
+                #Output('user-role', 'children'),
                 Output('college-info', 'children'),
-                Output('program-info', 'children'),
+                #Output('program-info', 'children'),
                 Output('text-display-container', 'children')
             ],
             Input('url', 'search')  # Capture the query string in the URL
@@ -386,6 +685,7 @@ class DashApp:
             self.college = params.get('college', 'Unknown College')  # Default to 'Unknown College' if no college is passed
             self.program = params.get('program', 'Unknown Program')  # Default to 'Unknown Program' if no program is passed
 
+            """
             # Handle user role display
             if user_role == '04':
                 user_role_message = html.H3('Welcome Admin! You have full control.')
@@ -393,32 +693,36 @@ class DashApp:
                 user_role_message = html.H3('Welcome User! Your access is limited.')
             else:
                 user_role_message = html.H3('Welcome Guest! Please log in.')
+            """
             
             self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
             print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
 
-            DashApp.user_college = self.college
-            print(f'self.user_college: {DashApp.user_college}')
-
             # Return the role, college, and program information
-            return user_role_message, html.H3(f'College: {self.college}'), html.H3(f'Program: {self.program}'), dbc.Container([
-                dbc.Row([
-                    dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
-                    dbc.Col(
-                        self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                    dbc.Col(
-                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                    dbc.Col(
-                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', self.college)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                    dbc.Col(
-                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', self.college)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                    dbc.Col(
-                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', self.college)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
-                    # Add other display cards similarly...
+            #user_role_message, html.H3(f'College: {self.college}'), html.H3(f'Program: {self.program}'),
+            return html.H3(
+                    f'College Department: {self.college}', 
+                    style={
+                        'textAlign': 'center',
+                        'marginTop': '10px'
+                    }
+                ), dbc.Container([
+                    dbc.Row([
+                        dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
+                        dbc.Col(
+                            self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                        dbc.Col(
+                            self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                        dbc.Col(
+                            self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', self.college)))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                        dbc.Col(
+                            self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', self.college)))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                        dbc.Col(
+                            self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', self.college)))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
+                    ])
                 ])
-            ])

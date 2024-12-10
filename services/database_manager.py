@@ -176,14 +176,12 @@ class DatabaseManager:
                     if invert:
                         return self.df[self.df[column_name1] != value1]
                     else:
-                        print(f'column_name1: {column_name1}\nvalue1: {value1}')
                         return self.df[self.df[column_name1] == value1]
                 else:
                     # Two-column filter
                     if invert:
                         return self.df[(self.df[column_name1] != value1) | (self.df[column_name2] != value2)]
                     else:
-                        print('self.df[(self.df[column_name1] == value1) & (self.df[column_name2] == value2)]')
                         return self.df[(self.df[column_name1] == value1) & (self.df[column_name2] == value2)]
             else:
                 missing_column = column_name1 if column_name1 not in self.df.columns else column_name2
