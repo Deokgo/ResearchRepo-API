@@ -110,32 +110,36 @@ class MainDashboard:
 
         text_display = dbc.Container([
             dbc.Row([
-                dbc.Col(
-                    self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                ),
-                dbc.Col(
-                    self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
-                    style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                )
+                dbc.Container([
+                    dbc.Row([
+                        dbc.Col(
+                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    )
+                    ])
+                ])
             ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
-        ], style={"padding": "2rem"})
+        ], style={"padding": "2rem"}, id="text-display-container")
 
         main_dash = dbc.Container([
                 dbc.Row([  # Row for the line and pie charts
@@ -164,7 +168,6 @@ class MainDashboard:
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
-        """
         # Add the DataTable
         data_table_section = dbc.Container([
             dbc.Row([
@@ -180,10 +183,10 @@ class MainDashboard:
                     width=12
                 )
             ], style={"margin": "10px"})
-        ], fluid=True, style={"border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-        """
+        ], fluid=True, style={"display": "none", "border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         self.dash_app.layout = html.Div([
+            dcc.Interval(id="data-refresh-interval", interval=10000, n_intervals=0),  # 10 seconds
             dbc.Container([
                 dbc.Row([
                     dbc.Col([
@@ -193,7 +196,7 @@ class MainDashboard:
                         dbc.Row(sub_dash1),            # Sub dashboard 1
                         dbc.Row(sub_dash3),            # Sub dashboard 3
                         dbc.Row(sub_dash2),            # Sub dashboard 2
-                        #dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
+                        dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])
@@ -649,3 +652,47 @@ class MainDashboard:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return self.update_sdg_chart(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output("data_table", "data"),
+            Input("data-refresh-interval", "n_intervals")
+        )
+        def refresh_table_data_interval(n_intervals):
+            updated_data = db_manager.get_all_data()
+            return updated_data.to_dict('records')
+        
+        #"""
+        @self.dash_app.callback(
+            Output('text-display-container', 'children'),
+            Input("data-refresh-interval", "n_intervals")
+        )
+        def refresh_text_display(n_intervals):
+            return dbc.Container([
+                    dbc.Row([
+                        dbc.Col(
+                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    )
+                    ])
+                ])
+        #"""
