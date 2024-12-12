@@ -173,7 +173,7 @@ class DashApp:
         self.dash_app.layout = html.Div([
             # URL tracking
             dcc.Location(id='url', refresh=False),
-            dcc.Interval(id="data-refresh-interval", interval=10000, n_intervals=0),  # 10 seconds
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
             dbc.Container([
                 dbc.Row([
                     dbc.Col([

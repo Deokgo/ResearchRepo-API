@@ -186,7 +186,7 @@ class MainDashboard:
         ], fluid=True, style={"display": "none", "border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         self.dash_app.layout = html.Div([
-            dcc.Interval(id="data-refresh-interval", interval=10000, n_intervals=0),  # 10 seconds
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
             dbc.Container([
                 dbc.Row([
                     dbc.Col([
