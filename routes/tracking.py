@@ -13,7 +13,7 @@ track = Blueprint('track', __name__)
 
 @track.route('/research_status', methods=['GET'])
 @track.route('/research_status/<research_id>', methods=['GET', 'POST'])
-@jwt_required
+@jwt_required()
 def get_research_status(research_id=None):
     if request.method == 'GET':
         try:
@@ -392,3 +392,29 @@ def parse_date(date_string):
         return None
     except (ValueError, TypeError):
         return None
+    
+@track.route('/published_paper/<research_id>', methods=['GET'])
+def check_uploaded_paper(research_id=None):
+    if research_id:
+        # Query the database for the research output with the given ID
+        query = ResearchOutput.query.filter_by(research_id=research_id).first()
+        
+        # Check if the research output exists
+        if query is None:
+            return jsonify({"message": "No research output exists"}), 404
+        
+        # Check if the extended abstract is uploaded
+        if query.extended_abstract is None:
+            return jsonify({"message": "No extended abstract uploaded. Please upload one."}), 400  # Bad request
+        
+        # Return success if the research output and extended abstract are found
+        return jsonify({
+            "message": "Research output and extended abstract found",
+            "data": query.to_dict()
+        }), 200
+    
+    # Return a message if research_id is not provided
+    return jsonify({"message": "No research ID provided"}), 400
+
+        
+
