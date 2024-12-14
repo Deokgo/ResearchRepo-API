@@ -409,8 +409,7 @@ def check_uploaded_paper(research_id=None):
         
         # Return success if the research output and extended abstract are found
         return jsonify({
-            "message": "Research output and extended abstract found",
-            "data": query.to_dict()
+            "message": "Research output and extended abstract found"
         }), 200
     
     # Return a message if research_id is not provided
