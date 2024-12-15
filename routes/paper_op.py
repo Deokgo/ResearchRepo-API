@@ -101,6 +101,12 @@ def add_paper():
         philippine_tz = pytz.timezone('Asia/Manila')
         current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
         
+        # Determine if panel_id and adviser_id should be stored
+        skip_adviser_and_panel = data['research_type'] in ['College-Driven', 'Extramural']
+
+        # Skip adviser_id if the condition is met
+        adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
+
         new_paper = ResearchOutput(
             research_id=data['research_id'],
             college_id=data['college_id'],
@@ -111,7 +117,7 @@ def add_paper():
             research_type=data['research_type'],
             full_manuscript=file_path,  # Save the manuscript file path
             extended_abstract=file_path_ea,  # This could be None
-            adviser_id=data['adviser_id'],
+            adviser_id=adviser_id,  # This will be None if skipped
             user_id=user_id,
             date_uploaded=current_datetime,
             view_count=0,
@@ -131,14 +137,17 @@ def add_paper():
                 db.session.add(new_sdg)
 
         # Handle panels
-        panel_ids = request.form.getlist('panel_ids')
-        if panel_ids:
-            for panel_id in panel_ids:
-                new_panel = Panel(
-                    research_id=data['research_id'],
-                    panel_id=panel_id
-                )
-                db.session.add(new_panel)
+        # Skip panels if the research type is College-Driven or Extramural
+        if data['research_type'] not in ['College-Driven', 'Extramural']:
+            panel_ids = request.form.getlist('panel_ids')
+            if panel_ids:
+                for panel_id in panel_ids:
+                    new_panel = Panel(
+                        research_id=data['research_id'],
+                        panel_id=panel_id
+                    )
+                    db.session.add(new_panel)
+
 
         # Handle keywords 
         keywords_str = data.get('keywords')
