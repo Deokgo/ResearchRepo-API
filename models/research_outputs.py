@@ -6,7 +6,7 @@ class ResearchOutput(db.Model):
     college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
     program_id = db.Column(db.String(5), db.ForeignKey('program.program_id'))
     title = db.Column(db.String(1000))
-    abstract = db.Column(db.String(1000))
+    abstract = db.Column(db.String(5000))
     full_manuscript = db.Column(db.String(100))
     extended_abstract = db.Column(db.String(100))
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))

@@ -25,13 +25,13 @@ def add_paper():
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
             'abstract', 'date_approved', 'research_type', 
-            'adviser_id', 'sdg', 'keywords', 'author_ids', 'panel_ids'
+            'sdg', 'keywords', 'author_ids'
         ]
 
         # Validate non-file fields
         missing_fields = [field for field in required_fields if field not in data or not data[field].strip()]
 
-       # Validate the manuscript (required)
+        # Validate the manuscript (required)
         file = request.files.get('file')
         if not file:
             return jsonify({"error": "Manuscript file is required."}), 400
@@ -50,15 +50,19 @@ def add_paper():
         # Check if authors array is empty
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
-            
-        # Check if panels array is empty
-        if 'panel_ids' in data and not request.form.getlist('panel_ids'):
-            missing_fields.append('panel_ids')
-            
-        # Check if keywords is empty
-        if 'keywords' in data and not data['keywords'].strip():
-            missing_fields.append('keywords')
+        
+        # Skip adviser and panel validation for specific research types
+        skip_adviser_and_panel = data['research_type'] in ['College-Driven', 'Extramural']
 
+        if not skip_adviser_and_panel:
+            # Check if adviser is missing
+            if 'adviser_id' not in data or not data['adviser_id'].strip():
+                missing_fields.append('adviser_id')
+            
+            # Check if panels array is empty
+            if 'panel_ids' in data and not request.form.getlist('panel_ids'):
+                missing_fields.append('panel_ids')
+            
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
         
@@ -101,10 +105,7 @@ def add_paper():
         philippine_tz = pytz.timezone('Asia/Manila')
         current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
         
-        # Determine if panel_id and adviser_id should be stored
-        skip_adviser_and_panel = data['research_type'] in ['College-Driven', 'Extramural']
-
-        # Skip adviser_id if the condition is met
+        # Adviser ID is None if skipped
         adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
 
         new_paper = ResearchOutput(
@@ -115,9 +116,9 @@ def add_paper():
             abstract=data['abstract'],
             date_approved=data['date_approved'],
             research_type=data['research_type'],
-            full_manuscript=file_path,  # Save the manuscript file path
-            extended_abstract=file_path_ea,  # This could be None
-            adviser_id=adviser_id,  # This will be None if skipped
+            full_manuscript=file_path,
+            extended_abstract=file_path_ea,
+            adviser_id=adviser_id,
             user_id=user_id,
             date_uploaded=current_datetime,
             view_count=0,
@@ -136,9 +137,8 @@ def add_paper():
                 )
                 db.session.add(new_sdg)
 
-        # Handle panels
-        # Skip panels if the research type is College-Driven or Extramural
-        if data['research_type'] not in ['College-Driven', 'Extramural']:
+        # Handle panels only if required
+        if not skip_adviser_and_panel:
             panel_ids = request.form.getlist('panel_ids')
             if panel_ids:
                 for panel_id in panel_ids:
@@ -147,7 +147,6 @@ def add_paper():
                         panel_id=panel_id
                     )
                     db.session.add(new_panel)
-
 
         # Handle keywords 
         keywords_str = data.get('keywords')
@@ -188,7 +187,7 @@ def add_paper():
                     new_author = ResearchOutputAuthor(
                         research_id=data['research_id'],
                         author_id=author_id,
-                        author_order=index  # Order based on sorted last names
+                        author_order=index
                     )
                     db.session.add(new_author)
 
@@ -213,7 +212,6 @@ def add_paper():
         }), 201
     
     except Exception as e:
-        # If anything fails, rollback database changes and delete the file if it exists
         db.session.rollback()
         if 'file_path' in locals() and os.path.exists(file_path):
             try:
