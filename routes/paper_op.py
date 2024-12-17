@@ -247,7 +247,7 @@ def update_paper(research_id):
         required_fields = [
             'college_id', 'program_id', 'title', 
             'abstract', 'date_approved', 'research_type', 
-            'adviser_id', 'sdg', 'keywords', 'author_ids', 'panel_ids'
+            'sdg', 'keywords', 'author_ids'
         ]
         missing_fields = [field for field in required_fields if field not in data]
 
@@ -255,13 +255,21 @@ def update_paper(research_id):
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
             
-        # Check if panels array is empty
-        if 'panel_ids' in data and not request.form.getlist('panel_ids'):
-            missing_fields.append('panel_ids')
-            
         # Check if keywords is empty
         if 'keywords' in data and not data['keywords'].strip():
             missing_fields.append('keywords')
+
+        # Skip adviser and panel validation for specific research types
+        skip_adviser_and_panel = data['research_type'] in ['COLLEGE-DRIVEN', 'EXTRAMURAL']
+
+        if not skip_adviser_and_panel:
+            # Check if adviser is missing
+            if 'adviser_id' not in data or not data['adviser_id'].strip():
+                missing_fields.append('adviser_id')
+            
+            # Check if panels array is empty
+            if 'panel_ids' in data and not request.form.getlist('panel_ids'):
+                missing_fields.append('panel_ids')
 
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
@@ -319,7 +327,11 @@ def update_paper(research_id):
         existing_paper.abstract = data['abstract']
         existing_paper.date_approved = data['date_approved']
         existing_paper.research_type = data['research_type']
-        existing_paper.adviser_id = data['adviser_id']
+
+        # Adviser ID is None if skipped
+        adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
+
+        existing_paper.adviser_id = adviser_id
 
         # Update SDGs
         # Delete existing SDGs
@@ -338,14 +350,15 @@ def update_paper(research_id):
         # Delete existing panels
         Panel.query.filter_by(research_id=research_id).delete()
         # Add new panels
-        panel_ids = request.form.getlist('panel_ids')
-        if panel_ids:
-            for panel_id in panel_ids:
-                new_panel = Panel(
-                    research_id=research_id,
-                    panel_id=panel_id
-                )
-                db.session.add(new_panel)
+        if not skip_adviser_and_panel:
+            panel_ids = request.form.getlist('panel_ids')
+            if panel_ids:
+                for panel_id in panel_ids:
+                    new_panel = Panel(
+                        research_id=research_id,
+                        panel_id=panel_id
+                    )
+                    db.session.add(new_panel)
 
         # Update keywords
         # Delete existing keywords
