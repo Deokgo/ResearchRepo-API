@@ -155,9 +155,9 @@ class MainDashboard:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        sub_dash2 = dbc.Container([
+        sub_dash2 = dbc.Container([ 
                 dbc.Row([
-                    dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='proceeding_conference_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
@@ -167,6 +167,13 @@ class MainDashboard:
                 dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+
+        sub_dash4 = dbc.Container([
+                dbc.Row([
+                    dbc.Col(dcc.Graph(id='nonscopus_scopus_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                    dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                ], style={"margin": "10px"})
+            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         # Add the DataTable
         data_table_section = dbc.Container([
@@ -196,6 +203,7 @@ class MainDashboard:
                         dbc.Row(sub_dash1),            # Sub dashboard 1
                         dbc.Row(sub_dash3),            # Sub dashboard 3
                         dbc.Row(sub_dash2),            # Sub dashboard 2
+                        dbc.Row(sub_dash4), 
                         dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
@@ -540,6 +548,77 @@ class MainDashboard:
         )
         
         return fig
+    
+    def scopus_line_graph(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        # Filter out rows where 'scopus' is 'N/A'
+        df = df[df['scopus'] != 'N/A']
+
+        # Group data by 'scopus' and 'year'
+        grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
+
+        # Create the line chart
+        fig_line = px.line(
+            grouped_df,
+            x='year',
+            y='Count',
+            color='scopus',
+            line_group='scopus',
+            color_discrete_map=self.palette_dict,
+            labels={'scopus': 'Scopus vs. Non-Scopus'}
+        )
+
+        # Update layout for the figure
+        fig_line.update_layout(
+            title='Scopus vs. Non-Scopus Publications Over Time',
+            xaxis_title='Year',
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400,
+            xaxis=dict(
+                tickformat="%d"  # Ensures years are displayed as whole numbers without commas
+            )
+        )
+
+        return fig_line
+
+
+    def publication_format_line_plot(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        # Filter out rows with 'unpublished' journals and 'PULLOUT' status
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
+
+        # Group data by 'journal' and 'year'
+        grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
+
+        # Create the line chart
+        fig_line = px.line(
+            grouped_df,
+            x='year',
+            y='Count',
+            color='journal',
+            line_group='journal',
+            color_discrete_map=self.palette_dict,
+            labels={'journal': 'Publication Format'}
+        )
+
+        # Update layout for the figure
+        fig_line.update_layout(
+            title='Publication Formats Over Time',
+            xaxis_title='Year',
+            yaxis_title='Number of Publications',
+            template='plotly_white',
+            height=400,
+            xaxis=dict(
+                tickformat="%d"  # Ensures years are displayed as whole numbers without commas
+            )
+        )
+
+        return fig_line
+
 
     def set_callbacks(self):
         """
@@ -696,3 +775,31 @@ class MainDashboard:
                     ])
                 ])
         #"""
+
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_line_graph', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value')
+            ]
+        )
+        def scopus_line_graph(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.scopus_line_graph(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('proceeding_conference_line_graph', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value')
+            ]
+        )
+        def publication_format_line_plot(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.publication_format_line_plot(selected_colleges, selected_status, selected_years)
