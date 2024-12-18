@@ -533,7 +533,7 @@ class ProgDashApp:
         return fig_bar
 
     def scopus_line_graph(self, selected_programs, selected_status, selected_years):  # Modified by Nicole Cabansag
-        df = db_manager.get_filtered_data(selected_programs, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
@@ -568,7 +568,7 @@ class ProgDashApp:
 
 
     def publication_format_line_plot(self, selected_programs, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_programs, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -817,7 +817,7 @@ class ProgDashApp:
         @self.dash_app.callback(
             Output('nonscopus_scopus_line_graph', 'figure'),
             [
-                Input('college', 'value'),
+                Input('program', 'value'),
                 Input('status', 'value'),
                 Input('years', 'value')
             ]
@@ -831,7 +831,7 @@ class ProgDashApp:
         @self.dash_app.callback(
             Output('proceeding_conference_line_graph', 'figure'),
             [
-                Input('college', 'value'),
+                Input('program', 'value'),
                 Input('status', 'value'),
                 Input('years', 'value')
             ]
