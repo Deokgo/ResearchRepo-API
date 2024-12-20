@@ -279,7 +279,7 @@ class DashApp:
         fig_line.update_layout(
             title=title,
             xaxis_title='Academic Year',
-            yaxis_title='Number of Publications',
+            yaxis_title='Number of Research Outputs',
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
             height=400
@@ -459,7 +459,7 @@ class DashApp:
 
         fig.update_layout(
             barmode='stack',
-            xaxis_title='Count',
+            xaxis_title='Number of Research Outputs',
             yaxis_title='SDG Targeted',
             title=title,
             yaxis=dict(
@@ -494,7 +494,7 @@ class DashApp:
         fig_bar.update_layout(
             title=title,
             xaxis_title=xaxis_title,
-            yaxis_title='Number of Publications',
+            yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400
         )
@@ -526,7 +526,7 @@ class DashApp:
         fig_bar.update_layout(
             title=title,
             xaxis_title=xaxis_title,
-            yaxis_title='Number of Publications',
+            yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400
         )
@@ -556,8 +556,8 @@ class DashApp:
         # Update layout for the figure
         fig_line.update_layout(
             title='Scopus vs. Non-Scopus Publications Over Time',
-            xaxis_title='Year',
-            yaxis_title='Number of Publications',
+            xaxis_title='Academic Year',
+            yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400,
             xaxis=dict(
@@ -592,8 +592,8 @@ class DashApp:
         # Update layout for the figure
         fig_line.update_layout(
             title='Publication Formats Over Time',
-            xaxis_title='Year',
-            yaxis_title='Number of Publications',
+            xaxis_title='Academic Year',
+            yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400,
             xaxis=dict(
