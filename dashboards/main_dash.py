@@ -175,25 +175,9 @@ class MainDashboard:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        # Add the DataTable
-        data_table_section = dbc.Container([
-            dbc.Row([
-                dbc.Col(
-                    dash_table.DataTable(
-                        id='data_table',
-                        columns=[{"name": col, "id": col} for col in db_manager.get_all_data().columns],
-                        data=db_manager.get_all_data().to_dict('records'),
-                        style_table={'height': '400px', 'overflowY': 'auto'},
-                        style_cell={'textAlign': 'left'},
-                        page_size=10,
-                    ),
-                    width=12
-                )
-            ], style={"margin": "10px"})
-        ], fluid=True, style={"display": "none", "border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-
         self.dash_app.layout = html.Div([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
+            dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
                     dbc.Col([
@@ -204,7 +188,6 @@ class MainDashboard:
                         dbc.Row(sub_dash3),            # Sub dashboard 3
                         dbc.Row(sub_dash2),            # Sub dashboard 2
                         dbc.Row(sub_dash4), 
-                        dbc.Row(data_table_section)   # Optional data table section at the bottom if needed
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])
@@ -733,10 +716,10 @@ class MainDashboard:
             return self.update_sdg_chart(selected_colleges, selected_status, selected_years)
         
         @self.dash_app.callback(
-            Output("data_table", "data"),
+            Output("shared-data-store", "data"),
             Input("data-refresh-interval", "n_intervals")
         )
-        def refresh_table_data_interval(n_intervals):
+        def refresh_shared_data_store(n_intervals):
             updated_data = db_manager.get_all_data()
             return updated_data.to_dict('records')
         

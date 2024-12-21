@@ -162,25 +162,11 @@ class ProgDashApp:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        data_table_section = dbc.Container([
-            dbc.Row([
-                dbc.Col(
-                    dash_table.DataTable(
-                        id='data_table',
-                        columns=[{"name": col, "id": col} for col in db_manager.get_all_data().columns],
-                        data=db_manager.get_all_data().to_dict('records'),
-                        style_table={'height': '400px', 'overflowY': 'auto'},
-                        style_cell={'textAlign': 'left'},
-                        page_size=10,
-                    ),
-                    width=12
-                )
-            ], style={"margin": "10px"})
-        ], fluid=True, style={"display": "none", "border": "2px solid #007bff", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-
         self.dash_app.layout = html.Div([
             # URL tracking
             dcc.Location(id='url', refresh=False),
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
+            dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
                     dbc.Col([
@@ -200,7 +186,6 @@ class ProgDashApp:
                         dbc.Row(sub_dash3),
                         dbc.Row(sub_dash2),
                         dbc.Row(sub_dash4),
-                        dbc.Row(data_table_section)
                     ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
                     dbc.Col(controls, width=2)       # Controls on the side
                 ])
@@ -741,25 +726,13 @@ class ProgDashApp:
         )
         def reset_filters(n_clicks):
             return [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
-            
-        """
-        @self.dash_app.callback(
-            Output('output-container', 'children'),
-            Input('common-button', 'n_clicks')
-        )
-        def update_output(n_clicks):
-            if n_clicks is None:
-                return "Button not clicked yet"
-            return f"Button clicked {n_clicks} times"
-        """
         
         # Callback to update content based on the user role and other URL parameters
         @self.dash_app.callback(
             [
                 Output('program-info', 'children'),
                 Output('text-display-container', 'children'),
-                Output('program', 'value'),  # Updated target matches dbc.Checklist
-                Output("data_table", "data"),  # Update the data in the DataTable
+                Output('program', 'value'),  
             ],
             Input('url', 'search')  # Capture the query string in the URL
         )
@@ -785,8 +758,6 @@ class ProgDashApp:
             value = [self.program] if self.program in self.default_programs else []
             print(f'VALUE: {value}')
 
-            updated_data = db_manager.get_all_data()
-
             # Return updated components
             return (
                 html.H3(f'Program Department: {self.program}', style={'textAlign': 'center', 'marginTop': '10px'}),
@@ -810,9 +781,16 @@ class ProgDashApp:
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
                     ])  # Your display card rows here
                 ]),
-                value,  # Set the program checklist value
-                updated_data.to_dict('records')
+                value
             )
+        
+        @self.dash_app.callback(
+            Output("shared-data-store", "data"),
+            Input("data-refresh-interval", "n_intervals")
+        )
+        def refresh_shared_data_store(n_intervals):
+            updated_data = db_manager.get_all_data()
+            return updated_data.to_dict('records')
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_line_graph', 'figure'),
