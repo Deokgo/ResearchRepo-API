@@ -117,6 +117,7 @@ from dashboards.sampledash import DashApp
 from dashboards.progchairdash import ProgDashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
+from dashboards.sdg_dash import SDG_Dash
 
 # Created by Jelly Mallari | Create Dash apps and link them to Flask app
 # Create Dash apps and link them to Flask app
@@ -132,6 +133,7 @@ def create_dash_apps(app):
             create_kg_sdg(app)
             DashApp(app)
             ProgDashApp(app)
+            SDG_Dash(app)
             # print("Dash apps created successfully.")
             # print("Available routes:")
             # for rule in app.url_map.iter_rules():
