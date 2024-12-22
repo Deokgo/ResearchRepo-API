@@ -9,6 +9,7 @@ import plotly.express as px
 import pandas as pd
 from wordcloud import WordCloud
 from dash.dash_table import DataTable
+from scipy.stats import linregress
 
 def default_if_empty(selected_values, default_values):
     """
@@ -101,10 +102,17 @@ class SDG_Dash:
             style={"border": "2px solid #0A438F", "display": "flex", "flexDirection": "column"}
         )
 
+        sdg_container = html.Div([
+
+            html.Div(id="sdg-cards", style={"display": "flex", "flex-wrap": "wrap", "justify-content": "center"})
+        ])
+
+    
+
         # Insert into main_dash layout
         main_dash = dbc.Container([
             dbc.Row([
-                dbc.Col([dcc.Graph(id="sdg_college"), html.Div("Hello")], width=8),
+                dbc.Col([dcc.Graph(id="sdg_college"),sdg_container], width=8),
                 dbc.Col([dcc.Graph(id="sdg_donut"), dcc.Graph(id="sdg_box")], width=4),
             ]), # Add the research table here
         ], fluid=True)
@@ -147,6 +155,14 @@ class SDG_Dash:
                         }))
         ])
     
+    # Define colors and icons based on trend
+    def get_arrow_style(self,trend):
+        if trend == "increasing":
+            return {"color": "green", "icon": "↑"}
+        elif trend == "decreasing":
+            return {"color": "red", "icon": "↓"}
+        else:
+            return {"color": "gray", "icon": "•••"}
 
     def create_sdg_college(self, selected_colleges, selected_status, selected_years):  
         # Fetch the filtered data from the db_manager
@@ -285,6 +301,86 @@ class SDG_Dash:
 
         # Return the figure for Dash
         return fig
+    
+    def create_sdg_card(self,selected_colleges, selected_status, selected_years):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df_copy = df.copy()
+
+        # Split SDG values and explode into separate rows
+        df_copy['sdg'] = df_copy['sdg'].str.split('; ')  # Split by semicolon and space
+        sdg_df = df_copy.explode('sdg')
+        print(sdg_df.columns)
+
+        # Group by SDG and Year to calculate counts
+        sdg_yearly_counts = sdg_df.groupby(['year', 'sdg']).size().unstack(fill_value=0)
+
+        # Define the range of years for the analysis
+        year_range = range(min(selected_years), max(selected_years) + 1)
+        sdg_yearly_counts = sdg_yearly_counts.reindex(year_range, fill_value=0)
+
+        # Ensure SDGs are sorted in order (e.g., SDG 1, SDG 2, ..., SDG 17)
+        sorted_sdgs = sorted(sdg_yearly_counts.columns, key=lambda x: int(x.split(' ')[-1]) if x.startswith('SDG') else x)
+
+        # Recalculate trends and percentage changes for all SDGs
+        sdg_trends = []
+        for sdg in sorted_sdgs:
+            sdg_group = sdg_yearly_counts[sdg].reset_index()
+            sdg_group.columns = ['Year', 'Count']
+
+            if len(sdg_group) > 1:
+                slope, _, _, _, _ = linregress(sdg_group["Year"], sdg_group["Count"])
+                average_count = sdg_group["Count"].mean()
+                trend = "increasing" if slope > 0 else "decreasing" if slope < 0 else "stagnant"
+                percent_change = (slope / average_count) * 100 if average_count != 0 else 0
+            else:
+                trend = "stagnant"
+                percent_change = 0
+
+            sdg_trends.append({
+                "SDG": sdg,
+                "Trend": trend,
+                "PercentChange": abs(percent_change),
+            })
+
+        # Create the legend
+        legend = html.Div([
+            html.Div([
+                html.Span(self.get_arrow_style("increasing")["icon"], style={"color": self.get_arrow_style("increasing")["color"], "font-size": "16px", "margin-right": "5px"}),
+                html.Span("Increasing", style={"font-size": "14px"})
+            ], style={"margin-right": "15px", "display": "inline-block"}),
+
+            html.Div([
+                html.Span(self.get_arrow_style("decreasing")["icon"], style={"color": self.get_arrow_style("decreasing")["color"], "font-size": "16px", "margin-right": "5px"}),
+                html.Span("Decreasing", style={"font-size": "14px"})
+            ], style={"margin-right": "15px", "display": "inline-block"}),
+
+            html.Div([
+                html.Span(self.get_arrow_style("stagnant")["icon"], style={"color": self.get_arrow_style("stagnant")["color"], "font-size": "16px", "margin-right": "5px"}),
+                html.Span("Stagnant", style={"font-size": "14px"})
+            ], style={"margin-right": "15px", "display": "inline-block"}),
+        ], style={"padding": "10px", "border-bottom": "1px solid #ccc", "margin-bottom": "15px"})
+
+        # Generate the SDG cards
+        sdg_cards = [
+            html.Div([
+                html.P(sdg["SDG"], style={"font-weight": "bold"}),
+                html.P(self.get_arrow_style(sdg["Trend"])["icon"], style={"color": self.get_arrow_style(sdg["Trend"])["color"], "font-size": "24px"}),
+                html.P(f"{sdg['PercentChange']:.2f}%", style={"font-size": "12px"})
+            ], style={
+                "border": "1px solid #ccc",
+                "border-radius": "5px",
+                "padding": "10px",
+                "text-align": "center",
+                "width": "100px",
+                "margin": "5px",
+                "display": "inline-block"
+            }) for sdg in sdg_trends
+        ]
+
+        # Combine legend and SDG cards
+        return  sdg_cards + [legend]
+
 
 
     
@@ -340,4 +436,16 @@ class SDG_Dash:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return self.create_sdg_treemap(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output("sdg-cards", "children"),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value')]
+        )
+        def update_sdg_cards(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_sdg_card(selected_colleges, selected_status, selected_years)
         
