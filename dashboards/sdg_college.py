@@ -10,6 +10,7 @@ import pandas as pd
 from wordcloud import WordCloud
 from dash.dash_table import DataTable
 from scipy.stats import linregress
+from urllib.parse import parse_qs, urlparse
 
 def default_if_empty(selected_values, default_values):
     """
@@ -17,12 +18,12 @@ def default_if_empty(selected_values, default_values):
     """
     return selected_values if selected_values else default_values
 
-class SDG_Dash:
-    def __init__(self, flask_app):
+class SDG_College:
+    def __init__(self, flask_app,title=None, college=None, program=None, **kwargs):
         """
         Initialize the MainDashboard class and set up the Dash app.
         """
-        self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/overall/', 
+        self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/college/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
         self.palette_dict = {
             'MITL': 'red',
@@ -31,10 +32,18 @@ class SDG_Dash:
             'CAS': 'blue',
             'CHS': 'orange'
         }
-        # Get default values
+
+        self.title = title
+        self.college = college
+        self.program = program
+
+        self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
+        self.default_programs = []
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+
+
         self.create_layout()
         self.set_callbacks()
 
@@ -49,6 +58,20 @@ class SDG_Dash:
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
+                    value=[],
+                    inline=True,
+                ),
+            ],
+            className="mb-4",
+            
+        )
+
+        program = html.Div(
+            [
+                dbc.Label("Select Program:", style={"color": "#08397C"}),
+                dbc.Checklist(
+                    id="program",
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values_by('program_id','college_id',self.college)],
                     value=[],
                     inline=True,
                 ),
@@ -96,7 +119,7 @@ class SDG_Dash:
         controls = dbc.Card(
             [
                 html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
-                college, status, slider, button
+                college, program, status, slider, button
             ],
             body=True,
             style={"border": "2px solid #0A438F", "display": "flex", "flexDirection": "column"}
@@ -160,9 +183,9 @@ class SDG_Dash:
         else:
             return {"color": "gray", "icon": "•••"}
 
-    def create_sdg_college(self, selected_colleges, selected_status, selected_years):  
+    def create_sdg_college(self, selected_programs, selected_status, selected_years):  
         # Fetch the filtered data from the db_manager
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         df_copy = df.copy()
         
         # Split SDG values and explode into separate rows
@@ -396,9 +419,42 @@ class SDG_Dash:
         """
         Set up the callback functions for the dashboard.
         """
+        @self.dash_app.callback(
+        Output('college', 'value'),  # Update the checklist value
+        Input('url', 'search'),  # Listen to URL changes
+        prevent_initial_call=True   
+        )
+        def update_college_from_url(search):
+            if not search:
+                return self.default_colleges  # Default value if no parameters are provided
+
+            # Parse the URL query parameters
+            params = parse_qs(urlparse(search).query)
+
+            # Extract the `college` parameter if it exists
+            college_values = params.get('college', self.default_colleges)  # Returns a list or default
+            self.college = college_values  # Dynamically update self.college
+
+            return college_values
+        
+        @self.dash_app.callback(
+        Output('program', 'options'),  # Update the program options based on the selected college
+        Input('college', 'value')  # Trigger when the college checklist changes
+        )
+        def update_program_options(selected_colleges):
+            # If no college is selected, return empty options
+            if not selected_colleges:
+                return []
+
+            # Get the programs for the selected college
+            program_options = db_manager.get_unique_values_by('program_id', 'college_id', selected_colleges[0])
+
+            # Return the options for the program checklist
+            return [{'label': program, 'value': program} for program in program_options]
+        
         # Callback for reset button
         @self.dash_app.callback(
-            [Output('college', 'value'),
+            [Output('program', 'value'),
             Output('status', 'value'),
             Output('years', 'value')],
             [Input('reset_button', 'n_clicks')],
@@ -410,50 +466,50 @@ class SDG_Dash:
         
         @self.dash_app.callback(
             Output('sdg_college', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value')]
         )
-        def update_sdg_college(selected_colleges, selected_status, selected_years):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_sdg_college(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_college(selected_colleges, selected_status, selected_years)
+            return self.create_sdg_college(selected_programs, selected_status, selected_years)
         
 
         @self.dash_app.callback(
             Output('sdg_donut', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value')]
         )
-        def update_sdg_donut(selected_colleges, selected_status, selected_years):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_sdg_donut(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_donut(selected_colleges, selected_status, selected_years)
+            return self.create_sdg_donut(selected_programs, selected_status, selected_years)
         
         @self.dash_app.callback(
             Output('sdg_box', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value')]
         )
-        def update_sdg_box(selected_colleges, selected_status, selected_years):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_sdg_box(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_treemap(selected_colleges, selected_status, selected_years)
+            return self.create_sdg_treemap(selected_programs, selected_status, selected_years)
         
         @self.dash_app.callback(
             Output("sdg-cards", "children"),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value')]
         )
-        def update_sdg_cards(selected_colleges, selected_status, selected_years):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_sdg_cards(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_card(selected_colleges, selected_status, selected_years)
+            return self.create_sdg_card(selected_programs, selected_status, selected_years)
         
