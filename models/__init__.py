@@ -20,6 +20,8 @@ from .keywords import Keywords
 from .panels import Panel
 from .sdg import SDG
 from .visitor import Visitor
+from .category import Category
+from .research_category import ResearchCategory
 
 def check_db(db_name, user, password, host='localhost', port='5432'):
     cursor = None  # Initialize cursor outside try block
