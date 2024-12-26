@@ -3,12 +3,19 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG
 from services.data_fetcher import ResearchDataFetcher
+from collections import Counter
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
 
 class DatabaseManager:
     def __init__(self, database_uri):
         self.engine = create_engine(database_uri)
         self.Session = sessionmaker(bind=self.engine)
         self.df = None
+        self.stop_words = set(stopwords.words('english'))
 
         self.get_all_data()
 
@@ -75,7 +82,8 @@ class DatabaseManager:
                 Conference.conference_venue,
                 Conference.conference_title,
                 Conference.conference_date,
-                latest_status_subquery.c.status
+                latest_status_subquery.c.status,
+                ResearchOutput.abstract
             ).join(College, ResearchOutput.college_id == College.college_id) \
             .join(Program, ResearchOutput.program_id == Program.program_id) \
             .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -109,11 +117,17 @@ class DatabaseManager:
                 'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
                 'status': row.status if pd.notnull(row.status) else "READY",
-                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country'
+                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
+                'abstract': row.abstract if pd.notnull(row.abstract) else '',
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame
             self.df = pd.DataFrame(data)
+            # Combine the title and concatenated_keywords columns
+            self.df['combined'] = self.df['title'].astype(str) + ' ' + self.df['concatenated_keywords'].astype(str) + ' ' + self.df['abstract'].astype(str)
+
+            # Apply the function to extract top nouns
+            self.df['top_nouns'] = self.df['combined'].apply(lambda x: self.top_nouns(x, 10))
 
         finally:
             session.close()
@@ -234,3 +248,45 @@ class DatabaseManager:
             return filtered_df
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+        
+    def top_nouns(self,text, top_n=10):
+        # Remove punctuation using regex
+        text = re.sub(r'[^\w\s]', '', text)  # This removes punctuation (e.g. % / \ < > etc.)
+
+        # Tokenize the text
+        words = word_tokenize(text.lower())  # Tokenize and convert to lowercase
+
+        # Remove stopwords and words with less than 3 letters
+        words = [word for word in words if word not in self.stop_words and len(word) >= 3]
+
+        # Get part-of-speech tags for the words
+        pos_tags = pos_tag(words)
+
+        # Filter for nouns (NN, NNS, NNP, NNPS)
+        nouns = [word for word, tag in pos_tags if tag in ['NN', 'NNS', 'NNP', 'NNPS']]
+
+        # Count the occurrences of the nouns
+        word_counts = Counter(nouns)
+        top_n_words = word_counts.most_common(top_n)
+
+        # Convert the top_n_words to a nested list format [noun, count]
+        top_n_words_nested = [word for word, _ in top_n_words]
+
+        return top_n_words_nested # Return the top n most common nouns as a nested list
+    
+
+    def get_words(self,selected_colleges, selected_status, selected_years):
+        if self.df is not None:
+            df_copy = self.df.copy()
+
+            
+            filtered_df = df_copy[
+                (df_copy['college_id'].isin(selected_colleges)) & 
+                (df_copy['status'].isin(selected_status)) & 
+                (df_copy['year'].between(selected_years[0], selected_years[1]))
+            ]
+            return filtered_df
+        else:
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+
+        

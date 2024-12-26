@@ -491,7 +491,7 @@ class PublicationDash:
         wordcloud = WordCloud(
             background_color='white',
             width=1600,
-            height=800,
+            height=1000,
             max_words=200
         ).generate(keywords_string)
 
@@ -505,8 +505,7 @@ class PublicationDash:
         fig.update_layout(
             title="Keywords Word Cloud",
             xaxis=dict(showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False, zeroline=False),
-            margin=dict(l=20, r=20, t=50, b=20)
+            yaxis=dict(showgrid=False, zeroline=False)
         )
 
         return fig

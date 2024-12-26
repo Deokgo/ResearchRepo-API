@@ -6,6 +6,20 @@ import plotly.express as px
 import pandas as pd
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
+from collections import Counter
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
+from wordcloud import WordCloud
+
+# Download the necessary NLTK data
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
+nltk.download('punkt_tab')
 
 def default_if_empty(selected_values, default_values):
     """
@@ -31,6 +45,7 @@ class SDG_Map:
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+        
         self.create_layout()
         self.set_callbacks()
 
@@ -133,29 +148,6 @@ class SDG_Map:
             className="d-grid gap-2",
         )
 
-        controls = dbc.Card(
-            [
-                html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
-                college, status, slider, button
-            ],
-            body=True,
-            style={"border": "2px solid #0A438F", "display": "flex", "flexDirection": "column"}
-        )
-
-        sdg_container = html.Div(
-            [
-                html.Div(id="sdg-cards", style={"display": "flex", "flex-wrap": "wrap", "justify-content": "center", "gap": "10px"})
-            ]
-        )
-
-        # Insert into main_dash layout
-        main_dash = dbc.Container([
-            dbc.Row([
-                dbc.Col([dcc.Graph(id="sdg_college"), sdg_container], width=8, style={"gap": "10px", "display": "flex", "flex-wrap": "wrap"}),
-                dbc.Col([dcc.Graph(id="sdg_donut"), dcc.Graph(id="sdg_box")], width=4, style={"gap": "10px", "display": "flex", "flexDirection": "column"}),
-            ]),  # Add the research table here
-        ], fluid=True)
-
 
         self.dash_app.layout = html.Div(
             [
@@ -166,16 +158,15 @@ class SDG_Map:
                                 # Sidebar column
                                 dbc.Col(
                                     [
-                                        html.H2("sample",id="chosen-sdg"),
-                                        html.H3("Sample Subtitle Here",id="chosen-sdg-label"),
-                                        html.Div("This dashboard tracks key metrics like research output, regional performance, and emerging technologies to inform decision-making and accelerate progress towards a more sustainable and innovative future.", style={"color": "black"}),
+                                        html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
                                         college,
                                         status,
-                                        slider
+                                        slider,
+                                        button
                                     ],
                                     width=sidebar_size,
                                     style={
-                                        "background": "#e8ceb0",
+                                        "background": "#d3d8db",
                                         "height": "100vh",  # Full-height sidebar
                                         "position": "fixed",  # Fix it on the left
                                         "top": 0,
@@ -187,21 +178,70 @@ class SDG_Map:
                                 dbc.Col(
                                     [
                                         sdgs,
-                                        dcc.Graph(id="sdg_map"),
+                                        dbc.Container([
+                                            html.H4("sample",id="chosen-sdg"),
+                                            html.Div("This dashboard tracks key metrics like research output, regional performance, and emerging technologies to inform decision-making and accelerate progress towards a more sustainable and innovative future.")
+                                        ], style={"padding":"20px"}),
+                                        
+                                        dcc.Tabs(
+                                            id="sdg-tabs",
+                                            value="sdg-map-tab",  # Default selected tab
+                                            children=[
+                                                dcc.Tab(
+                                                    label="SDG Map",
+                                                    value="sdg-map-tab",
+                                                    children=[
+                                                        dcc.Loading(
+                                                            id="loading-sdg-map",
+                                                            type="circle",  # Type of spinner
+                                                            children=[
+                                                                dcc.Graph(id="sdg_map")
+                                                            ]
+                                                        )
+                                                    ]
+                                                ),
+                                                dcc.Tab(
+                                                    label="Top Words",
+                                                    value="sdg-words-tab",
+                                                    children=[
+                                                        dcc.Loading(
+                                                        id="loading-word-cloud",
+                                                        type="circle",
+                                                        children=[
+                                                            dcc.Graph(id="word-cloud"),
+                                                            ]
+                                                        ),
+                                                    ]
+                                                ),
+                                            ]
+                                        ),
                                         dbc.Row([
                                             dbc.Col([
-                                                dcc.Graph(id="sdg-trend"),
-                                                dcc.Graph(id="sdg-per-college")
-                                            ],width=6),
+                                                dcc.Loading(
+                                                    id="loading-sdg-per-college",
+                                                    type="circle",
+                                                    children=[
+                                                        dcc.Graph(id="sdg-per-college")
+                                                    ]
+                                                )
+                                            ], width=6),
                                             dbc.Col(
-                                                dcc.Graph(id="word-cloud"),
+                                                [
+                                                    dcc.Loading(
+                                                        id="loading-sdg-trend",
+                                                        type="circle",
+                                                        children=[
+                                                            dcc.Graph(id="sdg-trend")
+                                                        ]
+                                                    )
+                                                ],
                                                 width=6
                                             )
                                         ])
-                                        
                                     ],
                                     width={"size": 10, "offset": sidebar_size},  # Offset for the sidebar
                                 ),
+
                             ]
                         )
                     ],
@@ -254,16 +294,14 @@ class SDG_Map:
                 filtered_df,
                 locations="Country",  # Column with country names
                 locationmode="country names",  # Match with full country names
-                title=f"Geochart of {sdg_dropdown_value} Publications by Country",
-                color="sdg",  # Use SDG as the color indicator
+                title=f"Geochart of {sdg_dropdown_value} Publications by Country",  # Use SDG as the color indicator
                 hover_data={  # Show SDG and publication count in hover
                     "Publication Count": True,
                     "sdg": True,  # Show SDG in hover
                     "Country": False,  # Country is already represented visually
                 }
             )
-
-            
+ 
         else:
             # Create a geochart without filtering by SDG
             fig = px.choropleth(
@@ -280,8 +318,9 @@ class SDG_Map:
         # Update layout for better visualization
         fig.update_layout(
                 geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
-                coloraxis_showscale=False,  # Hide the color scale if not needed
-                height=700,  # Adjust the height as needed (e.g., 800px)  # Adjust the width as needed (e.g., 1200px)
+                coloraxis_showscale=False,  
+                height=500,
+                width = 1200  
             )
 
         # Return the figure object
@@ -316,7 +355,7 @@ class SDG_Map:
                 sdg_trend,
                 x='year',
                 y='count',
-                title=f'SDG {sdg_dropdown_value} Trend Over Time',
+                title=f'{sdg_dropdown_value} Trend Over Time',
                 labels={'year': 'Year', 'count': 'Frequency'},
                 markers=True
             )
@@ -338,7 +377,7 @@ class SDG_Map:
                 z='count',
                 color_continuous_scale='Blues',
                 title="SDG Trends Over Time",
-                labels={'year': 'Year', 'sdg': 'SDG', 'count': 'Frequency'}
+                labels={'year': 'Year', 'sdg': 'SDG','count':""}
             )
             fig.update_layout(
                 xaxis_title="Year",
@@ -423,6 +462,60 @@ class SDG_Map:
 
         return fig
 
+    
+
+    def get_word_cloud(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        if sdg_dropdown_value !="ALL":
+            # If sdg contains strings like "SDG1; SDG2"
+            df['sdg'] = df['sdg'].str.split('; ')  # Split by semicolon and space
+            sdg_df = df.explode('sdg')
+
+            # Filter the DataFrame for the single SDG value
+            filtered_sdg_df = sdg_df[sdg_df['sdg'] == str(sdg_dropdown_value)]
+
+            # Concatenate all nouns into a single string
+            all_nouns = ' '.join(
+                [' '.join(nouns) if isinstance(nouns, list) else '' for nouns in filtered_sdg_df['top_nouns']]
+            )
+        else:
+            # Concatenate all nouns into a single string
+            all_nouns = ' '.join([' '.join(nouns) if isinstance(nouns, list) else '' for nouns in df['top_nouns']])
+
+        # Generate the word cloud with higher resolution
+        wordcloud = WordCloud(
+            background_color='white',
+            width=1600,
+            height=800,
+            max_words=200,
+            stopwords=set(stopwords.words('english')), # Increase scale for higher resolution
+        ).generate(all_nouns)
+
+        # Create a Plotly figure
+        fig = go.Figure()
+
+        # Add the word cloud image to the figure
+        fig.add_trace(go.Image(z=wordcloud.to_array()))
+
+        # Update layout
+        fig.update_layout(
+            title="Keywords Word Cloud",
+            xaxis=dict(showgrid=False, zeroline=False, visible=False),
+            yaxis=dict(showgrid=False, zeroline=False, visible=False),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        return fig
+
+    def update_figures(self,selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        fig0 = self.create_sdg_map(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        fig1 = self.create_sdg_trend(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        fig2 = self.create_sdg_bar(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+
+        return fig0,fig1,fig2
+
         
     def set_callbacks(self):
         """
@@ -441,8 +534,7 @@ class SDG_Map:
         
         # Callback to update the header based on selected SDG
         @self.dash_app.callback(
-            [Output("chosen-sdg", "children"),
-             Output("chosen-sdg-label", "children")],
+            Output("chosen-sdg", "children"),
             [Input("sdg-dropdown", "value")]
         )
         def update_header(selected_sdg):
@@ -470,48 +562,38 @@ class SDG_Map:
                 "SDG 16": "Peace, Justice and Strong Institutions",
                 "SDG 17": "Partnerships for the Goals"
             }
-            title="Overall SDG" if selected_sdg=="ALL" else selected_sdg
+            title="Overall SDG" if selected_sdg=="ALL" else selected_sdg+":"
                 
             caption = label.get(selected_sdg, "") if selected_sdg else ""
 
-            return title, caption
+            return f"{title} {caption}"
         
-        @self.dash_app.callback(
+        @self.dash_app.callback([
             Output('sdg_map', 'figure'),
-            [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
-        )
-        def update_sdg_map(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_map(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
-        
-
-        @self.dash_app.callback(
             Output('sdg-per-college', 'figure'),
-            [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
-        )
-        def update_sdg_trend(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_trend(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
-        
-        @self.dash_app.callback(
             Output('sdg-trend', 'figure'),
+            ],
             [Input('college', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_sdg_bar(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        def update_all(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_bar(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            return self.update_figures(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        
+       
+        @self.dash_app.callback(
+            Output('word-cloud', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_figure(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
