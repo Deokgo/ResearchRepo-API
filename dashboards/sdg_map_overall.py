@@ -243,6 +243,11 @@ class SDG_Map:
                                 ),
 
                             ]
+                        ),
+                        dcc.Interval(
+                            id='interval-component',
+                            interval=60 * 1000,  # Update every 1 minute (optional)
+                            n_intervals=0
                         )
                     ],
                     fluid=True,
