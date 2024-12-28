@@ -122,7 +122,8 @@ def add_paper():
             user_id=user_id,
             date_uploaded=current_datetime,
             view_count=0,
-            download_count=0
+            download_count=0, 
+            unique_views=0
         )
         db.session.add(new_paper)
         db.session.commit()
@@ -487,15 +488,33 @@ def increment_views(research_id):
         view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
         if is_increment:
             if view_count:
-                if view_count.view_count is None:
-                    updated_views = 1  # Start from 1 if None
+                if view_count.view_count == 0:
+                    view_count.view_count = 1  # Start from 1 if None
+                    view_count.unique_views = 1  # Initialize unique views to 1
+                    db.session.commit()
+
                 else:
                     updated_views = int(view_count.view_count) + 1
+                    view_count.view_count = updated_views
+                    db.session.commit()
 
-                view_count.view_count = updated_views
-                db.session.commit()
+                
             else:
                 return jsonify({"message": "Record not found"}), 404
+            
+            # Get the current user's identity
+            user_id = get_jwt_identity()
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_id,
+                    table_name='Research_Output',
+                    record_id=research_id,
+                    operation='VIEW',
+                    action_desc='Viewed research paper'
+                )
+            except Exception as audit_error:
+                print(f"Audit trail logging failed: {audit_error}")
+                # Continue execution even if audit trail fails
 
         return jsonify({
             "message": "View count updated",
@@ -531,12 +550,27 @@ def increment_downloads(research_id):
             download_count.download_count = updated_downloads
             db.session.commit()
 
+            # Get the current user's identity
+            user_id = get_jwt_identity()
+            try:
+                auth_services.log_audit_trail(
+                    user_id=user_id,
+                    table_name='Research_Output',
+                    record_id=research_id,
+                    operation='DOWNLOAD',
+                    action_desc='Downloaded research paper'
+                )
+            except Exception as audit_error:
+                print(f"Audit trail logging failed: {audit_error}")
+                # Continue execution even if audit trail fails
+
             return jsonify({
                 "message": "Download count incremented", 
                 "updated_downloads": updated_downloads
             }), 200
         else:
             return jsonify({"message": "Record not found"}), 404
+            
     
     except Exception as e:
         db.session.rollback()

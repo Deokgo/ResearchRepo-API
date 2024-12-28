@@ -16,3 +16,4 @@ class ResearchOutput(db.Model):
     view_count = db.Column(db.Integer)
     download_count = db.Column(db.Integer)
     date_uploaded = db.Column(db.DateTime, nullable=False)
+    unique_views = db.Column(db.Integer)
