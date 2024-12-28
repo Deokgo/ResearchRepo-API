@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, Category, ResearchCategory
 from services.data_fetcher import ResearchDataFetcher
 from collections import Counter
 import re
@@ -63,6 +63,16 @@ class DatabaseManager:
                 func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
             ).group_by(SDG.research_id).subquery()
 
+            # Subquery to get the research areas for each publication
+            area_subquery = session.query(
+                ResearchCategory.research_id,
+                func.string_agg(
+                    func.concat(
+                        Category.category_name), '; '
+                ).label('concatenated_areas')
+            ).join(Category, ResearchCategory.category_id == Category.category_id) \
+            .group_by(ResearchCategory.research_id).subquery()
+
             # Main query
             query = session.query(
                 College.college_id,
@@ -83,6 +93,7 @@ class DatabaseManager:
                 Conference.conference_title,
                 Conference.conference_date,
                 latest_status_subquery.c.status,
+                area_subquery.c.concatenated_areas,
                 ResearchOutput.abstract
             ).join(College, ResearchOutput.college_id == College.college_id) \
             .join(Program, ResearchOutput.program_id == Program.program_id) \
@@ -92,6 +103,7 @@ class DatabaseManager:
             .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
             .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
             .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
+            .outerjoin(area_subquery, ResearchOutput.research_id ==  area_subquery.c.research_id) \
             .distinct()
 
             result = query.all()
@@ -119,6 +131,7 @@ class DatabaseManager:
                 'status': row.status if pd.notnull(row.status) else "READY",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'abstract': row.abstract if pd.notnull(row.abstract) else '',
+                'concatenated_areas': row.concatenated_areas if pd.notnull(row.concatenated_areas) else 'No Research Areas',
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame

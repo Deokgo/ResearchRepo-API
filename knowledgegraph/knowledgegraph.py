@@ -27,7 +27,7 @@ def create_kg_sdg(flask_app):
     for index, row in df.iterrows():
         research_id = row['research_id']
         study = row['title']
-        sdg_list = row['sdg'].split(';')  # Split SDGs by ';' delimiter
+        sdg_list = row['concatenated_areas'].split(';')  # Split SDGs by ';' delimiter
         college_id = row['college_id']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
@@ -46,7 +46,7 @@ def create_kg_sdg(flask_app):
             connected_nodes[sdg].append(research_id)
             G.add_edge(sdg, research_id)
 
-    pos = nx.spring_layout(G, k=6, iterations=200, weight='weight')
+    pos = nx.kamada_kawai_layout(G)
     fixed_pos = {node: pos[node] for node in G.nodes()}
 
     # Function to create traces for the graph
@@ -85,7 +85,7 @@ def create_kg_sdg(flask_app):
                     size = 60 + (filtered_count - min_connections) / (max_connections - min_connections) * (100 - 60)
                 else:
                     size = 60  # If all nodes have the same number of connections
-                node_size.append(size)
+                node_size.append(size * 0.75)
                 node_labels.append(node)
             else:
                 # Update hover text with college_id, program_name, concatenated_authors, and year
@@ -171,16 +171,16 @@ def create_kg_sdg(flask_app):
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=50),
-                        width=1200,
-                        height=800,
+                        margin=dict(b=0, l=0, r=0, t=25),
+                        width=1300,  # Increased width
+                        height=1200,  # Increased height
                         xaxis=dict(showgrid=False, zeroline=False),
                         yaxis=dict(showgrid=False, zeroline=False),
                         transition=dict(duration=500),  # Add transition for animation
                     )
                 }
             )
-        ], style={'width': '75%', 'display': 'inline-block', 'padding': '20px'})
+        ], style={'width': '75%', 'display': 'flex', 'justifyContent': 'center', 'flexDirection': 'column'})
     ])
 
     # Callback to handle initial graph display, filters, and node click events
@@ -248,8 +248,8 @@ def create_kg_sdg(flask_app):
                 showlegend=False,
                 hovermode='closest',
                 margin=dict(b=0, l=0, r=0, t=50),
-                width=1200,
-                height=800,
+                width=1300,  # Increased width
+                height=1200,  # Increased height
                 xaxis=dict(showgrid=False, zeroline=False),
                 yaxis=dict(showgrid=False, zeroline=False),
                 transition=dict(duration=500),  
