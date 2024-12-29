@@ -96,17 +96,26 @@ class MainDashboard:
             className="d-grid gap-2",
         )
 
-        controls = dbc.Card(
-            [
-                html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
-                college,
-                status,
-                slider,
-                button,
-            ],
-            body=True,
-            style={"border": "2px solid #0A438F", "height": "95vh", "display": "flex", "flexDirection": "column"}
+        controls = dbc.Col(
+            dbc.Card(
+                [
+                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
+                    college,
+                    status,
+                    slider,
+                    button,
+                ],
+                body=True,
+                style={
+                    "background": "#d3d8db",
+                    "height": "100vh",  # Full-height sidebar
+                    "position": "sticky",  # Sticky position instead of fixed
+                    "top": 0,
+                    "padding": "20px",
+                },
+            )
         )
+
 
         text_display = dbc.Container([
             dbc.Row([
@@ -180,19 +189,32 @@ class MainDashboard:
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
+                    dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                     dbc.Col([
-                        # Display main metrics and dashboards
-                        dbc.Row(text_display),         # Display `text_display` at the top
-                        dbc.Row(main_dash),            # Main dashboard section
-                        dbc.Row(sub_dash1),            # Sub dashboard 1
-                        dbc.Row(sub_dash3),            # Sub dashboard 3
-                        dbc.Row(sub_dash2),            # Sub dashboard 2
-                        dbc.Row(sub_dash4), 
-                    ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
-                    dbc.Col(controls, width=2)       # Controls on the side
-                ])
-            ], fluid=True, className="dbc dbc-ag-grid", style={"overflow": "hidden"})
-        ], style={"padding": "20px"})
+                        dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
+                        dbc.Row(main_dash, style={"flex": "2"}),    # Main dashboard section
+                        dbc.Row(sub_dash1, style={"flex": "1"}),    # Sub dashboard 1
+                        dbc.Row(sub_dash3, style={"flex": "1"}),    # Sub dashboard 3
+                        dbc.Row(sub_dash2, style={"flex": "1"}),    # Sub dashboard 2
+                        dbc.Row(sub_dash4, style={"flex": "1"}),    # Sub dashboard 4
+                    ], width=10, style={
+                        "height": "100%",
+                        "display": "flex",
+                        "flex-direction": "column",
+                        "overflow-y": "auto",  # Add vertical scrolling
+                        "transform": "scale(0.95)",  # Reduce size to 95%
+                        "transform-origin": "0 0",  # Ensure scaling starts from the top-left corner
+                    }),
+                ], style={"height": "100%"}),
+            ], fluid=True, className="dbc dbc-ag-grid", style={
+                "height": "95vh", 
+                "margin": "0", 
+                "padding": "0", 
+                "overflow": "hidden"  # Prevent content from overflowing the container
+            })
+        ], style={"height": "95vh", "margin": "0", "padding": "0", "overflow": "hidden"})
+
+
 
     def create_display_card(self, title, value):
         """

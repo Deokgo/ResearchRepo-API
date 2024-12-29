@@ -113,8 +113,8 @@ from dashboards.main_dashboard import create_main_dashboard
 from dashboards.main_dash import MainDashboard
 from dashboards.pub_dash import PublicationDash
 from knowledgegraph.knowledgegraph import create_kg_sdg
-from dashboards.sampledash import DashApp
-from dashboards.progchairdash import ProgDashApp
+from dashboards.college_dash import CollegeDashApp
+from dashboards.program_dash import ProgDashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
 from dashboards.sdg_dash import SDG_Dash
@@ -133,7 +133,7 @@ def create_dash_apps(app):
             PublicationDash(app)
             create_main_dashboard(app)
             create_kg_sdg(app)
-            DashApp(app)
+            CollegeDashApp(app)
             ProgDashApp(app)
             SDG_Dash(app)
             SDG_College(app)

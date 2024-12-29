@@ -14,11 +14,11 @@ def default_if_empty(selected_values, default_values):
     return selected_values if selected_values else default_values
 
 
-class DashApp:
+class ProgDashApp:
     def __init__(self, server, title=None, college=None, program=None, **kwargs):
         self.dash_app = Dash(__name__,
                              server=server,
-                             url_base_pathname=kwargs.get('url_base_pathname', '/sample/'),
+                             url_base_pathname=kwargs.get('url_base_pathname', '/progchairdash/'),
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
         self.title = title
         self.college = college
@@ -60,13 +60,14 @@ class DashApp:
             [
                 dbc.Label("Select Program:", style={"color": "#08397C"}),
                 dbc.Checklist(
-                    id="program",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values_by('program_id','college_id',self.college)],
-                    value=[],
+                    id="program",  # Updated ID
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values_by('program_id', 'college_id', self.college)],
+                    value=self.program if self.program else [],
                     inline=True,
                 ),
             ],
             className="mb-4",
+            style={"display": "none", "opacity": "0.5"},
         )
 
         status = html.Div(
@@ -118,7 +119,13 @@ class DashApp:
                 button,
             ],
             body=True,
-            style={"border": "2px solid #0A438F", "height": "95vh", "display": "flex", "flexDirection": "column"}
+                style={
+                    "background": "#d3d8db",
+                    "height": "100vh",  # Full-height sidebar
+                    "position": "sticky",  # Sticky position instead of fixed
+                    "top": 0,
+                    "padding": "20px",
+                },
         )
 
         text_display = dbc.Container([
@@ -168,6 +175,7 @@ class DashApp:
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
+                    dbc.Col(controls, width=2, style={"height": "100%"}),      # Controls on the side
                     dbc.Col([
                         html.H1(self.title),
                         html.P(self.college),
@@ -179,17 +187,28 @@ class DashApp:
                         html.Div(id='college-info'),
                         html.Div(id='program-info'),
                         # Contets of the Dash App
-                        dbc.Row(text_display),
-                        dbc.Row(main_dash),
-                        dbc.Row(sub_dash1),
-                        dbc.Row(sub_dash3),
-                        dbc.Row(sub_dash2),
-                        dbc.Row(sub_dash4),
-                    ], width=10, style={"transform": "scale(0.9)", "transform-origin": "0 0"}),
-                    dbc.Col(controls, width=2)       # Controls on the side
-                ])
-            ], fluid=True, className="dbc dbc-ag-grid", style={"overflow": "hidden"})
-        ])
+                        dbc.Row(text_display, style={"flex": "1"}),
+                        dbc.Row(main_dash, style={"flex": "2"}),
+                        dbc.Row(sub_dash1, style={"flex": "1"}),
+                        dbc.Row(sub_dash3, style={"flex": "1"}),
+                        dbc.Row(sub_dash2, style={"flex": "1"}),
+                        dbc.Row(sub_dash4, style={"flex": "1"}),
+                    ], width=10, style={
+                        "height": "100%",
+                        "display": "flex",
+                        "flex-direction": "column",
+                        "overflow-y": "auto",  # Add vertical scrolling
+                        "transform": "scale(0.95)",  # Reduce size to 95%
+                        "transform-origin": "0 0",  # Ensure scaling starts from the top-left corner
+                    }),
+                ], style={"height": "100%"}),
+            ], fluid=True, className="dbc dbc-ag-grid", style={
+                "height": "95vh", 
+                "margin": "0", 
+                "padding": "0", 
+                "overflow": "hidden"  # Prevent content from overflowing the container
+            })
+        ], style={"height": "95vh", "margin": "0", "padding": "0", "overflow": "hidden"})
 
     def create_display_card(self, title, value):
         """
@@ -515,7 +534,7 @@ class DashApp:
         )
 
         return fig_bar
-    
+
     def scopus_line_graph(self, selected_programs, selected_status, selected_years):  # Modified by Nicole Cabansag
         df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         
@@ -539,7 +558,7 @@ class DashApp:
         # Update layout for the figure
         fig_line.update_layout(
             title='Scopus vs. Non-Scopus Publications Over Time',
-            xaxis_title='Academic Year',
+            xaxis_title='Year',
             yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400,
@@ -575,7 +594,7 @@ class DashApp:
         # Update layout for the figure
         fig_line.update_layout(
             title='Publication Formats Over Time',
-            xaxis_title='Academic Year',
+            xaxis_title='Year',
             yaxis_title='Number of Research Outputs',
             template='plotly_white',
             height=400,
@@ -717,7 +736,6 @@ class DashApp:
 
         @self.dash_app.callback(
             [
-                Output("program", "value"),
                 Output("status", "value"),
                 Output("years", "value"),
             ],
@@ -725,59 +743,64 @@ class DashApp:
             prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
         
         # Callback to update content based on the user role and other URL parameters
         @self.dash_app.callback(
             [
-                #Output('user-role', 'children'),
-                Output('college-info', 'children'),
-                #Output('program-info', 'children'),
-                Output('text-display-container', 'children')
+                Output('program-info', 'children'),
+                Output('text-display-container', 'children'),
+                Output('program', 'value'),  
             ],
             Input('url', 'search')  # Capture the query string in the URL
         )
         def update_user_role_and_info(url_search):
-            if url_search is None or url_search == '':
-                return html.H3('Welcome Guest! Please log in.'), html.H3('College: Unknown'), html.H3('Program: Unknown')
+            if not url_search:
+                return (
+                    html.H3('Welcome Guest! Please log in.'),
+                    html.H3('College: Unknown'),
+                    [],
+                )
             
-            # Parse the URL parameters directly from the search
-            params = dict((key, value) for key, value in (param.split('=') for param in url_search[1:].split('&')))
-            
-            user_role = params.get('user-role', '06')  # Default to 'guest' if no role is passed
-            self.college = params.get('college', 'Unknown College')  # Default to 'Unknown College' if no college is passed
-            self.program = params.get('program', 'Unknown Program')  # Default to 'Unknown Program' if no program is passed
+            # Parse query parameters
+            params = dict(param.split('=') for param in url_search.lstrip('?').split('&'))
+            self.college = params.get('college', 'Unknown College')
+            self.program = params.get('program', 'Unknown Program')
 
-            self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
-            print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
+            # Fetch available programs
+            self.default_programs = db_manager.get_unique_values_by('program_id', 'college_id', self.college)
+            print(f"self.default_programs: {self.default_programs}")
+            print(f"self.program: {self.program}")
 
-            # Return the role, college, and program information
-            return html.H3(
-                    f'College Department: {self.college}', 
-                    style={
-                        'textAlign': 'center',
-                        'marginTop': '10px'
-                    }
-                ), dbc.Container([
+            # Ensure the program is in the list of valid options
+            value = [self.program] if self.program in self.default_programs else []
+            print(f'VALUE: {value}')
+
+            # Return updated components
+            return (
+                html.H3(f'Program Department: {self.program}', style={'textAlign': 'center', 'marginTop': '10px'}),
+                dbc.Container([
                     dbc.Row([
-                        dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
+                        dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('program_id', self.program))))),
                         dbc.Col(
-                            self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
+                            self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', 'program_id', self.program)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
                         dbc.Col(
-                            self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),
+                            self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'program_id', self.program)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
                         dbc.Col(
-                            self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', self.college)))),
+                            self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'program_id', self.program)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
                         dbc.Col(
-                            self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', self.college)))),
+                            self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'program_id', self.program)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
                         dbc.Col(
-                            self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', self.college)))),
+                            self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'program_id', self.program)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
-                    ])
-                ])
+                    ])  # Your display card rows here
+                ]),
+                value
+            )
         
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
