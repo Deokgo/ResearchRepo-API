@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, Category, ResearchCategory
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea
 from services.data_fetcher import ResearchDataFetcher
 from collections import Counter
 import re
@@ -65,13 +65,13 @@ class DatabaseManager:
 
             # Subquery to get the research areas for each publication
             area_subquery = session.query(
-                ResearchCategory.research_id,
+                ResearchOutputArea.research_id,
                 func.string_agg(
                     func.concat(
-                        Category.category_name), '; '
+                        ResearchArea.research_area_name), '; '
                 ).label('concatenated_areas')
-            ).join(Category, ResearchCategory.category_id == Category.category_id) \
-            .group_by(ResearchCategory.research_id).subquery()
+            ).join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
+            .group_by(ResearchOutputArea.research_id).subquery()
 
             # Main query
             query = session.query(
