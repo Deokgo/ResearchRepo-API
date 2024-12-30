@@ -1,5 +1,17 @@
 from flask import Blueprint, request, jsonify, send_file, session
-from models import db, ResearchOutput, SDG, Keywords, Publication, ResearchOutputAuthor, Panel, UserProfile, Account
+from models import (
+    db, 
+    ResearchOutput, 
+    SDG, 
+    Keywords, 
+    Publication, 
+    ResearchOutputAuthor, 
+    Panel, 
+    UserProfile, 
+    Account, 
+    ResearchArea, 
+    ResearchOutputArea
+)
 from services import auth_services
 import os
 from werkzeug.utils import secure_filename
@@ -7,10 +19,16 @@ from datetime import datetime
 import pytz
 import traceback
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import pickle
+from flask_cors import cross_origin
+
 
 paper = Blueprint('paper', __name__)
 UPLOAD_FOLDER = './research_repository'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'binary_relevance_model.pkl')
 
+# Use raw string for Windows path or forward slashes
 
 @paper.route('/add_paper', methods=['POST'])
 @jwt_required()
@@ -126,8 +144,21 @@ def add_paper():
             unique_views=0
         )
         db.session.add(new_paper)
-        db.session.commit()
+        db.session.flush()  # This will generate the ID without committing the transaction
 
+        # Now handle research areas with the generated research_id
+        research_areas_str = data.get('research_areas')
+        if research_areas_str:
+            research_area_ids = research_areas_str.split(';')
+            for area_id in research_area_ids:
+                if area_id.strip():
+                    new_research_area = ResearchOutputArea(
+                        research_id=data['research_id'],
+                        research_area_id=area_id.strip()
+                    )
+                    db.session.add(new_research_area)
+
+        # Handle other relationships (SDGs, keywords, authors, panels)
         # Handle multiple SDGs
         sdg_list = data['sdg'].split(';') if data['sdg'] else []
         for sdg_id in sdg_list:
@@ -196,6 +227,7 @@ def add_paper():
                 print(f"Error sorting authors: {str(e)}")
                 raise e
 
+        # Finally commit everything
         db.session.commit()
 
         # Log audit trail
@@ -218,7 +250,7 @@ def add_paper():
             try:
                 os.remove(file_path)
             except OSError:
-                pass  # If file deletion fails, continue with error response
+                pass
         
         traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
@@ -600,3 +632,84 @@ def view_extended_abstract(research_id):
         return send_file(file_path, as_attachment=False)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@paper.route('/research_areas', methods=['GET'])
+def get_research_areas():
+    try:
+        # Query all research areas
+        areas = ResearchArea.query.all()
+        
+        # Convert to list of dictionaries matching the model's field names
+        areas_list = [{
+            'id': area.research_area_id, 
+            'name': area.research_area_name
+        } for area in areas]
+        
+        return jsonify({
+            "message": "Research areas retrieved successfully",
+            "research_areas": areas_list
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+@paper.route('/predict_research_areas', methods=['POST'])
+def predict_research_areas():
+    try:
+        data = request.json
+        title = data.get('title', '')
+        abstract = data.get('abstract', '')
+        keywords = data.get('keywords', '')
+        
+        # Combine text fields
+        combined_text = f"{title} {abstract} {keywords}"
+        
+        # Load the model using absolute path
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+            
+        with open(MODEL_PATH, 'rb') as file:
+            model_data = pickle.load(file)
+        
+        # Extract model components
+        tfidf = model_data['tfidf']
+        mlb = model_data['mlb']
+        classifier = model_data['classifier']
+        
+        # Transform text using TF-IDF
+        X = tfidf.transform([combined_text])
+        
+        # Get probability estimates
+        probas = classifier.predict_proba(X)
+        
+        # Get class labels
+        classes = mlb.classes_
+        
+        # Create a list of (label, probability) pairs with threshold
+        predictions = []
+        for i, label_probas_list in enumerate(probas):
+            prob = label_probas_list[0][1]  # Probability of positive class
+            if prob >= 0.5:  # Only include if probability exceeds threshold
+                predictions.append({'id': i + 1, 'name': classes[i]})
+        
+        # If no predictions above threshold, include highest probability prediction
+        if not predictions:
+            max_prob = -1
+            max_label = None
+            max_idx = -1
+            for i, label_probas_list in enumerate(probas):
+                prob = label_probas_list[0][1]
+                if prob > max_prob:
+                    max_prob = prob
+                    max_label = classes[i]
+                    max_idx = i
+            predictions = [{'id': max_idx + 1, 'name': max_label}]
+
+        return jsonify({
+            "message": "Prediction successful",
+            "predicted_areas": predictions
+        }), 200
+
+    except Exception as e:
+        print(f"Prediction error: {str(e)}")
+        return jsonify({"error": f"Failed to predict research areas: {str(e)}"}), 500
