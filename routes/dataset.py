@@ -4,7 +4,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea
 from flask_jwt_extended import jwt_required, get_jwt_identity
 dataset = Blueprint('dataset', __name__)
 
@@ -111,6 +111,19 @@ def retrieve_dataset(research_id=None):
     ).join(Account, ResearchOutput.adviser_id == Account.user_id) \
      .join(UserProfile, Account.user_id == UserProfile.researcher_id).subquery()
 
+    # Add this new subquery with the existing subqueries
+    research_areas_subquery = db.session.query(
+        ResearchOutput.research_id,
+        func.array_agg(
+            func.json_build_object(
+                'research_area_id', ResearchArea.research_area_id,
+                'research_area_name', ResearchArea.research_area_name
+            )
+        ).label('research_areas_array')
+    ).join(ResearchOutputArea, ResearchOutput.research_id == ResearchOutputArea.research_id) \
+     .join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
+     .group_by(ResearchOutput.research_id).subquery()
+
     query = db.session.query(
         College.college_id,
         Program.program_id,
@@ -134,6 +147,7 @@ def retrieve_dataset(research_id=None):
         latest_status_subquery.c.status,
         latest_status_subquery.c.timestamp,
         adviser_subquery.c.adviser_info,
+        research_areas_subquery.c.research_areas_array,
     ).join(College, ResearchOutput.college_id == College.college_id) \
     .join(Program, ResearchOutput.program_id == Program.program_id) \
     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -144,6 +158,7 @@ def retrieve_dataset(research_id=None):
     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
+    .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
     #filter by research_id if provided
@@ -187,6 +202,7 @@ def retrieve_dataset(research_id=None):
                     'user_id': None,
                     'email': None
                 },
+                'research_areas': row.research_areas_array if row.research_areas_array else [],
             } for row in result]
 
     return jsonify({"dataset": [dict(row) for row in data]})
@@ -294,6 +310,19 @@ def fetch_ordered_dataset(research_id=None):
     ).join(Account, ResearchOutput.adviser_id == Account.user_id) \
      .join(UserProfile, Account.user_id == UserProfile.researcher_id).subquery()
 
+    # Add this new subquery with the existing subqueries
+    research_areas_subquery = db.session.query(
+        ResearchOutput.research_id,
+        func.array_agg(
+            func.json_build_object(
+                'research_area_id', ResearchArea.research_area_id,
+                'research_area_name', ResearchArea.research_area_name
+            )
+        ).label('research_areas_array')
+    ).join(ResearchOutputArea, ResearchOutput.research_id == ResearchOutputArea.research_id) \
+     .join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
+     .group_by(ResearchOutput.research_id).subquery()
+
     query = db.session.query(
         College.college_id,
         College.college_name,
@@ -320,6 +349,7 @@ def fetch_ordered_dataset(research_id=None):
         latest_status_subquery.c.status,
         latest_status_subquery.c.timestamp,
         adviser_subquery.c.adviser_info,
+        research_areas_subquery.c.research_areas_array,
     ).join(College, ResearchOutput.college_id == College.college_id) \
     .join(Program, ResearchOutput.program_id == Program.program_id) \
     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -330,6 +360,7 @@ def fetch_ordered_dataset(research_id=None):
     .outerjoin(panels_subquery, ResearchOutput.research_id == panels_subquery.c.research_id) \
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
+    .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .order_by(desc(ResearchOutput.date_uploaded))
 
     #filter by research_id if provided
@@ -377,6 +408,7 @@ def fetch_ordered_dataset(research_id=None):
                     'user_id': None,
                     'email': None
                 },
+                'research_areas': row.research_areas_array if row.research_areas_array else [],
             } for row in result]
 
     return jsonify({"dataset": [dict(row) for row in data]})

@@ -17,3 +17,8 @@ class ResearchOutput(db.Model):
     download_count = db.Column(db.Integer)
     date_uploaded = db.Column(db.DateTime, nullable=False)
     unique_views = db.Column(db.Integer)
+    research_areas = db.relationship(
+        'ResearchArea',
+        secondary='research_output_area',
+        lazy='joined'
+    )

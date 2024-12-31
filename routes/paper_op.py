@@ -21,6 +21,7 @@ import traceback
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import pickle
 from flask_cors import cross_origin
+from sqlalchemy.orm import joinedload
 
 
 paper = Blueprint('paper', __name__)
@@ -445,6 +446,19 @@ def update_paper(research_id):
                 print(f"Error sorting authors: {str(e)}")
                 raise e
 
+        # Update research areas
+        # First, remove all existing research areas for this paper
+        db.session.query(ResearchOutputArea).filter_by(research_id=research_id).delete()
+        
+        # Then add the new research areas
+        research_area_ids = request.form.getlist('research_area_ids')
+        for area_id in research_area_ids:
+            new_research_area = ResearchOutputArea(
+                research_id=research_id,
+                research_area_id=area_id
+            )
+            db.session.add(new_research_area)
+
         db.session.commit()
 
         # Log audit trail
@@ -462,18 +476,10 @@ def update_paper(research_id):
         }), 200
 
     except Exception as e:
-        # If anything fails, rollback database changes
         db.session.rollback()
-        # If we were in the process of saving a new file, try to delete it
-        if 'file_path' in locals() and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except OSError:
-                pass
-        
-        traceback.print_exc()
+        print(f"Error updating paper: {str(e)}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-        
+
     finally:
         db.session.close()
 
