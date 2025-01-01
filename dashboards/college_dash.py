@@ -124,6 +124,7 @@ class CollegeDashApp:
                     "position": "sticky",  # Sticky position instead of fixed
                     "top": 0,
                     "padding": "20px",
+                    "border-radius": "0",  # Remove rounded corners
                 },
         )
 
@@ -138,34 +139,34 @@ class CollegeDashApp:
                     dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
                     dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash1 = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash3 = dbc.Container([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
             ], style={"margin": "10px"})
-        ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         sub_dash2 = dbc.Container([ 
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='proceeding_conference_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
         
         sub_dash4 = dbc.Container([
                 dbc.Row([
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #0A438F", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         self.dash_app.layout = html.Div([
             # URL tracking
@@ -192,22 +193,26 @@ class CollegeDashApp:
                         dbc.Row(sub_dash3, style={"flex": "1"}),
                         dbc.Row(sub_dash2, style={"flex": "1"}),
                         dbc.Row(sub_dash4, style={"flex": "1"}),
-                    ], width=10, style={
+                        ], style={
                         "height": "100%",
                         "display": "flex",
                         "flex-direction": "column",
                         "overflow-y": "auto",  # Add vertical scrolling
-                        "transform": "scale(0.95)",  # Reduce size to 95%
+                        "overflow-x": "auto",  # Add vertical scrolling
+                        "transform": "scale(0.98)",  # Reduce size to 90%
                         "transform-origin": "0 0",  # Ensure scaling starts from the top-left corner
+                        "margin": "0", 
+                        "padding": "5px",
+                        "flex-grow": "1",  # Make the content area grow to occupy remaining space
                     }),
-                ], style={"height": "100%"}),
+                ], style={"height": "100%", "display": "flex"}),
             ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "95vh", 
+                "height": "90vh", 
                 "margin": "0", 
                 "padding": "0", 
                 "overflow": "hidden"  # Prevent content from overflowing the container
             })
-        ], style={"height": "95vh", "margin": "0", "padding": "0", "overflow": "hidden"})
+        ], style={"height": "90vh", "margin": "0", "padding": "0", "overflow": "hidden"})
 
 
     def create_display_card(self, title, value):
