@@ -197,22 +197,25 @@ class CollegeDashApp:
                         "height": "100%",
                         "display": "flex",
                         "flex-direction": "column",
-                        "overflow-y": "auto",  # Add vertical scrolling
-                        "overflow-x": "auto",  # Add vertical scrolling
-                        "transform": "scale(0.98)",  # Reduce size to 90%
-                        "transform-origin": "0 0",  # Ensure scaling starts from the top-left corner
+                        "overflow-y": "auto",  # Allow vertical scrolling
+                        "overflow-x": "auto",  # Allow horizontal scrolling
+                        "flex-grow": "1",      # Ensure content area grows to fill available space
                         "margin": "0", 
                         "padding": "5px",
-                        "flex-grow": "1",  # Make the content area grow to occupy remaining space
                     }),
                 ], style={"height": "100%", "display": "flex"}),
             ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "90vh", 
+                "height": "90vh",  # Use full viewport height
                 "margin": "0", 
-                "padding": "0", 
-                "overflow": "hidden"  # Prevent content from overflowing the container
+                "padding": "0",
             })
-        ], style={"height": "90vh", "margin": "0", "padding": "0", "overflow": "hidden"})
+        ], style={
+            "height": "100vh",  # Use full viewport height
+            "margin": "0",
+            "padding": "0",
+            "overflow-x": "hidden",  # Disable horizontal scrolling
+            "overflow-y": "hidden",  # Disable vertical scrolling
+        })
 
 
     def create_display_card(self, title, value):
