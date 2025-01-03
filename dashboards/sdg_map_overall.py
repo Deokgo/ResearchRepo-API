@@ -14,6 +14,7 @@ from nltk.tokenize import word_tokenize
 from nltk import pos_tag
 from wordcloud import WordCloud
 from services.sdg_colors import sdg_colors
+from sklearn.preprocessing import normalize
 
 
 def default_if_empty(selected_values, default_values):
@@ -115,28 +116,6 @@ class SDG_Map:
             ],
             className="d-grid gap-2",
         )
-
-        controls = dbc.Col(
-            dbc.Card(
-                [
-                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
-                    college,
-                    status,
-                    slider,
-                    button,
-                ],
-                body=True,
-                style={
-                    "background": "#d3d8db",
-                    "height": "100vh",  # Full-height sidebar
-                    "position": "sticky",  # Sticky position instead of fixed
-                    "top": 0,
-                    "padding": "20px",
-                    "border-radius": "0",  # Remove rounded corners
-                },
-            )
-        )
-
         sdgs = html.Div(
             [
                 dbc.Label("Select SDG:", style={"color": "#08397C"}),
@@ -162,12 +141,36 @@ class SDG_Map:
                     value="ALL",  # Default to "ALL"
                     style={
                         "width": "100%",
-                        "border": "1px solid #0A438F",
                     },
                 )
-            ]
+            ],
+             className="mb-4",
         )
-        tab1 = dbc.Container(
+
+        controls = dbc.Col(
+            dbc.Card(
+                [
+                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
+                    sdgs,  # Set the color to red
+                    college,
+                    status,
+                    slider,
+                    button,
+                ],
+                body=True,
+                style={
+                    "background": "#d3d8db",
+                    "height": "100vh",  # Full-height sidebar
+                    "position": "sticky",  # Sticky position instead of fixed
+                    "top": 0,
+                    "padding": "20px",
+                    "border-radius": "0",  # Remove rounded corners
+                },
+            )
+        )
+
+        
+        tab1 = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
@@ -187,21 +190,126 @@ class SDG_Map:
                         ]
                     ),
                 ],width=5)
-            ])
-        )
-
-        tab2 = dbc.Container(
+            ]),
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart3",
                         type="circle",  # Type of spinner
                         children=[
+                            dcc.Graph(id="sdg-research-type")
+                        ]
+                    ),
+                ],width=6),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart4",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="sdg-status")
+                        ]
+                    ),
+                ],width=6)
+            ]),
+            ]
+        )
+
+        tab2 = dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart5",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="sdg-conference")
+                        ]
+                    ),
+                ],width=8),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart6",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="sdg-publication-type")
+                        ]
+                    ),
+                ],width=4)
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart7",
+                        type="circle",  # Type of spinner
+                        children=[
                             dcc.Graph(id="sdg-map")
                         ]
                     ),
                 ],width=12),
-            ])
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart8",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="sdg-countries")
+                        ]
+                    ),
+                ],width=8),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart9",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="sdg-local-foreign-pie")
+                        ]
+                    ),
+                ],width=4)
+            ]),
+
+        ])
+
+        tab3 = dbc.Container([
+            dbc.Col(
+                dcc.Loading(
+                    id="loading-sdg-chart10",
+                    type="circle",
+                    children=[
+                        dcc.Graph(id="keywords-cloud"),
+                    ]
+                ),
+            ),
+            
+            dbc.Col(
+                dcc.Loading(
+                    id="loading-sdg-chart11",
+                    type="circle",
+                    children=[
+                        dcc.Graph(id="research-area-cloud"),
+                    ]
+                ),
+            ),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart12",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="top-research-area")
+                        ]
+                    ),
+                ],width=6),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-sdg-chart13",
+                        type="circle",  # Type of spinner
+                        children=[
+                            dcc.Graph(id="top-authors")
+                        ]
+                    ),
+                ],width=6)
+            ]),
+            ]
         )
 
 
@@ -212,7 +320,6 @@ class SDG_Map:
                 dbc.Row([
                     dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                     dbc.Col([
-                        sdgs,
                         dbc.Container([
                             html.H4("sample",id="chosen-sdg"),
                             html.Div("This dashboard analyzes the institution’s research alignment with the global Sustainable Development Goals (SDGs), highlighting trends, strengths, and areas for improvement. It provides an overview of research performance across SDG categories, supporting data-driven decisions to enhance sustainable development efforts.")
@@ -247,40 +354,11 @@ class SDG_Map:
                                     label="Research Trends and Collaboration",
                                     value="sdg-trend-tab",
                                     children=[
-                                        dcc.Loading(
-                                        id="loading-word-cloud",
-                                        type="circle",
-                                        children=[
-                                            dcc.Graph(id="word-cloud"),
-                                            ]
-                                        ),
+                                        tab3
                                     ]
                                 ),
                             ]
                         ),
-                        dbc.Row([
-                            dbc.Col([
-                                dcc.Loading(
-                                    id="loading-sdg-per-college",
-                                    type="circle",
-                                    children=[
-                                        dcc.Graph(id="sdg-per-college")
-                                    ]
-                                )
-                            ], width=6),
-                            dbc.Col(
-                                [
-                                    dcc.Loading(
-                                        id="loading-sdg-trend",
-                                        type="circle",
-                                        children=[
-                                            dcc.Graph(id="sdg-trend")
-                                        ]
-                                    )
-                                ],
-                                width=6
-                            )
-                        ])
                     ], style={
                         "height": "100%",
                         "display": "flex",
@@ -305,44 +383,58 @@ class SDG_Map:
     def create_sdg_plot(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Get filtered data based on selected parameters
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        
-        # Check if df is empty or not
+
+        # Check if df is empty
         if df.empty:
             # If no data, return an empty figure or a message
             return px.line(title="No data available for the selected parameters.")
-        
+
         # Create a temporary DataFrame by splitting the SDGs in the SDG column (by ';')
         df_temp = df.copy()
         df_temp['sdg'] = df_temp['sdg'].str.split(';')  # Split SDGs by ';'
         df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
         df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
-        
+
         # If the SDG dropdown value is not "ALL", filter the data accordingly
         if sdg_dropdown_value != "ALL":
             df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
-        
-        # Group by Year and SDG and count the number of research outputs
-        sdg_year_distribution = df_temp.groupby(['year', 'sdg']).size().reset_index(name='Count')
+            # Group by Year and College and count the number of research outputs
+            sdg_college_distribution = df_temp.groupby(['year', 'college_id']).size().reset_index(name='Count')
+            
+            # Create the time-series plot grouped by college
+            fig = px.line(
+                sdg_college_distribution,
+                x='year',
+                y='Count',
+                color='college_id',  # Group by College
+                title=f'Research Outputs Over Time by College (Filtered by SDG: {sdg_dropdown_value})',
+                labels={'year': 'Year', 'Count': 'Number of Research Outputs', 'college_id': 'College'},
+                template="plotly_white",
+                color_discrete_map=self.palette_dict,
+            )
+        else:
+            # Group by Year and SDG and count the number of research outputs
+            sdg_year_distribution = df_temp.groupby(['year', 'sdg']).size().reset_index(name='Count')
 
-        # Ensure that all SDGs are included, even those with zero counts
-        # Create a DataFrame for all combinations of Year and SDG
-        all_sdg_year_combinations = pd.MultiIndex.from_product([df['year'].unique(), self.all_sdgs], names=['year', 'sdg'])
-        sdg_year_distribution = sdg_year_distribution.set_index(['year', 'sdg']).reindex(all_sdg_year_combinations, fill_value=0).reset_index()
+            # Ensure that all SDGs are included, even those with zero counts
+            # Create a DataFrame for all combinations of Year and SDG
+            all_sdg_year_combinations = pd.MultiIndex.from_product([df['year'].unique(), self.all_sdgs], names=['year', 'sdg'])
+            sdg_year_distribution = sdg_year_distribution.set_index(['year', 'sdg']).reindex(all_sdg_year_combinations, fill_value=0).reset_index()
 
-        # Sort the data by Year to ensure chronological order
-        sdg_year_distribution = sdg_year_distribution.sort_values(by='year')
+            # Sort the data by Year to ensure chronological order
+            sdg_year_distribution = sdg_year_distribution.sort_values(by='year')
 
-        # Create the time-series plot to show SDG research outputs over time
-        fig = px.line(
-            sdg_year_distribution,
-            x='year',
-            y='Count',
-            color='sdg',  # Group by SDG
-            title='SDG Research Outputs Over Time',
-            labels={'year': 'Year', 'Count': 'Number of Research Outputs', 'sdg': 'Sustainable Development Goals (SDGs)'},
-            color_discrete_map=sdg_colors,  # Apply SDG colors
-            category_orders={'sdg': self.all_sdgs},  # Ensure SDGs are in order
-        )
+            # Create the time-series plot to show SDG research outputs over time
+            fig = px.line(
+                sdg_year_distribution,
+                x='year',
+                y='Count',
+                color='sdg',  # Group by SDG
+                title='SDG Research Outputs Over Time',
+                labels={'year': 'Year', 'Count': 'Number of Research Outputs', 'sdg': 'SDG'},
+                color_discrete_map=sdg_colors,  # Apply SDG colors
+                category_orders={'sdg': self.all_sdgs},  # Ensure SDGs are in order
+            )
 
         # Customize layout for better visualization
         fig.update_layout(
@@ -353,7 +445,6 @@ class SDG_Map:
             template="plotly_white",
             xaxis=dict(showgrid=True),  # Show grid on x-axis
             yaxis=dict(title='Number of Research Outputs', showgrid=True),  # Label y-axis clearly
-            legend_title=dict(text='SDGs'),  # Rename legend title
             legend=dict(title=dict(font=dict(size=14)), traceorder="normal", orientation="h", x=1, xanchor="right", y=-0.2),  # Position legend outside
         )
 
@@ -370,31 +461,49 @@ class SDG_Map:
         df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
         df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
 
-        # Group by SDG and count the number of research outputs
-        sdg_distribution = df_temp.groupby('sdg').size().reset_index(name='Count')
+        # If the SDG dropdown value is not "ALL", filter the data accordingly
+        if sdg_dropdown_value != "ALL":
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
+            # Group by College to show the distribution of research outputs across colleges
+            college_distribution = df_temp.groupby('college_id').size().reset_index(name='Count')
+            college_distribution['Percentage'] = (college_distribution['Count'] / college_distribution['Count'].sum()) * 100
+            
+            # Create the pie chart to show the college distribution
+            fig = px.pie(
+                college_distribution,
+                names='college_id',
+                values='Percentage',
+                title='Percentage of Research Outputs by College',
+                color='college_id',
+                labels={'college_id': 'College', 'Percentage': 'Percentage of Total Outputs'},
+                color_discrete_map=self.palette_dict,
+            )
+        else:
+            # Group by SDG and count the number of research outputs
+            sdg_distribution = df_temp.groupby('sdg').size().reset_index(name='Count')
 
-        # Calculate the percentage of total research outputs for each SDG
-        total_count = sdg_distribution['Count'].sum()
-        sdg_distribution['Percentage'] = (sdg_distribution['Count'] / total_count) * 100
+            # Calculate the percentage of total research outputs for each SDG
+            total_count = sdg_distribution['Count'].sum()
+            sdg_distribution['Percentage'] = (sdg_distribution['Count'] / total_count) * 100
 
-        # Ensure all SDGs are included, even those with zero counts
-        sdg_distribution = pd.DataFrame(self.all_sdgs, columns=['sdg']).merge(sdg_distribution, on='sdg', how='left').fillna(0)
+            # Ensure all SDGs are included, even those with zero counts
+            sdg_distribution = pd.DataFrame(self.all_sdgs, columns=['sdg']).merge(sdg_distribution, on='sdg', how='left').fillna(0)
 
-        # Reorder the SDGs based on the predefined list (self.all_sdgs)
-        sdg_distribution['SDG'] = pd.Categorical(sdg_distribution['sdg'], categories=self.all_sdgs, ordered=True)
-        sdg_distribution = sdg_distribution.sort_values('sdg')
+            # Reorder the SDGs based on the predefined list (self.all_sdgs)
+            sdg_distribution['sdg'] = pd.Categorical(sdg_distribution['sdg'], categories=self.all_sdgs, ordered=True)
+            sdg_distribution = sdg_distribution.sort_values('sdg')
 
-        # Create the pie chart to show the percentage distribution of research outputs by SDG
-        fig = px.pie(
-            sdg_distribution,
-            names='sdg',
-            values='Percentage',
-            title='Percentage of Research Outputs by SDG',
-            color='sdg',
-            color_discrete_map=sdg_colors,  # Apply SDG colors
-            labels={'sdg': 'Sustainable Development Goals (SDGs)', 'Percentage': 'Percentage of Total Outputs'},
-            category_orders={'sdg': self.all_sdgs}  # Ensure SDG in legend is in order
-        )
+            # Create the pie chart to show the percentage distribution of research outputs by SDG
+            fig = px.pie(
+                sdg_distribution,
+                names='sdg',
+                values='Percentage',
+                title='Percentage of Research Outputs by SDG',
+                color='sdg',
+                color_discrete_map=sdg_colors,  # Apply SDG colors
+                labels={'sdg': 'SDG', 'Percentage': 'Percentage of Total Outputs'},
+                category_orders={'sdg': self.all_sdgs}  # Ensure SDG in legend is in order
+            )
 
         # Customize layout for better visualization
         fig.update_layout(
@@ -503,7 +612,7 @@ class SDG_Map:
                     "Total Count": True  # Include the total count in hover data
                 },  # Show SDG summary and total count in hover
                 color_continuous_scale="Viridis",  # Choose a color scale
-                title="Geographical Distribution of Research Outputs by SDG and Year",
+                title="Geographical Distribution of Research Outputs",
                 labels={'Count': 'Number of Research Outputs'}
             )
 
@@ -558,7 +667,7 @@ class SDG_Map:
                     "Total Count": False  # Include total count for the country in hover
                 },  # Show SDG summary (with SDG counts) and total count in hover
                 color_continuous_scale="Viridis",  # Choose a color scale
-                title="Geographical Distribution of Research Outputs by SDG and Year",
+                title="Geographical Distribution of Research Outputs",
                 labels={'Count': 'Number of Research Outputs'}
             )
 
@@ -577,156 +686,682 @@ class SDG_Map:
 
         return fig
 
-
-
-
-    
-
-
-    def create_sdg_trend(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Fetch the filtered data from the db_manager
+    def create_sdg_research_chart(self,selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Define the list of types and SDGs
+        types = ['Integrative', 'College-Driven', 'Extramural']
+        # Fetch filtered data from the database
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        df_copy = df.copy()
 
-        # Define the ordered list of SDGs (e.g., SDG 1, SDG 2, etc.)
-        sdg_order = [f"SDG {i}" for i in range(1, 18)]  # Generates SDG 1 to SDG 17
+        # Prepare the DataFrame
+        df_temp = df.copy()
+        df_temp['sdg'] = df_temp['sdg'].str.split(';')  # Split SDGs by ';'
+        df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
+        df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
 
-        # Split SDG values and explode into separate rows
-        df_copy['sdg'] = df_copy['sdg'].str.split('; ')  # Split by semicolon and space
-        sdg_exploded = df_copy.explode('sdg')  # Explode rows for each SDG value
-
-        # Strip whitespace from the SDG values and ensure correct ordering
-        sdg_exploded['sdg'] = sdg_exploded['sdg'].str.strip()
-        sdg_exploded['sdg'] = pd.Categorical(sdg_exploded['sdg'], categories=sdg_order, ordered=True)
-
-        if sdg_dropdown_value !="ALL":
-            # Filter data for the selected SDG
-            sdg_filtered = sdg_exploded[sdg_exploded['sdg'] == sdg_dropdown_value]
-
-            # Group data by year and count occurrences
-            sdg_trend = sdg_filtered.groupby('year').size().reset_index(name='count')
-
-            # Create a line chart using Plotly
+        # If the SDG dropdown value is not "ALL", filter the data accordingly
+        if sdg_dropdown_value != "ALL":
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
+            # Group by 'year' and 'research_type' for this case
+            counts = df_temp.groupby(['year', 'research_type']).size().reset_index(name='Count')
+            
+            # Create a bar chart with 'year' on the x-axis and stacked bars for research types
             fig = px.line(
-                sdg_trend,
-                x='year',
-                y='count',
-                title=f'{sdg_dropdown_value} Trend Over Time',
-                labels={'year': 'Year', 'count': 'Frequency'},
-                markers=True
-            )
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Frequency",
-                title_x=0.5,
-                template="plotly_white"
-            )
-        else:
-            # Group the data by year and SDG, and calculate the count
-            sdg_trends = sdg_exploded.groupby(['year', 'sdg']).size().reset_index(name='count')
-
-            # Create a heatmap using Plotly
-            fig = px.density_heatmap(
-                sdg_trends,
-                x='year',
-                y='sdg',
-                z='count',
-                color_continuous_scale='Blues',
-                title="SDG Trends Over Time",
-                labels={'year': 'Year', 'sdg': 'SDG','count':""}
-            )
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Sustainable Development Goal",
-                title_x=0.5,
-                template="plotly_white"
-            )
-
-        return fig
-    
-
-
-    def create_sdg_bar(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Fetch the filtered data from the db_manager
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-        df_copy = df.copy()
-
-        # Define the ordered list of SDGs (e.g., SDG 1, SDG 2, etc.)
-        sdg_order = [f"SDG {i}" for i in range(1, 18)]  # Generates SDG 1 to SDG 17
-
-        # Split SDG values and explode into separate rows
-        df_copy['sdg'] = df_copy['sdg'].str.split('; ')  # Split by semicolon and space
-        sdg_exploded = df_copy.explode('sdg')  # Explode rows for each SDG value
-
-        # Strip whitespace from the SDG values and ensure correct ordering
-        sdg_exploded['sdg'] = sdg_exploded['sdg'].str.strip()
-        sdg_exploded['sdg'] = pd.Categorical(sdg_exploded['sdg'], categories=sdg_order, ordered=True)
-
-        if sdg_dropdown_value !="ALL":
-            # Filter the data for the selected SDG
-            sdg_filtered = sdg_exploded[sdg_exploded['sdg'] == sdg_dropdown_value]
-
-            # Group the data by year and research_type
-            grouped_data = sdg_filtered.groupby(['year', 'research_type']).size().reset_index(name='count')
-
-            # Create a line plot using Plotly
-            fig = px.line(
-                grouped_data,
-                x='year',
-                y='count',
+                counts,
+                x='year',  # Set x to 'year'
+                y='Count',
                 color='research_type',
-                title=f"{sdg_dropdown_value} Trends Over Time by Research Type",
-                labels={'year': 'Year', 'count': 'Frequency'},
-                markers=True
-            )
-
-            # Customize the layout
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Count",
-                title_x=0.5,
-                template="plotly_white",
-                xaxis_tickangle=-45  # Rotate x-axis labels for better readability
+                orientation='v',  # Vertical bars
+                title=f'Research Type Distribution for {sdg_dropdown_value} Over Years',
+                labels={
+                    'Count': 'Number of Research Outputs',
+                    'year': 'Year',
+                    'research_type': 'Type of Research Output',
+                },
+                color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
             )
         else:
-            # Group the data by SDG and research_type
-            grouped_data = sdg_exploded.groupby(['sdg', 'research_type']).size().reset_index(name='count')
 
-            # Create a bar chart using Plotly
+            # Ensure 'Research Type' is treated as a categorical column with all types
+            df_temp['research_type'] = pd.Categorical(df_temp['research_type'], categories=types)
+
+            # Ensure 'sdg' is treated as a categorical column with all SDGs
+            df_temp['sdg'] = pd.Categorical(df_temp['sdg'], categories=self.all_sdgs)
+
+            # Group by 'sdg' and 'Research Type', counting the number of occurrences
+            counts = df_temp.groupby(['sdg', 'research_type']).size().reset_index(name='Count')
+
+            # Create a stacked bar chart with Plotly
             fig = px.bar(
-                grouped_data,
-                x='sdg',
-                y='count',
+                counts,
+                x='Count',
+                y='sdg',
                 color='research_type',
-                title="SDG and Research Type Distribution",
-                labels={'sdg': 'Sustainable Development Goal', 'count': 'Frequency'},
-                barmode='group'  # Group bars side by side
+                orientation='h',
+                title='Research Type Distribution by SDG',
+                labels={
+                    'Count': 'Number of Research Outputs',
+                    'sdg': 'Sustainable Development Goals (SDGs)',
+                    'research_type': 'Type of Research Output'
+                },
+                color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
             )
 
-            # Customize the layout
-            fig.update_layout(
-                xaxis_title="Sustainable Development Goal",
-                yaxis_title="Count",
-                title_x=0.5,
-                template="plotly_white",
-                xaxis={
-                    'categoryorder': 'array', 
-                    'categoryarray': sdg_order,
-                    'tickangle': -45  # Rotate x-axis labels for better readability
-                }
+        # Customize layout
+        fig.update_layout(
+            title_font_size=18,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            legend_title=dict(text='Research Types'),
+            barmode='stack',  # Ensure bars are stacked
+            template="plotly_white",
+            legend=dict(
+                title=dict(font=dict(size=14)),
+                traceorder="normal",
+                yanchor="top",
+                y=1.02,
+                xanchor="left",
+                x=1.05
+            ),
+        )
+
+        return fig
+    
+    def create_sdg_status_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch filtered data from the database
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        # Step 1: Create a temporary DataFrame
+        df_temp = df.copy()
+
+        # Step 2: Split SDGs by ';' and explode into separate rows
+        df_temp['sdg'] = df_temp['sdg'].str.split(';')  # Split SDGs by ';'
+        df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
+        df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
+
+        # Step 3: Ensure all SDGs are included
+        all_sdgs = ['SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 'SDG 8', 'SDG 9', 'SDG 10',
+                    'SDG 11', 'SDG 12', 'SDG 13', 'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17']
+        df_temp['sdg'] = pd.Categorical(df_temp['sdg'], categories=all_sdgs, ordered=True)
+
+        # Step 4: Handle filtering based on sdg_dropdown_value
+        if sdg_dropdown_value != "ALL":
+            # Filter the DataFrame for the selected SDG
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
+            
+            # Group by year and status to calculate counts
+            status_distribution = df_temp.groupby(['year', 'status']).size().reset_index(name='Count')
+
+            # Step 5: Normalize counts to calculate percentages
+            status_distribution['Percentage'] = status_distribution.groupby('year')['Count'].transform(lambda x: (x / x.sum()) * 100)
+
+            # Step 6: Create a bar chart with years on the x-axis
+            fig = px.bar(
+                status_distribution,
+                x='year',  # Set x to 'year'
+                y='Percentage',
+                color='status',
+                orientation='v',  # Vertical bars
+                title=f"Research Status Distribution for {sdg_dropdown_value} Over Years",
+                labels={'year': 'Year', 'Percentage': 'Percentage of Outputs', 'status': 'Research Status'},
+                color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
             )
+        else:
+            # Group by SDG and status to calculate counts for all SDGs
+            status_distribution = df_temp.groupby(['sdg', 'status']).size().reset_index(name='Count')
+
+            # Step 5: Normalize counts to calculate percentages
+            status_distribution['Percentage'] = status_distribution.groupby('sdg')['Count'].transform(lambda x: (x / x.sum()) * 100)
+
+            # Step 6: Create a stacked bar chart with SDGs on the y-axis
+            fig = px.bar(
+                status_distribution,
+                x='Percentage',
+                y='sdg',  # Set y to 'sdg'
+                color='status',
+                orientation='h',  # Horizontal bars
+                title="Percentage of Research Outputs by Status for Each SDG",
+                labels={'sdg': 'Sustainable Development Goals (SDGs)', 'Percentage': 'Percentage of Outputs', 'status': 'Research Status'},
+                category_orders={'sdg': all_sdgs}
+            )
+
+        # Step 7: Customize the layout
+        fig.update_layout(
+            title_font_size=18,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            legend_title_font_size=14,
+            template="plotly_white",
+            xaxis=dict(title='Percentage of Outputs', showgrid=True),
+            yaxis=dict(showgrid=True),
+        )
 
         return fig
 
+
+    def create_sdg_country_distribution_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch filtered data from the database
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Step 1: Split the SDGs and explode into separate rows
+        df_temp = df.copy()
+        df_temp['sdg'] = df_temp['sdg'].str.split(';')
+        df_temp = df_temp.explode('sdg')
+        df_temp['sdg'] = df_temp['sdg'].str.strip()
+        df_temp = df_temp[df_temp['country'] != 'Unknown Country']
+
+        # Step 2: Handle filtering based on sdg_dropdown_value
+        if sdg_dropdown_value != "ALL":
+            # Filter the DataFrame for the selected SDG
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
+            
+            # Step 3: Group by year and country to calculate counts
+            sdg_country_distribution = df_temp.groupby(['year', 'country']).size().reset_index(name='Count')
+
+            # Step 4: Create a bar chart with years on the x-axis
+            fig = px.bar(
+                sdg_country_distribution,
+                x='year',  # Set x to 'year'
+                y='Count',
+                color='country',
+                title=f'Research Output Distribution for {sdg_dropdown_value} Over Years by Country',
+                labels={'year': 'Year', 'Count': 'Number of Research Outputs', 'country': 'Country'},
+                color_discrete_map=self.sdg_colors,  # Use SDG colors
+                barmode='stack'
+            )
+        else:
+            # Step 3: Get unique countries
+            countries = df_temp['country'].unique()
+
+            # Step 4: Create complete combinations with all SDGs and countries
+            complete_combinations = pd.MultiIndex.from_product([self.all_sdgs, countries], names=['sdg', 'country'])
+            sdg_country_distribution = pd.DataFrame(index=complete_combinations).reset_index()
+
+            # Step 5: Merge with counts
+            counts = df_temp.groupby(['sdg', 'country']).size().reset_index(name='Count')
+            sdg_country_distribution = sdg_country_distribution.merge(
+                counts,
+                on=['sdg', 'country'],
+                how='left'
+            )
+
+            # Fill missing values with 0
+            sdg_country_distribution['Count'].fillna(0, inplace=True)
+
+            # Step 6: Create the visualization with SDG on the x-axis and country distribution stacked
+            fig = px.bar(
+                sdg_country_distribution,
+                x='sdg',  # Set x to 'sdg'
+                y='Count',
+                color='country',
+                title='Research Output Distribution by SDG and Country',
+                labels={'sdg': 'Sustainable Development Goals (SDGs)',
+                        'Count': 'Number of Research Outputs',
+                        'country': 'Country'},
+                color_discrete_map=self.sdg_colors,
+                barmode='stack',
+                category_orders={'sdg': self.all_sdgs}  # Ensures SDGs are shown in order
+            )
+
+        # Step 7: Customize the layout
+        fig.update_layout(
+            title_font_size=18,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            legend_title_font_size=14,
+            template="plotly_white",
+            xaxis=dict(showgrid=True, tickangle=45),
+            yaxis=dict(title='Number of Research Outputs', showgrid=True),
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=1.02
+            )
+        )
+
+        return fig
+
+    
+
+
+    
+    def create_sdg_conference_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch filtered data from the database
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Step 1: Create a temporary DataFrame
+        df_temp = df.copy()
+
+        # Step 2: Split SDGs by ';' and explode into separate rows
+        df_temp['sdg'] = df_temp['sdg'].str.split(';')  # Split SDGs by ';'
+        df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
+        df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
+
+        # Step 3: Drop rows without conference names
+        df_temp.dropna(subset=['conference_title'], inplace=True)
+
+        # Step 4: Filter based on selected SDG if it's not "ALL"
+        if sdg_dropdown_value != "ALL":
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]
+
+            # Step 5: Count the frequency of each SDG based on year and conference participation
+            sdg_conference_distribution = df_temp.groupby(['year', 'sdg']).size().reset_index(name='Count')
+
+            # Step 6: Create the bar chart with year on x-axis
+            fig = px.line(
+                sdg_conference_distribution,
+                x='year',
+                y='Count',
+                color='sdg',
+                title=f"SDG Distribution by Conference Participation for {sdg_dropdown_value}",
+                labels={'year': 'Year', 'Count': 'Number of Presentations', 'sdg': 'Sustainable Development Goals (SDGs)'},
+                color_discrete_map=self.sdg_colors
+            )
+
+            # Step 7: Customize the layout
+            fig.update_layout(
+                title_font_size=18,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+                legend_title_font_size=14,
+                template="plotly_white",
+                xaxis=dict(showgrid=True, tickangle=45),  # Rotate x-axis labels for better readability
+                yaxis=dict(title='Number of Presentations', showgrid=True),  # Label y-axis clearly
+                legend=dict(
+                    orientation="h",  # Horizontal legend
+                    yanchor="bottom",  # Align to the bottom
+                    y=-0.5,  # Move the legend below the chart
+                    xanchor="center",  # Center the legend horizontally
+                    x=0.5  # Position the legend in the center
+                )
+            )
+        else:
+            # Step 5: Count the frequency of each SDG based on conference participation
+            sdg_conference_distribution = df_temp.groupby('sdg').size().reset_index(name='Count')
+
+            # Step 6: Reindex to include all SDGs, even those without any data
+            all_sdgs_df = pd.DataFrame(self.all_sdgs, columns=['sdg'])
+            sdg_conference_distribution = pd.merge(all_sdgs_df, sdg_conference_distribution, on='sdg', how='left').fillna(0)
+
+            # Step 7: Create the bar chart with SDG on the x-axis
+            fig = px.bar(
+                sdg_conference_distribution,
+                x='sdg',
+                y='Count',
+                title="SDG Distribution by Conference Participation",
+                labels={'sdg': 'Sustainable Development Goals (SDGs)', 'Count': 'Number of Presentations'},
+                color='Count',
+                color_continuous_scale='Viridis',
+                category_orders={'sdg': self.all_sdgs}  # Ensures SDGs are shown in order
+            )
+
+            # Step 8: Customize the layout
+            fig.update_layout(
+                title_font_size=18,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+                legend_title_font_size=14,
+                template="plotly_white",
+                xaxis=dict(showgrid=True, tickangle=45),  # Rotate x-axis labels for better readability
+                yaxis=dict(title='Number of Presentations', showgrid=True),  # Label y-axis clearly
+            )
+
+        return fig
+        
+    def create_publication_type_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        if sdg_dropdown_value != "ALL":
+            # Step 2: Split SDGs by ';' and explode into separate rows
+            df['sdg'] = df['sdg'].str.split(';')  # Split SDGs by ';'
+            df = df.explode('sdg')  # Explode into separate rows for each SDG
+            df['sdg'] = df['sdg'].str.strip()  # Remove unnecessary spaces
+            df = df[df['sdg'] == sdg_dropdown_value]
+
+        publication_counts = df.groupby('journal').size().reset_index(name='Count')
+
+        # Step 2: Create the pie chart
+        fig = px.pie(
+            publication_counts,
+            values='Count',
+            names='journal',
+            title=f"Publication Type Distribution ({sdg_dropdown_value})",
+            color_discrete_sequence=px.colors.qualitative.Dark2
+        )
+
+        # Step 3: Customize the layout
+        fig.update_layout(
+            title_font_size=18,
+            legend_title_font_size=14,
+            template="plotly_white",
+            legend=dict(
+                orientation='h',  # Legend displayed horizontally
+                x=0.5,            # Position the legend in the center horizontally
+                xanchor='center', # Anchor the legend to the center
+                y=-0.2            # Place the legend below the chart
+            )
+        )
+
+        return fig
+    
+    def create_local_foreign_pie_chart(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        # Fetch filtered data from the database
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        if sdg_dropdown_value != "ALL":
+            # Step 2: Split SDGs by ';' and explode into separate rows
+            df['sdg'] = df['sdg'].str.split(';')  # Split SDGs by ';'
+            df = df.explode('sdg')  # Explode into separate rows for each SDG
+            df['sdg'] = df['sdg'].str.strip()  # Remove unnecessary spaces
+            df = df[df['sdg'] == sdg_dropdown_value]
+    
+        # Step 1: Categorize as 'Local' or 'Foreign'
+        # Assuming 'local_countries' is a list of local country names
+        local_countries = ['Philippines']  # Update with your actual local countries
+        df['location'] = df['country'].apply(lambda x: 'Local' if x in local_countries else 'Foreign')
+
+        # Step 2: Create a pie chart based on the 'location' column
+        fig = px.pie(
+            df,
+            names='location',
+            title=f'Local vs Foreign Venues ({sdg_dropdown_value})',
+            color='location',
+            color_discrete_map={'Local': 'blue', 'Foreign': 'green'},
+            labels={'location': 'Research Location'}
+        )
+
+        # Customize layout
+        fig.update_layout(
+            title_font_size=18,
+            template="plotly_white",
+            showlegend=True,
+            legend_title_font_size=14
+        )
+
+        return fig
+    
+    def get_word_cloud(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        if sdg_dropdown_value !="ALL":
+            # If sdg contains strings like "SDG1; SDG2"
+            df['sdg'] = df['sdg'].str.split('; ')  # Split by semicolon and space
+            sdg_df = df.explode('sdg')
+
+            # Filter the DataFrame for the single SDG value
+            filtered_sdg_df = sdg_df[sdg_df['sdg'] == str(sdg_dropdown_value)]
+
+            # Concatenate all nouns into a single string
+            all_nouns = ' '.join(
+                [' '.join(nouns) if isinstance(nouns, list) else '' for nouns in filtered_sdg_df['top_nouns']]
+            )
+        else:
+            # Concatenate all nouns into a single string
+            all_nouns = ' '.join([' '.join(nouns) if isinstance(nouns, list) else '' for nouns in df['top_nouns']])
+
+        # Generate the word cloud with higher resolution
+        wordcloud = WordCloud(
+            background_color='white',
+            width=1600,
+            height=800,
+            max_words=200,
+            stopwords=set(stopwords.words('english')), # Increase scale for higher resolution
+        ).generate(all_nouns)
+
+        # Create a Plotly figure
+        fig = go.Figure()
+
+        # Add the word cloud image to the figure
+        fig.add_trace(go.Image(z=wordcloud.to_array()))
+
+        # Update layout
+        fig.update_layout(
+            title=f"Common Topics for {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
+            xaxis=dict(showgrid=False, zeroline=False, visible=False),
+            yaxis=dict(showgrid=False, zeroline=False, visible=False),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        return fig
+    
+    def get_area_word_cloud(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        
+        # If sdg_dropdown_value is not "ALL", filter the DataFrame by the selected SDG
+        if sdg_dropdown_value != "ALL":
+            df = df[df['sdg'].str.contains(sdg_dropdown_value, case=False, na=False)]  # Filter based on selected SDG
+            df['sdg'] = df['sdg'].str.split(';')  # Split SDGs by ';'
+
+        # Create a temporary DataFrame by copying the filtered data
+        df_temp = df.copy()
+
+        # Split concatenated_areas by ';'
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  # Split concatenated_areas by ';'
+
+        # Explode SDGs and concatenated_areas into separate rows
+        df_temp = df_temp.explode('sdg')  # Explode SDGs
+        df_temp = df_temp.explode('concatenated_areas')  # Explode concatenated_areas
+
+        # Remove unnecessary spaces in SDGs and concatenated_areas
+        df_temp['sdg'] = df_temp['sdg'].str.strip()
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.strip()
+
+        # Remove rows where concatenated_areas are NaN or empty strings
+        df_temp = df_temp[df_temp['concatenated_areas'].notna() & (df_temp['concatenated_areas'] != '')]
+
+        # Combine all concatenated areas into a single string
+        combined_keywords = ' '.join(df_temp['concatenated_areas'].values)
+
+        # Generate the word cloud for all concatenated areas
+        wordcloud = WordCloud(width=1600, height=800, background_color='white').generate(combined_keywords)
+
+        # Create a Plotly figure
+        fig = go.Figure()
+
+        # Add the word cloud image to the figure
+        fig.add_trace(go.Image(z=wordcloud.to_array()))
+
+        # Update layout
+        fig.update_layout(
+            title=f"Common Topics for SDG: {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
+            xaxis=dict(showgrid=False, zeroline=False, visible=False),
+            yaxis=dict(showgrid=False, zeroline=False, visible=False),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        return fig
+    
+    
+
+    def get_top_research_areas_per_year(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value, top_n=10):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Clean and split the SDG values
+        df['sdg'] = df['sdg'].str.split(';')  # Split SDG values by ';'
+        df['sdg'] = df['sdg'].apply(lambda x: [i.strip() for i in x])  # Remove unnecessary spaces
+
+        # Explode SDG values to create a new row for each SDG
+        df = df.explode('sdg')
+
+        # Create a temporary DataFrame by copying the filtered data
+        df_temp = df.copy()
+
+        # Split concatenated_areas by ';'
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  # Split by ';'
+
+        # Explode the areas to create a new row for each area
+        df_temp = df_temp.explode('concatenated_areas')
+
+        # Clean any unnecessary spaces in the research areas
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.strip()
+
+        # Remove rows where 'concatenated_areas' are NaN or empty strings
+        df_temp = df_temp[df_temp['concatenated_areas'].notna() & (df_temp['concatenated_areas'] != '')]
+
+        # Apply the filter for the selected SDG
+        x_axis = 'sdg'
+        if sdg_dropdown_value != "ALL":
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]  # Filter for exact match
+            x_axis = 'year'  # Set x-axis to year when filtered
+
+        # Count the occurrences of each research area by the determined x_axis
+        area_distribution = df_temp.groupby([x_axis, 'concatenated_areas']).size().reset_index(name='count')
+
+        # Sort the data by count and ensure years are sorted numerically
+        if x_axis == 'year':
+            area_distribution = area_distribution.sort_values(by=['year', 'count'], ascending=[True, False])
+        else:
+            area_distribution = area_distribution.sort_values(by=['count'], ascending=False)
+
+        # Create a Plotly bubble chart figure
+        fig = px.scatter(
+            area_distribution,
+            x=x_axis,  # Dynamically set the x-axis (either SDG or year)
+            y='concatenated_areas',  # Research areas on the y-axis
+            size='count',  # Bubble size represents the count
+            color='concatenated_areas',  # Different colors for different areas
+            hover_name='concatenated_areas',  # Show the area name on hover
+            title=f"Research Areas per {'Year' if x_axis == 'year' else 'SDG'}",
+            labels={x_axis: 'Year' if x_axis == 'year' else 'Sustainable Development Goals (SDGs)',
+                    'concatenated_areas': 'Research Areas'},
+            template='plotly_white',  # You can choose other templates like 'plotly_white'
+            height=600,
+            category_orders={'year': sorted(area_distribution['year'].unique())} if x_axis == 'year' else {'sdg': self.all_sdgs}
+        )
+
+        # Update layout for better spacing and readability
+        fig.update_layout(
+            xaxis_title="Year" if x_axis == 'year' else "SDG",
+            yaxis_title="Research Areas",
+            showlegend=False,
+            margin=dict(l=20, r=20, t=40, b=80)
+        )
+
+        return fig
+        
+    def get_top10(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Clean and split the SDG values
+        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x])  # Split and remove spaces
+
+        # Apply the SDG filter
+        if sdg_dropdown_value != "ALL":
+            # Explode SDG values for filtering
+            df = df.explode('sdg')
+            df = df[df['sdg'] == sdg_dropdown_value]
+
+        # Copy the filtered DataFrame
+        df_temp = df.copy()
+
+        # Split concatenated_areas by ';'
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  # Split by ';'
+
+        # Explode the areas to create a new row for each area
+        df_temp = df_temp.explode('concatenated_areas')
+
+        # Clean unnecessary spaces in the research areas
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.strip()
+
+        # Remove rows where 'concatenated_areas' are NaN or empty strings
+        df_temp = df_temp[df_temp['concatenated_areas'].notna() & (df_temp['concatenated_areas'] != '')]
+
+        # Count the occurrences of each research area
+        top10_areas = df_temp['concatenated_areas'].value_counts().head(10)
+
+        # Convert the result into a DataFrame for easy manipulation
+        top10_df = top10_areas.reset_index()
+        top10_df.columns = ['concatenated_areas', 'Count']
+
+        # Sort the data in ascending order for horizontal bar display
+        top10_df = top10_df.sort_values(by='Count', ascending=True)
+
+        # Create a Plotly horizontal bar chart
+        fig = go.Figure(data=[go.Bar(
+            y=top10_df['concatenated_areas'],  # Research areas on the y-axis
+            x=top10_df['Count'],  # Counts on the x-axis
+            orientation='h',  # Horizontal bars
+            marker=dict(color='royalblue')  # Bar color
+        )])
+
+        # Update layout for the figure
+        fig.update_layout(
+            title="Top 10 Research Areas",
+            xaxis_title="Count",
+            yaxis_title="Research Areas",
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=80)
+        )
+
+        return fig
+    
+    def get_top10_authors(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        # Fetch the filtered data from the db_manager
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        # Clean and split the SDG values
+        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x])  # Split and remove spaces
+
+        # Apply the SDG filter
+        if sdg_dropdown_value != "ALL":
+            # Explode SDG values for filtering
+            df = df.explode('sdg')
+            df = df[df['sdg'] == sdg_dropdown_value]
+
+        # Copy the filtered DataFrame
+        df_temp = df.copy()
+
+        # Split concatenated_authors by ';'
+        df_temp['concatenated_authors'] = df_temp['concatenated_authors'].str.split(';')  # Split by ';'
+
+        # Explode the authors to create a new row for each author
+        df_temp = df_temp.explode('concatenated_authors')
+
+        # Clean unnecessary spaces in the authors' names
+        df_temp['concatenated_authors'] = df_temp['concatenated_authors'].str.strip()
+
+        # Remove rows where 'concatenated_authors' are NaN or empty strings
+        df_temp = df_temp[df_temp['concatenated_authors'].notna() & (df_temp['concatenated_authors'] != '')]
+
+        # Count the occurrences of each author
+        top10_authors = df_temp['concatenated_authors'].value_counts().head(10)
+
+        # Convert the result into a DataFrame for easy manipulation
+        top10_df = top10_authors.reset_index()
+        top10_df.columns = ['Author', 'Count']
+
+        # Sort the data in ascending order for horizontal bar display
+        top10_df = top10_df.sort_values(by='Count', ascending=True)
+
+        # Create a Plotly horizontal bar chart
+        fig = go.Figure(data=[go.Bar(
+            y=top10_df['Author'],  # Authors on the y-axis
+            x=top10_df['Count'],  # Counts on the x-axis
+            orientation='h',  # Horizontal bars
+            marker=dict(color='royalblue')  # Bar color
+        )])
+
+        # Update layout for the figure
+        fig.update_layout(
+            title="Top 10 Authors",
+            xaxis_title="Count",
+            yaxis_title="Authors",
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=80)
+        )
+
+        return fig
     
 
     def update_figures(self,selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-        fig1 = self.create_sdg_trend(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
-        fig2 = self.create_sdg_bar(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
         fig3 = self.create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
         fig4 = self.create_sdg_pie_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
 
-        return fig1,fig2, fig3, fig4
+        return fig3, fig4
 
         
     def set_callbacks(self):
@@ -781,8 +1416,6 @@ class SDG_Map:
             return f"{title} {caption}"
         
         @self.dash_app.callback([
-            Output('sdg-per-college', 'figure'),
-            Output('sdg-trend', 'figure'),
             Output('sdg-time-series', 'figure'),
             Output('sdg-pie-distribution', 'figure'),
             ],
@@ -810,7 +1443,138 @@ class SDG_Map:
             selected_years = selected_years if selected_years else self.default_years
             return self.create_geographical_heatmap(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
         
+        @self.dash_app.callback(
+            Output('sdg-research-type', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig1(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_sdg_research_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
         
+        @self.dash_app.callback(
+            Output('sdg-status', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig2(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_sdg_status_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('sdg-conference', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig3(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_sdg_conference_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('sdg-publication-type', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig4(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_publication_type_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+
+        @self.dash_app.callback(
+            Output('sdg-countries', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig5(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_sdg_country_distribution_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+
+        @self.dash_app.callback(
+            Output('sdg-local-foreign-pie', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig6(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.create_local_foreign_pie_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('keywords-cloud', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig7(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('research-area-cloud', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig8(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.get_top_research_areas_per_year(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('top-research-area', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig9(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.get_top10(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+        
+        @self.dash_app.callback(
+            Output('top-authors', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig8(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.get_top10_authors(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+
+
+
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
             Input("data-refresh-interval", "n_intervals")
