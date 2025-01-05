@@ -4,39 +4,20 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from urllib.parse import parse_qs, urlparse
 from . import db_manager
-from collections import Counter
-import re
-import nltk
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk import pos_tag
 from wordcloud import WordCloud
 from services.sdg_colors import sdg_colors
-from sklearn.preprocessing import normalize
 
 
 def default_if_empty(selected_values, default_values):
-    """
-    Returns default_values if selected_values is empty.
-    """
     return selected_values if selected_values else default_values
 
 class SDG_Map:
     def __init__(self, flask_app):
-        """
-        Initialize the MainDashboard class and set up the Dash app.
-        """
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/map/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
-        self.palette_dict = {
-            'MITL': 'red',
-            'ETYCB': 'yellow',
-            'CCIS': 'green',
-            'CAS': 'blue',
-            'CHS': 'orange'
-        }
+        self.palette_dict = db_manager.get_college_colors()
         self.sdg_colors=sdg_colors
         self.all_sdgs = [f'SDG {i}' for i in range(1, 18)]
         # Get default values
@@ -48,19 +29,8 @@ class SDG_Map:
         self.set_callbacks()
 
     def create_layout(self):
-        """
-        Create the layout of the dashboard.
-        """
-
-        
-        sidebar_size = 2
-        
-
-        # Sample DataFrame for testing
-        df = db_manager.get_all_data()  # Fetch all data
+        df = db_manager.get_all_data()
         sdg_series = df['sdg'].str.split('; ').explode()
-
-        # Step 2: Drop duplicates to get distinct SDG values
         distinct_sdg_df = pd.DataFrame(sdg_series.drop_duplicates().reset_index(drop=True), columns=['sdg'])
         distinct_sdg_values = distinct_sdg_df['sdg'].tolist()  
 
@@ -77,7 +47,6 @@ class SDG_Map:
             ],
             className="mb-4",
         )
-
         status = html.Div(
             [
                 dbc.Label("Select Status:", style={"color": "#08397C"}),
@@ -92,7 +61,6 @@ class SDG_Map:
             ],
             className="mb-4",
         )
-
         slider = html.Div(
             [
                 dbc.Label("Select Years: ", style={"color": "#08397C"}),
@@ -109,7 +77,6 @@ class SDG_Map:
             ],
             className="mb-4",
         )
-
         button = html.Div(
             [
                 dbc.Button("Reset", color="primary", id="reset_button"),
@@ -151,7 +118,7 @@ class SDG_Map:
             dbc.Card(
                 [
                     html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
-                    sdgs,  # Set the color to red
+                    sdgs, 
                     college,
                     status,
                     slider,
@@ -160,11 +127,11 @@ class SDG_Map:
                 body=True,
                 style={
                     "background": "#d3d8db",
-                    "height": "100vh",  # Full-height sidebar
-                    "position": "sticky",  # Sticky position instead of fixed
+                    "height": "100vh", 
+                    "position": "sticky", 
                     "top": 0,
                     "padding": "20px",
-                    "border-radius": "0",  # Remove rounded corners
+                    "border-radius": "0", 
                 },
             )
         )
@@ -175,7 +142,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart1",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-time-series")
                         ]
@@ -184,7 +151,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart2",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-pie-distribution")
                         ]
@@ -195,7 +162,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart3",
-                        type="circle",  # Type of spinner
+                        type="circle",
                         children=[
                             dcc.Graph(id="sdg-research-type")
                         ]
@@ -204,7 +171,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart4",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-status")
                         ]
@@ -219,7 +186,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart5",
-                        type="circle",  # Type of spinner
+                        type="circle",
                         children=[
                             dcc.Graph(id="sdg-conference")
                         ]
@@ -228,7 +195,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart6",
-                        type="circle",  # Type of spinner
+                        type="circle",
                         children=[
                             dcc.Graph(id="sdg-publication-type")
                         ]
@@ -239,7 +206,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart7",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-map")
                         ]
@@ -250,7 +217,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart8",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-countries")
                         ]
@@ -259,7 +226,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart9",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="sdg-local-foreign-pie")
                         ]
@@ -293,7 +260,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart12",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="top-research-area")
                         ]
@@ -302,7 +269,7 @@ class SDG_Map:
                 dbc.Col([
                     dcc.Loading(
                         id="loading-sdg-chart13",
-                        type="circle",  # Type of spinner
+                        type="circle", 
                         children=[
                             dcc.Graph(id="top-authors")
                         ]
@@ -314,11 +281,11 @@ class SDG_Map:
 
 
         self.dash_app.layout = html.Div([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
-            dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
+            dcc.Store(id="shared-data-store"),  
             dbc.Container([
                 dbc.Row([
-                    dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
+                    dbc.Col(controls, width=2, style={"height": "100%"}),
                     dbc.Col([
                         dbc.Container([
                             html.H4("sample",id="chosen-sdg"),
@@ -327,7 +294,7 @@ class SDG_Map:
                         
                         dcc.Tabs(
                             id="sdg-tabs",
-                            value="sdg-college-tab",  # Default selected tab
+                            value="sdg-college-tab",  
                             children=[
                                 dcc.Tab(
                                     label="Institutional SDG Impact",
@@ -343,7 +310,7 @@ class SDG_Map:
                                     children=[
                                         dcc.Loading(
                                             id="loading-sdg-map",
-                                            type="circle",  # Type of spinner
+                                            type="circle", 
                                             children=[
                                                 tab2
                                             ]
@@ -363,13 +330,13 @@ class SDG_Map:
                         "height": "100%",
                         "display": "flex",
                         "flex-direction": "column",
-                        "overflow-y": "auto",  # Add vertical scrolling
-                        "overflow-x": "auto",  # Add vertical scrolling
-                        "transform": "scale(0.98)",  # Reduce size to 90%
-                        "transform-origin": "0 0",  # Ensure scaling starts from the top-left corner
+                        "overflow-y": "auto",  
+                        "overflow-x": "auto",  
+                        "transform": "scale(0.98)",  
+                        "transform-origin": "0 0",  
                         "margin": "0", 
                         "padding": "5px",
-                        "flex-grow": "1",  # Make the content area grow to occupy remaining space
+                        "flex-grow": "1",  
                     }),
                 ], style={"height": "100%", "display": "flex"}),
             ], fluid=True, className="dbc dbc-ag-grid", style={
@@ -1176,63 +1143,43 @@ class SDG_Map:
     
 
     def get_top_research_areas_per_year(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value, top_n=10):
-        # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-
-        # Clean and split the SDG values
-        df['sdg'] = df['sdg'].str.split(';')  # Split SDG values by ';'
-        df['sdg'] = df['sdg'].apply(lambda x: [i.strip() for i in x])  # Remove unnecessary spaces
-
-        # Explode SDG values to create a new row for each SDG
+        df['sdg'] = df['sdg'].str.split(';')  
+        df['sdg'] = df['sdg'].apply(lambda x: [i.strip() for i in x])  
         df = df.explode('sdg')
-
-        # Create a temporary DataFrame by copying the filtered data
         df_temp = df.copy()
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  
 
-        # Split concatenated_areas by ';'
-        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  # Split by ';'
-
-        # Explode the areas to create a new row for each area
         df_temp = df_temp.explode('concatenated_areas')
 
-        # Clean any unnecessary spaces in the research areas
         df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.strip()
 
-        # Remove rows where 'concatenated_areas' are NaN or empty strings
         df_temp = df_temp[df_temp['concatenated_areas'].notna() & (df_temp['concatenated_areas'] != '')]
 
-        # Apply the filter for the selected SDG
         x_axis = 'sdg'
         if sdg_dropdown_value != "ALL":
-            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]  # Filter for exact match
-            x_axis = 'year'  # Set x-axis to year when filtered
+            df_temp = df_temp[df_temp['sdg'] == sdg_dropdown_value]  
+            x_axis = 'year'  
 
-        # Count the occurrences of each research area by the determined x_axis
         area_distribution = df_temp.groupby([x_axis, 'concatenated_areas']).size().reset_index(name='count')
-
-        # Sort the data by count and ensure years are sorted numerically
         if x_axis == 'year':
             area_distribution = area_distribution.sort_values(by=['year', 'count'], ascending=[True, False])
         else:
             area_distribution = area_distribution.sort_values(by=['count'], ascending=False)
-
-        # Create a Plotly bubble chart figure
         fig = px.scatter(
             area_distribution,
-            x=x_axis,  # Dynamically set the x-axis (either SDG or year)
-            y='concatenated_areas',  # Research areas on the y-axis
-            size='count',  # Bubble size represents the count
-            color='concatenated_areas',  # Different colors for different areas
-            hover_name='concatenated_areas',  # Show the area name on hover
+            x=x_axis,  
+            y='concatenated_areas', 
+            size='count',  
+            color='concatenated_areas',  
+            hover_name='concatenated_areas',  
             title=f"Research Areas per {'Year' if x_axis == 'year' else 'SDG'}",
             labels={x_axis: 'Year' if x_axis == 'year' else 'Sustainable Development Goals (SDGs)',
                     'concatenated_areas': 'Research Areas'},
-            template='plotly_white',  # You can choose other templates like 'plotly_white'
+            template='plotly_white', 
             height=600,
             category_orders={'year': sorted(area_distribution['year'].unique())} if x_axis == 'year' else {'sdg': self.all_sdgs}
         )
-
-        # Update layout for better spacing and readability
         fig.update_layout(
             xaxis_title="Year" if x_axis == 'year' else "SDG",
             yaxis_title="Research Areas",
@@ -1243,52 +1190,26 @@ class SDG_Map:
         return fig
         
     def get_top10(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-
-        # Clean and split the SDG values
-        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x])  # Split and remove spaces
-
-        # Apply the SDG filter
+        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x]) 
         if sdg_dropdown_value != "ALL":
-            # Explode SDG values for filtering
             df = df.explode('sdg')
             df = df[df['sdg'] == sdg_dropdown_value]
-
-        # Copy the filtered DataFrame
         df_temp = df.copy()
-
-        # Split concatenated_areas by ';'
-        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  # Split by ';'
-
-        # Explode the areas to create a new row for each area
+        df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.split(';')  
         df_temp = df_temp.explode('concatenated_areas')
-
-        # Clean unnecessary spaces in the research areas
         df_temp['concatenated_areas'] = df_temp['concatenated_areas'].str.strip()
-
-        # Remove rows where 'concatenated_areas' are NaN or empty strings
         df_temp = df_temp[df_temp['concatenated_areas'].notna() & (df_temp['concatenated_areas'] != '')]
-
-        # Count the occurrences of each research area
         top10_areas = df_temp['concatenated_areas'].value_counts().head(10)
-
-        # Convert the result into a DataFrame for easy manipulation
         top10_df = top10_areas.reset_index()
         top10_df.columns = ['concatenated_areas', 'Count']
-
-        # Sort the data in ascending order for horizontal bar display
         top10_df = top10_df.sort_values(by='Count', ascending=True)
-
-        # Create a Plotly horizontal bar chart
         fig = go.Figure(data=[go.Bar(
-            y=top10_df['concatenated_areas'],  # Research areas on the y-axis
-            x=top10_df['Count'],  # Counts on the x-axis
-            orientation='h',  # Horizontal bars
-            marker=dict(color='royalblue')  # Bar color
+            y=top10_df['concatenated_areas'],
+            x=top10_df['Count'], 
+            orientation='h', 
+            marker=dict(color='royalblue') 
         )])
-
-        # Update layout for the figure
         fig.update_layout(
             title="Top 10 Research Areas",
             xaxis_title="Count",
@@ -1296,56 +1217,30 @@ class SDG_Map:
             template="plotly_white",
             margin=dict(l=20, r=20, t=40, b=80)
         )
-
         return fig
     
     def get_top10_authors(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Fetch the filtered data from the db_manager
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-
-        # Clean and split the SDG values
-        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x])  # Split and remove spaces
-
-        # Apply the SDG filter
+        df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x]) 
         if sdg_dropdown_value != "ALL":
-            # Explode SDG values for filtering
             df = df.explode('sdg')
             df = df[df['sdg'] == sdg_dropdown_value]
-
-        # Copy the filtered DataFrame
         df_temp = df.copy()
-
-        # Split concatenated_authors by ';'
-        df_temp['concatenated_authors'] = df_temp['concatenated_authors'].str.split(';')  # Split by ';'
-
-        # Explode the authors to create a new row for each author
+        df_temp['concatenated_authors'] = df_temp['concatenated_authors'].str.split(';')  
         df_temp = df_temp.explode('concatenated_authors')
-
-        # Clean unnecessary spaces in the authors' names
         df_temp['concatenated_authors'] = df_temp['concatenated_authors'].str.strip()
-
-        # Remove rows where 'concatenated_authors' are NaN or empty strings
         df_temp = df_temp[df_temp['concatenated_authors'].notna() & (df_temp['concatenated_authors'] != '')]
-
-        # Count the occurrences of each author
         top10_authors = df_temp['concatenated_authors'].value_counts().head(10)
-
-        # Convert the result into a DataFrame for easy manipulation
         top10_df = top10_authors.reset_index()
         top10_df.columns = ['Author', 'Count']
-
-        # Sort the data in ascending order for horizontal bar display
         top10_df = top10_df.sort_values(by='Count', ascending=True)
-
-        # Create a Plotly horizontal bar chart
         fig = go.Figure(data=[go.Bar(
-            y=top10_df['Author'],  # Authors on the y-axis
-            x=top10_df['Count'],  # Counts on the x-axis
-            orientation='h',  # Horizontal bars
-            marker=dict(color='royalblue')  # Bar color
+            y=top10_df['Author'], 
+            x=top10_df['Count'],  
+            orientation='h',  
+            marker=dict(color='royalblue')  
         )])
 
-        # Update layout for the figure
         fig.update_layout(
             title="Top 10 Authors",
             xaxis_title="Count",
