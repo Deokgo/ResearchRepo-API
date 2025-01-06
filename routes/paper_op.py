@@ -10,7 +10,8 @@ from models import (
     UserProfile, 
     Account, 
     ResearchArea, 
-    ResearchOutputArea
+    ResearchOutputArea,
+    ResearchTypes
 )
 from services import auth_services
 import os
@@ -71,7 +72,7 @@ def add_paper():
             missing_fields.append('author_ids')
         
         # Skip adviser and panel validation for specific research types
-        skip_adviser_and_panel = data['research_type'] in ['College-Driven', 'Extramural']
+        skip_adviser_and_panel = data['research_type'] not in ['FD']
 
         if not skip_adviser_and_panel:
             # Check if adviser is missing
@@ -134,7 +135,7 @@ def add_paper():
             title=data['title'],
             abstract=data['abstract'],
             date_approved=data['date_approved'],
-            research_type=data['research_type'],
+            research_type_id=data['research_type'],
             full_manuscript=file_path,
             extended_abstract=file_path_ea,
             adviser_id=adviser_id,
@@ -719,3 +720,23 @@ def predict_research_areas():
     except Exception as e:
         print(f"Prediction error: {str(e)}")
         return jsonify({"error": f"Failed to predict research areas: {str(e)}"}), 500
+
+@paper.route('/research_types', methods=['GET'])
+def get_research_types():
+    try:
+        # Query all research types
+        types = ResearchTypes.query.all()
+        
+        # Convert to list of dictionaries matching the model's field names
+        types_list = [{
+            'id': res_type.research_type_id, 
+            'name': res_type.research_type_name
+        } for res_type in types]
+        
+        return jsonify({
+            "message": "Research types retrieved successfully",
+            "research_types": types_list
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500

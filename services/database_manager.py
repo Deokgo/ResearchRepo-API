@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea, ResearchTypes
 from services.data_fetcher import ResearchDataFetcher
 from collections import Counter
 import re
@@ -88,7 +88,7 @@ class DatabaseManager:
                 ResearchOutput.research_id,
                 ResearchOutput.title,
                 ResearchOutput.date_approved,
-                ResearchOutput.research_type,
+                ResearchTypes.research_type_name,
                 authors_subquery.c.concatenated_authors,
                 keywords_subquery.c.concatenated_keywords,
                 Publication.publication_name,
@@ -110,6 +110,7 @@ class DatabaseManager:
             .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
             .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
             .outerjoin(area_subquery, ResearchOutput.research_id ==  area_subquery.c.research_id) \
+            .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
             .distinct()
 
             result = query.all()
@@ -126,7 +127,7 @@ class DatabaseManager:
                 'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',
                 'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
-                'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
+                'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
                 'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,

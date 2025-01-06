@@ -4,7 +4,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes
 from flask_jwt_extended import jwt_required, get_jwt_identity
 dataset = Blueprint('dataset', __name__)
 
@@ -135,7 +135,7 @@ def retrieve_dataset(research_id=None):
         ResearchOutput.download_count,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
-        ResearchOutput.research_type,
+        ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
         Publication.journal,
@@ -159,6 +159,7 @@ def retrieve_dataset(research_id=None):
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
+    .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
     #filter by research_id if provided
@@ -182,7 +183,7 @@ def retrieve_dataset(research_id=None):
                 'keywords': row.keywords_array if row.keywords_array else [],
                 'panels': row.panels_array if row.panels_array else [],
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
-                'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
+                'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
                 'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
@@ -337,7 +338,7 @@ def fetch_ordered_dataset(research_id=None):
         ResearchOutput.download_count,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
-        ResearchOutput.research_type,
+        ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
         Publication.journal,
@@ -361,6 +362,7 @@ def fetch_ordered_dataset(research_id=None):
     .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
+    .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
     .order_by(desc(ResearchOutput.date_uploaded))
 
     #filter by research_id if provided
@@ -388,7 +390,7 @@ def fetch_ordered_dataset(research_id=None):
                 'keywords': row.keywords_array if row.keywords_array else [],
                 'panels': row.panels_array if row.panels_array else [],
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
-                'research_type': row.research_type if pd.notnull(row.research_type) else 'Unknown Type',
+                'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
                 'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,

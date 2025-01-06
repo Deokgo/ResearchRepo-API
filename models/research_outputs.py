@@ -12,7 +12,7 @@ class ResearchOutput(db.Model):
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
     date_approved = db.Column(db.Date)
     adviser_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
-    research_type = db.Column(db.String(30))
+    research_type_id = db.Column(db.String(6), db.ForeignKey('research_types.research_type_id'))
     view_count = db.Column(db.Integer)
     download_count = db.Column(db.Integer)
     date_uploaded = db.Column(db.DateTime, nullable=False)
