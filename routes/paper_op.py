@@ -11,7 +11,8 @@ from models import (
     Account, 
     ResearchArea, 
     ResearchOutputArea,
-    ResearchTypes
+    ResearchTypes,
+    PublicationFormat
 )
 from services import auth_services
 import os
@@ -736,6 +737,26 @@ def get_research_types():
         return jsonify({
             "message": "Research types retrieved successfully",
             "research_types": types_list
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    
+@paper.route('/publication_format', methods=['GET'])
+def get_pub_formats():
+    try:
+        # Query all research types
+        formats = PublicationFormat.query.all()
+        
+        # Convert to list of dictionaries matching the model's field names
+        formats_list = [{
+            'id': pub_format.pub_format_id, 
+            'name': pub_format.pub_format_name
+        } for pub_format in formats]
+        
+        return jsonify({
+            "message": "Publication formats retrieved successfully",
+            "publication_formats": formats_list
         }), 200
         
     except Exception as e:

@@ -23,6 +23,7 @@ from .visitor import Visitor
 from .research_area import ResearchArea
 from .research_output_area import ResearchOutputArea
 from .research_types import ResearchTypes
+from .publication_format import PublicationFormat
 
 def check_db(db_name, user, password, host='localhost', port='5432'):
     cursor = None  # Initialize cursor outside try block

@@ -6,7 +6,7 @@ class Publication(db.Model):
     research_id = db.Column(db.String(15), db.ForeignKey('research_outputs.research_id'))
     publication_name = db.Column(db.String(100))
     conference_id = db.Column(db.String(15), db.ForeignKey('conference.conference_id'))
-    journal = db.Column(db.String(30))
+    pub_format_id = db.Column(db.String(6), db.ForeignKey('publication_format.pub_format_id'))
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
     date_published = db.Column(db.Date)
     scopus = db.Column(db.String(30))

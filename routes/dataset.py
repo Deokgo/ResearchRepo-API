@@ -4,7 +4,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat
 from flask_jwt_extended import jwt_required, get_jwt_identity
 dataset = Blueprint('dataset', __name__)
 
@@ -138,7 +138,7 @@ def retrieve_dataset(research_id=None):
         ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
-        Publication.journal,
+        PublicationFormat.pub_format_name,
         Publication.date_published,
         Publication.scopus,
         Conference.conference_venue,
@@ -160,6 +160,7 @@ def retrieve_dataset(research_id=None):
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
+    .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
     #filter by research_id if provided
@@ -184,7 +185,7 @@ def retrieve_dataset(research_id=None):
                 'panels': row.panels_array if row.panels_array else [],
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
                 'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
-                'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
+                'journal': row.pub_format_name if pd.notnull(row.pub_format_name) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
                 'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
@@ -341,7 +342,7 @@ def fetch_ordered_dataset(research_id=None):
         ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
-        Publication.journal,
+        PublicationFormat.pub_format_name,
         Publication.date_published,
         Publication.scopus,
         Conference.conference_venue,
@@ -363,6 +364,7 @@ def fetch_ordered_dataset(research_id=None):
     .outerjoin(adviser_subquery, ResearchOutput.research_id == adviser_subquery.c.research_id) \
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
+    .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
     .order_by(desc(ResearchOutput.date_uploaded))
 
     #filter by research_id if provided
@@ -391,7 +393,7 @@ def fetch_ordered_dataset(research_id=None):
                 'panels': row.panels_array if row.panels_array else [],
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
                 'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
-                'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
+                'journal': row.pub_format_name if pd.notnull(row.pub_format_name) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
                 'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,

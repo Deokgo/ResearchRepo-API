@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea, ResearchTypes
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat
 from services.data_fetcher import ResearchDataFetcher
 from collections import Counter
 import re
@@ -92,7 +92,7 @@ class DatabaseManager:
                 authors_subquery.c.concatenated_authors,
                 keywords_subquery.c.concatenated_keywords,
                 Publication.publication_name,
-                Publication.journal,
+                PublicationFormat.pub_format_name,
                 Publication.scopus,
                 Publication.date_published,
                 Conference.conference_venue,
@@ -111,6 +111,7 @@ class DatabaseManager:
             .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
             .outerjoin(area_subquery, ResearchOutput.research_id ==  area_subquery.c.research_id) \
             .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
+            .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
             .distinct()
 
             result = query.all()
@@ -128,7 +129,7 @@ class DatabaseManager:
                 'concatenated_keywords': row.concatenated_keywords if pd.notnull(row.concatenated_keywords) else 'No Keywords',
                 'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
                 'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
-                'journal': row.journal if pd.notnull(row.journal) else 'unpublished',
+                'journal': row.pub_format_name if pd.notnull(row.pub_format_name) else 'unpublished',
                 'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
                 'date_published': row.date_published,
                 'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
