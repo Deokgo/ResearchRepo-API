@@ -362,7 +362,7 @@ def update_paper(research_id):
         existing_paper.title = data['title']
         existing_paper.abstract = data['abstract']
         existing_paper.date_approved = data['date_approved']
-        existing_paper.research_type = data['research_type']
+        existing_paper.research_type_id = data['research_type']
 
         # Adviser ID is None if skipped
         adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
