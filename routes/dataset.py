@@ -192,7 +192,7 @@ def retrieve_dataset(research_id=None):
                 'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
                 'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "READY",
+                'status': row.status if pd.notnull(row.status) else "READY FOR PUBLICATION",
                 'timestamp': row.timestamp if pd.notnull(row.status) else "N/A",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'adviser': {
@@ -400,7 +400,7 @@ def fetch_ordered_dataset(research_id=None):
                 'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
                 'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "READY",
+                'status': row.status if pd.notnull(row.status) else "READY FOR PUBLICATION",
                 'timestamp': row.timestamp if pd.notnull(row.status) else "N/A",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'adviser': {
