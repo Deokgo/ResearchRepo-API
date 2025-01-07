@@ -86,7 +86,7 @@ def analytics_dash():
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items() if value is not None)
 
         if account_info.role_id == "02":
-            dash_url = f"{base_url}/sdg/overall/"
+            dash_url = f"{base_url}/sdg/map/"
         elif account_info.role_id == "04":
             dash_url = f"{base_url}/sdg/college/?{query_string}"
 
