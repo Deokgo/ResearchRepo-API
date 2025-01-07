@@ -75,7 +75,7 @@ class CollegeDashApp:
                 dbc.Checklist(
                     id="status",
                     options=[{'label': value, 'value': value} for value in sorted(
-                        db_manager.get_unique_values('status'), key=lambda x: (x != 'READY FOR PUBLICATION', x != 'PULLOUT', x)
+                        db_manager.get_unique_values('status'), key=lambda x: (x != 'READY', x != 'PULLOUT', x)
                     )],
                     value=[],
                     inline=True,
@@ -386,7 +386,7 @@ class CollegeDashApp:
         if df.empty:
             return px.bar(title="No data available")
         
-        status_order = ['READY FOR PUBLICATION', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
 
         fig = go.Figure()
 
@@ -789,7 +789,7 @@ class CollegeDashApp:
                     dbc.Row([
                         dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
                         dbc.Col(
-                            self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY FOR PUBLICATION', 'college_id', self.college)))),
+                            self.create_display_card("Ready for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
                         dbc.Col(
                             self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),

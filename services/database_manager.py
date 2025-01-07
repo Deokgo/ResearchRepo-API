@@ -136,7 +136,7 @@ class DatabaseManager:
                 'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
                 'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
                 'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "READY FOR PUBLICATION",
+                'status': row.status if pd.notnull(row.status) else "READY",
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'abstract': row.abstract if pd.notnull(row.abstract) else '',
                 'concatenated_areas': row.concatenated_areas if pd.notnull(row.concatenated_areas) else 'No Research Areas',
