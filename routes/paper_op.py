@@ -45,7 +45,7 @@ def add_paper():
         # Required Fields
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
-            'abstract', 'date_approved', 'research_type', 
+            'abstract', 'school_year', 'term', 'research_type', 
             'sdg', 'keywords', 'author_ids'
         ]
 
@@ -60,14 +60,6 @@ def add_paper():
         if file.content_type != 'application/pdf':
             return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
 
-        # Validate the extended abstract (optional)
-        file_ea = request.files.get('extended_abstract')
-        if file_ea and file_ea.content_type != 'application/pdf':
-            return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
-
-        print("Received file:", request.files.get("file"))
-        print("Received extended abstract:", request.files.get("extended_abstract"))
-        
         # Check if authors array is empty
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
@@ -95,7 +87,7 @@ def add_paper():
             UPLOAD_FOLDER, 
             data['research_type'], 
             'manuscript', 
-            str(datetime.strptime(data['date_approved'], '%Y-%m-%d').year),
+            str(data['school_year']),  # Use school_year instead of date_approved
             data['college_id'],
             data['program_id']
         )
@@ -106,21 +98,23 @@ def add_paper():
         file.save(file_path)
 
         # Save the extended abstract (if provided)
-        file_path_ea = None  # Default to None if no extended abstract is provided
-        if file_ea:
-            dir_path_ea = os.path.join(
-                UPLOAD_FOLDER, 
-                data['research_type'], 
-                'extended_abstract', 
-                str(datetime.now().year),  # Use the current year
-                data['college_id'],
-                data['program_id']
-            )
-            os.makedirs(dir_path_ea, exist_ok=True)
+        file_path_ea = None
+        if 'extended_abstract' in request.files:
+            file_ea = request.files['extended_abstract']
+            if file_ea:
+                dir_path_ea = os.path.join(
+                    UPLOAD_FOLDER, 
+                    data['research_type'], 
+                    'extended_abstract', 
+                    str(data['school_year']),  # Use school_year here too
+                    data['college_id'],
+                    data['program_id']
+                )
+                os.makedirs(dir_path_ea, exist_ok=True)
 
-            filename_ea = secure_filename(f"{data['research_id']}_extended_abstract.pdf")
-            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
-            file_ea.save(file_path_ea)
+                filename_ea = secure_filename(f"{data['research_id']}_extended_abstract.pdf")
+                file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+                file_ea.save(file_path_ea)
         
         # If file save succeeds, proceed with database operations
         philippine_tz = pytz.timezone('Asia/Manila')
@@ -129,13 +123,15 @@ def add_paper():
         # Adviser ID is None if skipped
         adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
 
-        new_paper = ResearchOutput(
+        # Create new research output
+        new_research = ResearchOutput(
             research_id=data['research_id'],
             college_id=data['college_id'],
             program_id=data['program_id'],
             title=data['title'],
             abstract=data['abstract'],
-            date_approved=data['date_approved'],
+            school_year=data['school_year'],
+            term=data['term'],
             research_type_id=data['research_type'],
             full_manuscript=file_path,
             extended_abstract=file_path_ea,
@@ -146,8 +142,8 @@ def add_paper():
             download_count=0, 
             unique_views=0
         )
-        db.session.add(new_paper)
-        db.session.flush()  # This will generate the ID without committing the transaction
+        db.session.add(new_research)
+        db.session.flush()
 
         # Now handle research areas with the generated research_id
         research_areas_str = data.get('research_areas')
@@ -237,14 +233,14 @@ def add_paper():
         auth_services.log_audit_trail(
             user_id=user_id,
             table_name='Research_Output',
-            record_id=new_paper.research_id,
+            record_id=new_research.research_id,
             operation='CREATE',
             action_desc='Added research paper'
         )
 
         return jsonify({
             "message": "Research output and manuscript added successfully", 
-            "research_id": new_paper.research_id
+            "research_id": new_research.research_id
         }), 201
     
     except Exception as e:
@@ -517,67 +513,6 @@ def get_research_areas():
         
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-@paper.route('/predict_research_areas', methods=['POST'])
-def predict_research_areas():
-    try:
-        data = request.json
-        title = data.get('title', '')
-        abstract = data.get('abstract', '')
-        keywords = data.get('keywords', '')
-        
-        # Combine text fields
-        combined_text = f"{title} {abstract} {keywords}"
-        
-        # Load the model using absolute path
-        if not os.path.exists(MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
-            
-        with open(MODEL_PATH, 'rb') as file:
-            model_data = pickle.load(file)
-        
-        # Extract model components
-        tfidf = model_data['tfidf']
-        mlb = model_data['mlb']
-        classifier = model_data['classifier']
-        
-        # Transform text using TF-IDF
-        X = tfidf.transform([combined_text])
-        
-        # Get probability estimates
-        probas = classifier.predict_proba(X)
-        
-        # Get class labels
-        classes = mlb.classes_
-        
-        # Create a list of (label, probability) pairs with threshold
-        predictions = []
-        for i, label_probas_list in enumerate(probas):
-            prob = label_probas_list[0][1]  # Probability of positive class
-            if prob >= 0.5:  # Only include if probability exceeds threshold
-                predictions.append({'id': i + 1, 'name': classes[i]})
-        
-        # If no predictions above threshold, include highest probability prediction
-        if not predictions:
-            max_prob = -1
-            max_label = None
-            max_idx = -1
-            for i, label_probas_list in enumerate(probas):
-                prob = label_probas_list[0][1]
-                if prob > max_prob:
-                    max_prob = prob
-                    max_label = classes[i]
-                    max_idx = i
-            predictions = [{'id': max_idx + 1, 'name': max_label}]
-
-        return jsonify({
-            "message": "Prediction successful",
-            "predicted_areas": predictions
-        }), 200
-
-    except Exception as e:
-        print(f"Prediction error: {str(e)}")
-        return jsonify({"error": f"Failed to predict research areas: {str(e)}"}), 500
 
 @paper.route('/research_types', methods=['GET'])
 def get_research_types():
