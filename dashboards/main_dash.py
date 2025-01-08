@@ -183,6 +183,13 @@ class MainDashboard:
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+        
+        sub_dash5 = dbc.Container([
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='term_college_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+
 
         self.dash_app.layout = html.Div([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
@@ -193,10 +200,11 @@ class MainDashboard:
                     dbc.Col([
                         dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
                         dbc.Row(main_dash, style={"flex": "2"}),    # Main dashboard section
-                        dbc.Row(sub_dash1, style={"flex": "1"}),    # Sub dashboard 1
-                        dbc.Row(sub_dash3, style={"flex": "1"}),    # Sub dashboard 3
-                        dbc.Row(sub_dash2, style={"flex": "1"}),    # Sub dashboard 2
-                        dbc.Row(sub_dash4, style={"flex": "1"}),    # Sub dashboard 4
+                        dbc.Row(sub_dash5, style={"flex": "1"}),
+                        dbc.Row(sub_dash1, style={"flex": "1"}),    
+                        dbc.Row(sub_dash3, style={"flex": "1"}),    
+                        dbc.Row(sub_dash2, style={"flex": "1"}),    
+                        dbc.Row(sub_dash4, style={"flex": "1"}),    
                     ], style={
                         "height": "100%",
                         "display": "flex",
@@ -629,6 +637,54 @@ class MainDashboard:
 
         return fig_line
 
+    def update_research_outputs_by_year_and_term(self, selected_colleges, selected_status, selected_years):
+        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+        if df.empty:
+            return px.bar(title="No data available")
+
+        if len(selected_colleges) == 1:
+            # Group by year, program_id, and term for a single college
+            grouped_df = df.groupby(['year', 'program_id', 'term']).size().reset_index(name='Count')
+            x_axis = 'year'
+            color_axis = 'program_id'
+            xaxis_title = 'Year'
+            yaxis_title = 'Number of Research Outputs'
+            title = f'Number of Research Outputs by Programs in {selected_colleges[0]} and Year for Each Academic Term' 
+            color_label = 'Program'
+        else:
+            # Group by year, college_id, and term for multiple colleges
+            grouped_df = df.groupby(['year', 'college_id', 'term']).size().reset_index(name='Count')
+            x_axis = 'year'
+            color_axis = 'college_id'
+            xaxis_title = 'Year'
+            yaxis_title = 'Number of Research Outputs'
+            title = 'Number of Research Outputs by College and Year for Each Academic Term'
+            color_label = 'College'
+
+        # Create the bar chart with stacking enabled and facets for each term
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color=color_axis,
+            barmode='stack',  # Stack bars for the same year
+            color_discrete_map=self.palette_dict,
+            facet_col='term',  # Facet by term (1, 2, 3)
+            labels={x_axis: xaxis_title, 'Count': yaxis_title, color_axis: color_label}
+        )
+
+        # Update the layout of the chart
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title,
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
+
 
     def set_callbacks(self):
         """
@@ -813,3 +869,17 @@ class MainDashboard:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return self.publication_format_line_plot(selected_colleges, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('term_college_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value')
+            ]
+        )
+        def update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years)

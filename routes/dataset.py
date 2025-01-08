@@ -135,6 +135,8 @@ def retrieve_dataset(research_id=None):
         ResearchOutput.download_count,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
+        ResearchOutput.school_year,
+        ResearchOutput.term,
         ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
@@ -176,7 +178,8 @@ def retrieve_dataset(research_id=None):
                 'program_id': row.program_id if pd.notnull(row.program_id) else None,
                 'research_id': row.research_id,
                 'title': row.title if pd.notnull(row.title) else 'Untitled',
-                'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
+                'year': row.school_year if pd.notnull(row.school_year) else None,
+                'term': row.term if pd.notnull(row.term) else None,
                 'view_count': row.view_count if pd.notnull(row.view_count) else 'No Views Yet',
                 'download_count': row.download_count if pd.notnull(row.download_count) else 'No Downloads Yet',
                 'date_approved': row.date_approved,
@@ -339,6 +342,8 @@ def fetch_ordered_dataset(research_id=None):
         ResearchOutput.download_count,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
+        ResearchOutput.school_year,
+        ResearchOutput.term,
         ResearchTypes.research_type_name,
         authors_subquery.c.authors_array,
         keywords_subquery.c.keywords_array,
@@ -383,8 +388,8 @@ def fetch_ordered_dataset(research_id=None):
                 'research_id': row.research_id,
                 'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'full_manuscript': row.full_manuscript,
-                'date_approved': row.date_approved,
-                'year': row.date_approved.year if pd.notnull(row.date_approved) else None,
+                'year': row.school_year if pd.notnull(row.school_year) else None,
+                'term': row.term if pd.notnull(row.term) else None,
                 'view_count': row.view_count,
                 'download_count': row.download_count,
                 'date_approved': row.date_approved,
@@ -420,9 +425,10 @@ def fetch_ordered_dataset(research_id=None):
 @dataset.route('/fetch_date_range', methods=['GET'])
 @jwt_required()
 def fetch_date_range():
+    # Query to get the min and max year
     result = db.session.query(
-        func.min(extract('year', ResearchOutput.date_uploaded)).label('min_year'),
-        func.max(extract('year', ResearchOutput.date_uploaded)).label('max_year')
+        func.min(ResearchOutput.school_year).label('min_year'),
+        func.max(ResearchOutput.school_year).label('max_year')
     ).one()
 
     # Prepare the result as a JSON object

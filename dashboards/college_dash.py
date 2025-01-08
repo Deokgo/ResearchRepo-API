@@ -167,6 +167,12 @@ class CollegeDashApp:
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+        
+        sub_dash5 = dbc.Container([
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='term_college_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         self.dash_app.layout = html.Div([
             # URL tracking
@@ -189,6 +195,7 @@ class CollegeDashApp:
                         # Contets of the Dash App
                         dbc.Row(text_display, style={"flex": "1"}),
                         dbc.Row(main_dash, style={"flex": "2"}),
+                        dbc.Row(sub_dash5, style={"flex": "1"}),
                         dbc.Row(sub_dash1, style={"flex": "1"}),
                         dbc.Row(sub_dash3, style={"flex": "1"}),
                         dbc.Row(sub_dash2, style={"flex": "1"}),
@@ -268,7 +275,7 @@ class CollegeDashApp:
             df = df[df['program_id'].isin(selected_program)]
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'program_id'
-            title = 'Number of Research Outputs per College'
+            title = 'Number of Research Outputs per Program'
         
         # Generate a dynamic color mapping based on unique values in the color_column
         unique_values = grouped_df[color_column].unique()
@@ -513,6 +520,39 @@ class CollegeDashApp:
     
     def update_publication_format_bar_plot(self, selected_programs, selected_status, selected_years):
         df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
+
+
+        grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+        x_axis = 'program_id'
+        xaxis_title = 'Programs'
+        title = f'Publication Formats per Program'
+
+        fig_bar = px.bar(
+            grouped_df,
+            x=x_axis,
+            y='Count',
+            color='journal',
+            barmode='group',
+            color_discrete_map=self.palette_dict,
+            labels={'journal': 'Publication Format'}
+        )
+        
+        fig_bar.update_layout(
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title='Number of Research Outputs',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_bar
+    
+    def update_research_outputs_by_year_and_term(self, selected_programs, selected_status, selected_years):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        
         
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
@@ -841,3 +881,17 @@ class CollegeDashApp:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return self.publication_format_line_plot(selected_programs, selected_status, selected_years)
+        
+        @self.dash_app.callback(
+            Output('term_college_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value')
+            ]
+        )
+        def update_research_outputs_by_year_and_term(selected_programs, selected_status, selected_years):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return self.update_research_outputs_by_year_and_term(selected_programs, selected_status, selected_years)

@@ -22,3 +22,5 @@ class ResearchOutput(db.Model):
         secondary='research_output_area',
         lazy='joined'
     )
+    school_year = db.Column(db.String(4))
+    term = db.Column(db.String(1))
