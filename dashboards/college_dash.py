@@ -167,7 +167,7 @@ class CollegeDashApp:
                     dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
-        
+
         sub_dash5 = dbc.Container([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='term_college_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
@@ -553,30 +553,35 @@ class CollegeDashApp:
     def update_research_outputs_by_year_and_term(self, selected_programs, selected_status, selected_years):
         df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         
-        
-        df = df[df['journal'] != 'unpublished']
-        df = df[df['status'] != 'PULLOUT']
+        if df.empty:
+            return px.bar(title="No data available")
 
+        # Group by year, program_id, and term for a single college
+        grouped_df = df.groupby(['year', 'program_id', 'term']).size().reset_index(name='Count')
+        x_axis = 'year'
+        color_axis = 'program_id'
+        xaxis_title = 'Year'
+        yaxis_title = 'Number of Research Outputs'
+        title = f'Number of Research Outputs by Programs and Year for Each Academic Term' 
+        color_label = 'Program'
 
-        grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
-        x_axis = 'program_id'
-        xaxis_title = 'Programs'
-        title = f'Publication Formats per Program'
-
+        # Create the bar chart with stacking enabled and facets for each term
         fig_bar = px.bar(
             grouped_df,
             x=x_axis,
             y='Count',
-            color='journal',
-            barmode='group',
+            color=color_axis,
+            barmode='stack',  # Stack bars for the same year
             color_discrete_map=self.palette_dict,
-            labels={'journal': 'Publication Format'}
+            facet_col='term',  # Facet by term (1, 2, 3)
+            labels={x_axis: xaxis_title, 'Count': yaxis_title, color_axis: color_label}
         )
-        
+
+        # Update the layout of the chart
         fig_bar.update_layout(
             title=title,
             xaxis_title=xaxis_title,
-            yaxis_title='Number of Research Outputs',
+            yaxis_title=yaxis_title,
             template='plotly_white',
             height=400
         )
@@ -885,7 +890,7 @@ class CollegeDashApp:
         @self.dash_app.callback(
             Output('term_college_bar_plot', 'figure'),
             [
-                Input('college', 'value'),
+                Input('program', 'value'),
                 Input('status', 'value'),
                 Input('years', 'value')
             ]
