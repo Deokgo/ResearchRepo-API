@@ -126,7 +126,6 @@ class DatabaseManager:
                 'program_id': row.program_id if pd.notnull(row.program_id) else None,
                 'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'year': row.school_year if pd.notnull(row.school_year) else None,
-                'school_year': row.school_year if pd.notnull(row.school_year) else None,
                 'term': row.term if pd.notnull(row.term) else None,
                 'date_approved': row.date_approved,
                 'concatenated_authors': row.concatenated_authors if pd.notnull(row.concatenated_authors) else 'Unknown Authors',

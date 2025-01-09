@@ -30,7 +30,7 @@ def create_kg_sdg(flask_app):
         college_id = row['college_id']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
-        year = row['school_year']
+        year = row['year']
 
         # Add study node
         G.add_node(research_id, type='study', research=research_id, title=study,college=college_id, program=program_name,
@@ -212,11 +212,11 @@ def create_kg_sdg(flask_app):
                 html.Div([
                     dcc.RangeSlider(
                         id='year-slider',
-                        min=df['school_year'].min(),
-                        max=df['school_year'].max(),
-                        value=[df['school_year'].min(), df['school_year'].max()],
-                        marks={year: str(year) for year in range(int(df['school_year'].min()), 
-                                                               int(df['school_year'].max()) + 1)},
+                        min=df['year'].min(),
+                        max=df['year'].max(),
+                        value=[df['year'].min(), df['year'].max()],
+                        marks={year: str(year) for year in range(int(df['year'].min()), 
+                                                               int(df['year'].max()) + 1)},
                         step=1
                     )
                 ], style=styles['slider_container']),
