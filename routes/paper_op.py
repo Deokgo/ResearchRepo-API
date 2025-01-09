@@ -39,14 +39,13 @@ def add_paper():
     try:
         # Get the current user's identity
         user_id = get_jwt_identity()
+        data = request.form
 
-        data = request.form  # Get form data
-        
         # Required Fields
         required_fields = [
             'research_id', 'college_id', 'program_id', 'title', 
             'abstract', 'school_year', 'term', 'research_type', 
-            'sdg', 'keywords', 'author_ids'
+            'sdg', 'keywords', 'author_ids', 'research_areas'
         ]
 
         # Validate non-file fields
@@ -64,6 +63,10 @@ def add_paper():
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
         
+        # Check if research areas is empty
+        if 'research_areas' in data and not data['research_areas'].strip():
+            missing_fields.append('research_areas')
+            
         # Skip adviser and panel validation for specific research types
         skip_adviser_and_panel = data['research_type'] not in ['FD']
 
@@ -79,8 +82,30 @@ def add_paper():
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
         
+        # Check for duplicate group code first
         if is_duplicate(data['research_id']):
             return jsonify({"error": "Group Code already exists"}), 400
+
+        # Check for duplicate title and authors
+        author_ids = request.form.getlist('author_ids')
+        if author_ids:
+            # Check for duplicate title (case-insensitive)
+            title_match = ResearchOutput.query.filter(
+                db.func.lower(ResearchOutput.title) == db.func.lower(data['title'])
+            ).first()
+
+            if title_match:
+                # If title exists, check for author overlap
+                existing_authors = ResearchOutputAuthor.query.filter_by(
+                    research_id=title_match.research_id
+                ).all()
+                existing_author_ids = [str(author.author_id) for author in existing_authors]
+                
+                # Check if any of the new authors are in the existing authors
+                if any(author_id in existing_author_ids for author_id in author_ids):
+                    return jsonify({
+                        "error": "A paper with this title and these authors already exists"
+                    }), 400
 
         # Save the manuscript
         dir_path = os.path.join(
@@ -552,4 +577,50 @@ def get_pub_formats():
         }), 200
         
     except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+@paper.route('/check_duplicate', methods=['GET'])
+def check_duplicate():
+    try:
+        group_code = request.args.get('group_code')
+        title = request.args.get('title')
+        author_ids = request.args.get('author_ids')
+
+        response = {
+            "isDuplicateTitle": False,
+            "isDuplicateAuthors": False
+        }
+        
+        if group_code:
+            # Check for duplicate group code
+            exists = ResearchOutput.query.filter_by(research_id=group_code).first() is not None
+            return jsonify({"isDuplicate": exists}), 200
+
+        if title and author_ids:
+            # Split author_ids string into list
+            author_id_list = author_ids.split(',')
+
+            # Check for duplicate title (case-insensitive)
+            title_match = ResearchOutput.query.filter(
+                db.func.lower(ResearchOutput.title) == db.func.lower(title)
+            ).first()
+
+            if title_match:
+                response["isDuplicateTitle"] = True
+                
+                # If we found a title match, check if any of the authors match
+                existing_authors = ResearchOutputAuthor.query.filter_by(
+                    research_id=title_match.research_id
+                ).all()
+                
+                existing_author_ids = [str(author.author_id) for author in existing_authors]
+                
+                # Check if any of the new authors are in the existing authors
+                if any(author_id in existing_author_ids for author_id in author_id_list):
+                    response["isDuplicateAuthors"] = True
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        print(f"Error checking duplicates: {str(e)}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
