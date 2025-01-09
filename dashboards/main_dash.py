@@ -199,12 +199,48 @@ class MainDashboard:
                     dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                     dbc.Col([
                         dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
-                        dbc.Row(main_dash, style={"flex": "2"}),    # Main dashboard section
-                        dbc.Row(sub_dash5, style={"flex": "1"}),
-                        dbc.Row(sub_dash1, style={"flex": "1"}),    
-                        dbc.Row(sub_dash3, style={"flex": "1"}),    
-                        dbc.Row(sub_dash2, style={"flex": "1"}),    
-                        dbc.Row(sub_dash4, style={"flex": "1"}),    
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-main-dash",
+                                type="circle",
+                                children=main_dash
+                            ), style={"flex": "2"}
+                        ),
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-sub-dash5",
+                                type="circle",
+                                children=sub_dash5
+                            ), style={"flex": "1"}
+                        ),  
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-sub-dash1",
+                                type="circle",
+                                children=sub_dash1
+                            ), style={"flex": "1"}
+                        ),    
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-sub-dash3",
+                                type="circle",
+                                children=sub_dash3
+                            ), style={"flex": "1"}
+                        ),    
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-sub-dash2",
+                                type="circle",
+                                children=sub_dash2
+                            ), style={"flex": "1"}
+                        ),    
+                        dbc.Row(
+                            dcc.Loading(
+                                id="loading-sub-dash4",
+                                type="circle",
+                                children=sub_dash4
+                            ), style={"flex": "1"}
+                        ),    
                     ], style={
                         "height": "100%",
                         "display": "flex",
@@ -228,6 +264,7 @@ class MainDashboard:
             "overflow-x": "hidden",  # Disable horizontal scrolling
             "overflow-y": "hidden",  # Disable vertical scrolling
         })
+
 
     def create_display_card(self, title, value):
         """
