@@ -10,7 +10,6 @@ import pandas as pd
 
 def create_kg_sdg(flask_app):
     df = db_manager.get_all_data()
-    df['date_approved'] = pd.to_datetime(df['date_approved'], errors='coerce')
     G = nx.Graph()
     connected_nodes = defaultdict(list)
 
@@ -31,7 +30,7 @@ def create_kg_sdg(flask_app):
         college_id = row['college_id']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
-        year = row['date_approved'].year
+        year = row['school_year']
 
         # Add study node
         G.add_node(research_id, type='study', research=research_id, title=study,college=college_id, program=program_name,
@@ -213,10 +212,11 @@ def create_kg_sdg(flask_app):
                 html.Div([
                     dcc.RangeSlider(
                         id='year-slider',
-                        min=df['date_approved'].dt.year.min(),
-                        max=df['date_approved'].dt.year.max(),
-                        value=[df['date_approved'].dt.year.min(), df['date_approved'].dt.year.max()],
-                        marks={year: str(year) for year in range(df['date_approved'].dt.year.min(), df['date_approved'].dt.year.max() + 1, 2)},
+                        min=df['school_year'].min(),
+                        max=df['school_year'].max(),
+                        value=[df['school_year'].min(), df['school_year'].max()],
+                        marks={year: str(year) for year in range(int(df['school_year'].min()), 
+                                                               int(df['school_year'].max()) + 1)},
                         step=1
                     )
                 ], style=styles['slider_container']),
