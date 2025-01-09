@@ -199,25 +199,48 @@ def update_account(user_id):
         db.session.close()  # Ensure the session is closed
 
 @accounts.route('/search_user', methods=['GET'])
+@accounts.route('/search_user/<college_id>', methods=['GET'])
 @jwt_required()
-def search_users():
+def search_users(college_id=None):
     query = request.args.get('query', '')
+    
+    # Base query
+    user_query = UserProfile.query.join(Account, UserProfile.researcher_id == Account.user_id)\
+                .filter(Account.role_id.in_(['04', '05', '06']))
+    
+    # Add filter for college_id if provided
+    if college_id:
+        user_query = user_query.filter(UserProfile.college_id == college_id)
+    
+    # Add search filters if query parameter is provided
     if query:
-        users = UserProfile.query.join(Account, UserProfile.researcher_id == Account.user_id)\
-                    .filter(Account.role_id.in_(['04', '05', '06']))\
-                    .filter((UserProfile.first_name.ilike(f'%{query}%')) | 
-                            (UserProfile.last_name.ilike(f'%{query}%')) |
-                            (Account.email.ilike(f'%{query}%')))\
-                    .add_columns(UserProfile.researcher_id, UserProfile.first_name, UserProfile.last_name, Account.email)\
-                    .all()
+        user_query = user_query.filter(
+            (UserProfile.first_name.ilike(f'%{query}%')) | 
+            (UserProfile.last_name.ilike(f'%{query}%')) |
+            (Account.email.ilike(f'%{query}%'))
+        )
+    
+    # Add required columns to the query
+    users = user_query.add_columns(
+        UserProfile.researcher_id, 
+        UserProfile.first_name, 
+        UserProfile.last_name, 
+        Account.email
+    ).all()
+    
+    # Format the result
+    result = [
+        {
+            "user_id": user.researcher_id, 
+            "first_name": first_name, 
+            "last_name": last_name, 
+            "email": email
+        } 
+        for user, researcher_id, first_name, last_name, email in users
+    ]
+    
+    return jsonify({"users": result}), 200
 
-        result = [{"user_id": user.researcher_id, 
-                   "first_name": first_name, 
-                   "last_name": last_name, 
-                   "email": email} for user, researcher_id, first_name, last_name, email in users]
-
-        return jsonify({"users": result}), 200
-    return jsonify({"users": []}), 200
 
 @accounts.route('/fetch_roles', methods=['GET'])
 @jwt_required()
