@@ -1,13 +1,12 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
-from models import db, Publication , ResearchOutput, Status,ResearchOutputAuthor,UserProfile,Account, Conference
+from models import db, Publication , ResearchOutput, Status, Conference, PublicationFormat
 from services.auth_services import formatting_id, log_audit_trail
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from services.tracking_services import insert_status
 from sqlalchemy import func, desc, nulls_last
 from services.mail import send_notification_email
-
 
 track = Blueprint('track', __name__)
 
@@ -197,7 +196,7 @@ def publication_papers(research_id=None):
     if request.method == 'GET':
     
         query = (db.session.query(
-            Publication.journal,
+            PublicationFormat.pub_format_name,
             Conference.conference_title,
             Conference.conference_venue,
             Conference.conference_date,
@@ -208,6 +207,7 @@ def publication_papers(research_id=None):
 
         )).join(ResearchOutput,Publication.research_id==ResearchOutput.research_id)\
         .outerjoin(Conference, Conference.conference_id==Publication.conference_id)\
+        .outerjoin(PublicationFormat, PublicationFormat.pub_format_id==Publication.pub_format_id)\
         .filter(ResearchOutput.research_id == research_id)
 
         result=query.all()
@@ -215,7 +215,7 @@ def publication_papers(research_id=None):
         data = [
             {
                 'publication_id': row.publication_id,
-                'journal': row.journal,
+                'journal': row.pub_format_name,
                 'conference_title': row.conference_title,
                 'city': (
                     row.conference_venue.split(',', 1)[0].strip() 
