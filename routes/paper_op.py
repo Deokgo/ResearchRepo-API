@@ -292,22 +292,15 @@ def update_paper(research_id):
         # Get the current user's identity
         user_id = get_jwt_identity()
         data = request.form
-
-        # Only validate editable fields
-        required_fields = ['abstract']
-
-        # Validate required fields
-        missing_fields = [field for field in required_fields if field not in data or not data[field].strip()]
-        
-        if missing_fields:
-            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+        file = request.files.get('file')
+        file_ea = request.files.get('extended_abstract')
 
         # Get the existing paper
         existing_paper = ResearchOutput.query.filter_by(research_id=research_id).first()
         if not existing_paper:
             return jsonify({"error": "Paper not found"}), 404
 
-        # Update only editable fields
+        # Update basic fields
         existing_paper.abstract = data['abstract']
 
         # Handle research areas update
@@ -324,10 +317,7 @@ def update_paper(research_id):
 
         # Handle keywords update
         if 'keywords' in data and data['keywords']:
-            # Delete existing keywords
             Keywords.query.filter_by(research_id=research_id).delete()
-            
-            # Add new keywords
             keywords = data['keywords'].split(';')
             for keyword in keywords:
                 if keyword.strip():
@@ -339,27 +329,77 @@ def update_paper(research_id):
 
         # Handle SDG update
         if 'sdg' in data:
-            existing_paper.sdg = data['sdg']
+            SDG.query.filter_by(research_id=research_id).delete()
+            sdg_list = data['sdg'].split(';') if data['sdg'] else []
+            for sdg_id in sdg_list:
+                if sdg_id.strip():
+                    new_sdg = SDG(
+                        research_id=research_id,
+                        sdg=sdg_id.strip()
+                    )
+                    db.session.add(new_sdg)
 
-        # Handle file uploads if present
-        if 'file' in request.files:
-            file = request.files['file']
-            if file and file.filename:
-                # Your existing file handling code
-                pass
+        # Handle manuscript file update
+        if file:
+            if not file.content_type == 'application/pdf':
+                return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
 
-        if 'extended_abstract' in request.files:
-            extended_abstract = request.files['extended_abstract']
-            if extended_abstract and extended_abstract.filename:
-                # Your existing extended abstract handling code
-                pass
+            # Create directory structure using existing paper's information
+            dir_path = os.path.join(
+                UPLOAD_FOLDER,
+                existing_paper.research_type_id,
+                'manuscript',
+                str(existing_paper.school_year),
+                existing_paper.college_id,
+                existing_paper.program_id
+            )
+            os.makedirs(dir_path, exist_ok=True)
+
+            # Save new file (will overwrite if exists)
+            filename = secure_filename(f"{research_id}_manuscript.pdf")
+            file_path = os.path.normpath(os.path.join(dir_path, filename))
+            file.save(file_path)
+            existing_paper.full_manuscript = file_path
+
+        # Handle extended abstract update
+        if file_ea:
+            if not file_ea.content_type == 'application/pdf':
+                return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
+
+            # Create directory structure for extended abstract
+            dir_path_ea = os.path.join(
+                UPLOAD_FOLDER,
+                existing_paper.research_type_id,
+                'extended_abstract',
+                str(existing_paper.school_year),
+                existing_paper.college_id,
+                existing_paper.program_id
+            )
+            os.makedirs(dir_path_ea, exist_ok=True)
+
+            # Save new extended abstract (will overwrite if exists)
+            filename_ea = secure_filename(f"{research_id}_extended_abstract.pdf")
+            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+            file_ea.save(file_path_ea)
+            existing_paper.extended_abstract = file_path_ea
 
         db.session.commit()
+
+        # Log audit trail
+        auth_services.log_audit_trail(
+            user_id=user_id,
+            table_name='Research_Output',
+            record_id=research_id,
+            operation='UPDATE',
+            action_desc='Updated research paper'
+        )
+
         return jsonify({"message": "Paper updated successfully"}), 200
 
     except Exception as e:
         db.session.rollback()
         print(f"Error updating paper: {str(e)}")
+        traceback.print_exc()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
     finally:
