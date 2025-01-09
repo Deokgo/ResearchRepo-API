@@ -7,6 +7,7 @@ from datetime import datetime
 from services.tracking_services import insert_status
 from sqlalchemy import func, desc, nulls_last
 from services.mail import send_notification_email
+from services.data_fetcher import get_field_attribute
 
 track = Blueprint('track', __name__)
 
@@ -333,17 +334,11 @@ def publication_papers(research_id=None):
                 print("Publication Content:", vars(publication))
 
                 if publication:
-                
                     # Handle journal or proceeding logic
-                    if data.get('journal') == "journal":
-                        publication.conference_id = None
-                    elif data.get('journal') == "proceeding":
-                        print("proceeding!!")
+                    if data.get('journal') == "PC":
                         conferences = db.session.query(Conference).filter(Conference.conference_title == data.get('conference_title')).first()
-                        print("Conferences:", vars(conferences))
                         # Create a new conference if needed
                         if not conferences:
-                            print("new cf!!")
                             cf_id = formatting_id("CF", Conference, 'conference_id')
                             conference = Conference(
                                 conference_title=data.get('conference_title'),
@@ -353,6 +348,8 @@ def publication_papers(research_id=None):
                             db.session.add(conference)
                         else:
                             publication.conference_id = conferences.conference_id
+                    else:
+                        publication.conference_id = None
 
                      # Update publication fields
                     publication.journal = data.get('journal', publication.journal)
@@ -415,5 +412,29 @@ def check_uploaded_paper(research_id=None):
     # Return a message if research_id is not provided
     return jsonify({"message": "No research ID provided"}), 400
 
-        
+@track.route('data_fetcher/<table>/<field>', methods=['GET'])
+def field_contents(table,field):
+    TABLE_MODELS = {
+        'publications': Publication,
+        'conference': Conference,
+    }
+    if table and field:
+        try:
+            # Dynamically get the model based on the table name
+            model = TABLE_MODELS.get(table.lower())
 
+            if model is None:
+                return jsonify({'message': f"Table '{table}' does not exist."}), 400
+
+            # Dynamically get the field attribute from the model
+            field_attribute = get_field_attribute(model, field)
+
+            if not field_attribute:
+                return jsonify({'message': f"Field '{field}' not found in table '{table}'."}), 400
+
+            return jsonify(field_attribute), 200
+
+        except Exception as e:
+            return jsonify({'message': f"An error occurred: {str(e)}"}), 500
+    else:
+        return jsonify({'message': "No table or field provided"}), 400
