@@ -4,7 +4,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func, desc, nulls_last, extract
 import pandas as pd
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat, UserEngagement, AggrUserEngagement
 from flask_jwt_extended import jwt_required, get_jwt_identity
 dataset = Blueprint('dataset', __name__)
 
@@ -123,9 +123,37 @@ def retrieve_dataset(research_id=None):
     ).join(ResearchOutputArea, ResearchOutput.research_id == ResearchOutputArea.research_id) \
      .join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
      .group_by(ResearchOutput.research_id).subquery()
+    
+    # Define subquery for AggrUserEngagement aggregation
+    aggr_engagement_subquery = db.session.query(
+        AggrUserEngagement.research_id,
+        func.sum(AggrUserEngagement.total_views).label("total_aggr_views"),
+        func.sum(AggrUserEngagement.total_downloads).label("total_aggr_downloads")
+    ).group_by(AggrUserEngagement.research_id).distinct().subquery()
+
+    # Define subquery for Engagement aggregation
+    engagement_subquery = db.session.query(
+        UserEngagement.research_id,
+        func.sum(UserEngagement.view).label("total_views"),
+        func.sum(UserEngagement.download).label("total_downloads")
+    ).group_by(UserEngagement.research_id).distinct().subquery()
+
+    # Join the two subqueries and calculate the combined totals
+    combined_engagement_subquery = db.session.query(
+        engagement_subquery.c.research_id,
+        (func.coalesce(engagement_subquery.c.total_views, 0) + 
+        func.coalesce(aggr_engagement_subquery.c.total_aggr_views, 0)).label("combined_total_views"),
+        (func.coalesce(engagement_subquery.c.total_downloads, 0) + 
+        func.coalesce(aggr_engagement_subquery.c.total_aggr_downloads, 0)).label("combined_total_downloads")
+    ).outerjoin(
+        aggr_engagement_subquery, 
+        engagement_subquery.c.research_id == aggr_engagement_subquery.c.research_id
+    ).subquery()
+
 
     query = db.session.query(
         College.college_id,
+        College.college_name,
         Program.program_id,
         Program.program_name,
         sdg_subquery.c.concatenated_sdg,
@@ -133,6 +161,10 @@ def retrieve_dataset(research_id=None):
         ResearchOutput.title,
         ResearchOutput.view_count,
         ResearchOutput.download_count,
+        ResearchOutput.abstract,
+        ResearchOutput.full_manuscript,
+        combined_engagement_subquery.c.combined_total_views,
+        combined_engagement_subquery.c.combined_total_downloads,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
         ResearchOutput.school_year,
@@ -150,6 +182,7 @@ def retrieve_dataset(research_id=None):
         latest_status_subquery.c.timestamp,
         adviser_subquery.c.adviser_info,
         research_areas_subquery.c.research_areas_array,
+        ResearchOutput.date_uploaded  # Add this column to the SELECT list
     ).join(College, ResearchOutput.college_id == College.college_id) \
     .join(Program, ResearchOutput.program_id == Program.program_id) \
     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -163,6 +196,7 @@ def retrieve_dataset(research_id=None):
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
     .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
+    .outerjoin(engagement_subquery, ResearchOutput.research_id == engagement_subquery.c.research_id) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
 
     #filter by research_id if provided
@@ -180,8 +214,8 @@ def retrieve_dataset(research_id=None):
                 'title': row.title if pd.notnull(row.title) else 'Untitled',
                 'year': row.school_year if pd.notnull(row.school_year) else None,
                 'term': row.term if pd.notnull(row.term) else None,
-                'view_count': row.view_count if pd.notnull(row.view_count) else 'No Views Yet',
-                'download_count': row.download_count if pd.notnull(row.download_count) else 'No Downloads Yet',
+                'view_count': row.combined_total_views if pd.notnull(row.combined_total_views) else 'No Views Yet',
+                'download_count': row.combined_total_downloads if pd.notnull(row.combined_total_downloads) else 'No Downloads Yet',
                 'date_approved': row.date_approved,
                 'authors': row.authors_array if row.authors_array else [],
                 'keywords': row.keywords_array if row.keywords_array else [],
@@ -327,6 +361,33 @@ def fetch_ordered_dataset(research_id=None):
     ).join(ResearchOutputArea, ResearchOutput.research_id == ResearchOutputArea.research_id) \
      .join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
      .group_by(ResearchOutput.research_id).subquery()
+    
+    # Define subquery for AggrUserEngagement aggregation
+    aggr_engagement_subquery = db.session.query(
+        AggrUserEngagement.research_id,
+        func.sum(AggrUserEngagement.total_views).label("total_aggr_views"),
+        func.sum(AggrUserEngagement.total_downloads).label("total_aggr_downloads")
+    ).group_by(AggrUserEngagement.research_id).distinct().subquery()
+
+    # Define subquery for Engagement aggregation
+    engagement_subquery = db.session.query(
+        UserEngagement.research_id,
+        func.sum(UserEngagement.view).label("total_views"),
+        func.sum(UserEngagement.download).label("total_downloads")
+    ).group_by(UserEngagement.research_id).distinct().subquery()
+
+    # Join the two subqueries and calculate the combined totals
+    combined_engagement_subquery = db.session.query(
+        engagement_subquery.c.research_id,
+        (func.coalesce(engagement_subquery.c.total_views, 0) + 
+        func.coalesce(aggr_engagement_subquery.c.total_aggr_views, 0)).label("combined_total_views"),
+        (func.coalesce(engagement_subquery.c.total_downloads, 0) + 
+        func.coalesce(aggr_engagement_subquery.c.total_aggr_downloads, 0)).label("combined_total_downloads")
+    ).outerjoin(
+        aggr_engagement_subquery, 
+        engagement_subquery.c.research_id == aggr_engagement_subquery.c.research_id
+    ).subquery()
+
 
     query = db.session.query(
         College.college_id,
@@ -336,10 +397,12 @@ def fetch_ordered_dataset(research_id=None):
         sdg_subquery.c.concatenated_sdg,
         ResearchOutput.research_id,
         ResearchOutput.title,
-        ResearchOutput.abstract,
-        ResearchOutput.full_manuscript,
         ResearchOutput.view_count,
         ResearchOutput.download_count,
+        ResearchOutput.abstract,
+        ResearchOutput.full_manuscript,
+        combined_engagement_subquery.c.combined_total_views,
+        combined_engagement_subquery.c.combined_total_downloads,
         panels_subquery.c.panels_array,
         ResearchOutput.date_approved,
         ResearchOutput.school_year,
@@ -357,6 +420,7 @@ def fetch_ordered_dataset(research_id=None):
         latest_status_subquery.c.timestamp,
         adviser_subquery.c.adviser_info,
         research_areas_subquery.c.research_areas_array,
+        ResearchOutput.date_uploaded
     ).join(College, ResearchOutput.college_id == College.college_id) \
     .join(Program, ResearchOutput.program_id == Program.program_id) \
     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -370,6 +434,7 @@ def fetch_ordered_dataset(research_id=None):
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
     .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
+    .outerjoin(combined_engagement_subquery, ResearchOutput.research_id == combined_engagement_subquery.c.research_id) \
     .order_by(desc(ResearchOutput.date_uploaded))
 
     #filter by research_id if provided
@@ -390,8 +455,8 @@ def fetch_ordered_dataset(research_id=None):
                 'full_manuscript': row.full_manuscript,
                 'year': row.school_year if pd.notnull(row.school_year) else None,
                 'term': row.term if pd.notnull(row.term) else None,
-                'view_count': row.view_count,
-                'download_count': row.download_count,
+                'view_count': row.combined_total_views if pd.notnull(row.combined_total_views) else 'No Views Yet',
+                'download_count': row.combined_total_downloads if pd.notnull(row.combined_total_downloads) else 'No Downloads Yet',
                 'date_approved': row.date_approved,
                 'authors': row.authors_array if row.authors_array else [],
                 'keywords': row.keywords_array if row.keywords_array else [],

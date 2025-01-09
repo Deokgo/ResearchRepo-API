@@ -12,7 +12,8 @@ from models import (
     ResearchArea, 
     ResearchOutputArea,
     ResearchTypes,
-    PublicationFormat
+    PublicationFormat,
+    UserEngagement
 )
 from services import auth_services
 import os
@@ -24,6 +25,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 import pickle
 from flask_cors import cross_origin
 from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 
 
 paper = Blueprint('paper', __name__)
@@ -397,52 +399,43 @@ def increment_views(research_id):
     try:
         # Get query parameter
         is_increment = request.args.get('is_increment', 'false').lower() == 'true'
-        updated_views = 0
-
-        # Get user_id from request body
-        data = request.get_json()
+        user_id = get_jwt_identity()
+        philippine_tz = pytz.timezone('Asia/Manila')
 
         # Fetch the record using SQLAlchemy query
-        view_count = ResearchOutput.query.filter_by(research_id=research_id).first()
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+        if not research_output:
+            return jsonify({"message": "Research record not found"}), 404
+
         if is_increment:
-            if view_count:
-                if view_count.view_count == 0:
-                    view_count.view_count = 1  # Start from 1 if None
-                    view_count.unique_views = 1  # Initialize unique views to 1
-                    db.session.commit()
+            # Log user engagement
+            new_engagement = UserEngagement(
+                research_id=research_id,
+                user_id=user_id,
+                timestamp=datetime.now(philippine_tz).replace(tzinfo=None),
+                view=1,
+                download=0
+            )
+            db.session.add(new_engagement)
+            db.session.commit()
 
-                else:
-                    updated_views = int(view_count.view_count) + 1
-                    view_count.view_count = updated_views
-                    db.session.commit()
-
-                
-            else:
-                return jsonify({"message": "Record not found"}), 404
-            
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            try:
-                auth_services.log_audit_trail(
-                    user_id=user_id,
-                    table_name='Research_Output',
-                    record_id=research_id,
-                    operation='VIEW',
-                    action_desc='Viewed research paper'
-                )
-            except Exception as audit_error:
-                print(f"Audit trail logging failed: {audit_error}")
-                # Continue execution even if audit trail fails
+        # Aggregate views for the research_id in UserEngagement
+        total_views = (
+            db.session.query(func.sum(UserEngagement.view))
+            .filter(UserEngagement.research_id == research_id)
+            .scalar()
+        )
+        print(f'total views: {total_views}')
 
         return jsonify({
             "message": "View count updated",
-            "updated_views": view_count.view_count,
-            "download_count": view_count.download_count or 0,
+            "updated_views": total_views or 0,
+            "download_count": research_output.download_count or 0
         }), 200
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error in increment_views: {str(e)}")  # Add detailed error logging
+        print(f"Error in increment_views: {str(e)}")  # Detailed error logging
         return jsonify({"message": f"Failed to update view counts: {str(e)}"}), 500
 
     finally:
@@ -453,41 +446,37 @@ def increment_views(research_id):
 @jwt_required()
 def increment_downloads(research_id):
     try:
-        updated_downloads = 0
-        # Get user_id from request body
-        data = request.get_json()
-        
+        # Get query parameter
+        user_id = get_jwt_identity()
+        philippine_tz = pytz.timezone('Asia/Manila')
+
         # Fetch the record using SQLAlchemy query
-        download_count = ResearchOutput.query.filter_by(research_id=research_id).first()
-        if download_count:
-            if download_count.download_count is None:
-                updated_downloads = 1  # Start from 1 if None
-            else:
-                updated_downloads = int(download_count.download_count) + 1
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+        if not research_output:
+            return jsonify({"message": "Research record not found"}), 404
 
-            download_count.download_count = updated_downloads
-            db.session.commit()
+        # Log user engagement
+        new_engagement = UserEngagement(
+            research_id=research_id,
+            user_id=user_id,
+            timestamp=datetime.now(philippine_tz).replace(tzinfo=None),
+            view=0,
+            download=1
+        )
+        db.session.add(new_engagement)
+        db.session.commit()
 
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            try:
-                auth_services.log_audit_trail(
-                    user_id=user_id,
-                    table_name='Research_Output',
-                    record_id=research_id,
-                    operation='DOWNLOAD',
-                    action_desc='Downloaded research paper'
-                )
-            except Exception as audit_error:
-                print(f"Audit trail logging failed: {audit_error}")
-                # Continue execution even if audit trail fails
+        # Aggregate downloads for the research_id in UserEngagement
+        total_downloads = (
+            db.session.query(func.sum(UserEngagement.download))
+            .filter(UserEngagement.research_id == research_id)
+            .scalar()
+        )
 
-            return jsonify({
-                "message": "Download count incremented", 
-                "updated_downloads": updated_downloads
-            }), 200
-        else:
-            return jsonify({"message": "Record not found"}), 404
+        return jsonify({
+            "message": "Download count incremented", 
+            "updated_downloads": total_downloads or 0
+        }), 200
             
     
     except Exception as e:
@@ -517,6 +506,7 @@ def view_extended_abstract(research_id):
         # Send the file for viewing
         return send_file(file_path, as_attachment=False)
     except Exception as e:
+        print(str(e))
         return jsonify({"error": str(e)}), 500
 
 @paper.route('/research_areas', methods=['GET'])

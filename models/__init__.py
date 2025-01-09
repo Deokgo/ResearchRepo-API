@@ -24,6 +24,9 @@ from .research_area import ResearchArea
 from .research_output_area import ResearchOutputArea
 from .research_types import ResearchTypes
 from .publication_format import PublicationFormat
+from .user_engagement import UserEngagement
+from .arch_user_engagement import ArchUserEngagement
+from .aggr_user_engagement import AggrUserEngagement
 
 def check_db(db_name, user, password, host='localhost', port='5432'):
     cursor = None  # Initialize cursor outside try block
