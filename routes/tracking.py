@@ -438,3 +438,42 @@ def field_contents(table,field):
             return jsonify({'message': f"An error occurred: {str(e)}"}), 500
     else:
         return jsonify({'message': "No table or field provided"}), 400
+    
+
+@track.route("/fetch_data/<table>", methods=['GET'])
+def fetch_all_contents(table):
+    TABLE_MODELS = {
+        'publications': Publication,
+        'conference': Conference,
+        'pub_format': PublicationFormat
+    }
+
+    if table:
+        try:
+            # Dynamically get the model based on the table name
+            model = TABLE_MODELS.get(table.lower())
+
+            if model is None:
+                return jsonify({
+                    'message': f"Table '{table}' does not exist. Available tables: {list(TABLE_MODELS.keys())}"
+                }), 400
+
+            # Query all records from the table
+            records = db.session.query(model).all()
+            if not records:
+                return jsonify({'message': "No data found in the table."}), 404
+
+            # Dynamically serialize records to dictionaries
+            response_data = [
+                {column.name: getattr(record, column.name) for column in model.__table__.columns}
+                for record in records
+            ]
+
+            return jsonify(response_data), 200
+
+        except Exception as e:
+            return jsonify({'message': f"An error occurred: {str(e)}"}), 500
+    else:
+        return jsonify({'message': "No table provided."}), 400
+
+
