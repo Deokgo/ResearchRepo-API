@@ -344,17 +344,18 @@ def update_paper(research_id):
                     )
                     db.session.add(new_keyword)
 
-        # Handle SDG update
-        if 'sdg' in data:
-            old_sdgs = [sdg.sdg for sdg in SDG.query.filter_by(research_id=research_id).all()]
-            new_sdgs = [sdg_id.strip() for sdg_id in data['sdg'].split(';') if sdg_id.strip()]
-            if set(old_sdgs) != set(new_sdgs):
-                changes.append(f"SDGs: {old_sdgs} -> {new_sdgs}")
-                SDG.query.filter_by(research_id=research_id).delete()
-                for sdg_id in new_sdgs:
+        # Handle SDGs update
+        if 'sdg' in request.form:
+            # First, delete all existing SDGs for this research
+            SDG.query.filter_by(research_id=research_id).delete()
+            
+            # Then add the new SDGs
+            new_sdgs = request.form['sdg'].split(';')
+            for sdg in new_sdgs:
+                if sdg.strip():  # Only add non-empty SDGs
                     new_sdg = SDG(
                         research_id=research_id,
-                        sdg=sdg_id
+                        sdg=sdg.strip()
                     )
                     db.session.add(new_sdg)
 
