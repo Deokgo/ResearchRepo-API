@@ -191,194 +191,200 @@ def pullout_paper(research_id):
         return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
 
-@track.route('/publication/<research_id>',methods=['GET','POST','PUT'])
+@track.route('/publication/<research_id>', methods=['GET', 'POST', 'PUT'])
 @jwt_required()
 def publication_papers(research_id=None):
-    if request.method == 'GET':
-    
-        query = (db.session.query(
-            PublicationFormat.pub_format_name,
-            Conference.conference_title,
-            Conference.conference_venue,
-            Conference.conference_date,
-            Publication.publication_id,
-            Publication.publication_name,        
-            Publication.date_published,
-            Publication.scopus
+    user_id = get_jwt_identity()
+    try:
+        if request.method == 'GET':
+            # Fetch publication details
+            query = (
+                db.session.query(
+                    PublicationFormat.pub_format_name,
+                    Conference.conference_title,
+                    Conference.conference_venue,
+                    Conference.conference_date,
+                    Publication.publication_id,
+                    Publication.publication_name,
+                    Publication.date_published,
+                    Publication.scopus
+                )
+                .join(ResearchOutput, Publication.research_id == ResearchOutput.research_id)
+                .outerjoin(Conference, Conference.conference_id == Publication.conference_id)
+                .outerjoin(PublicationFormat, PublicationFormat.pub_format_id == Publication.pub_format_id)
+                .filter(ResearchOutput.research_id == research_id)
+            )
+            result = query.all()
 
-        )).join(ResearchOutput,Publication.research_id==ResearchOutput.research_id)\
-        .outerjoin(Conference, Conference.conference_id==Publication.conference_id)\
-        .outerjoin(PublicationFormat, PublicationFormat.pub_format_id==Publication.pub_format_id)\
-        .filter(ResearchOutput.research_id == research_id)
+            # Prepare response data
+            data = [
+                {
+                    'publication_id': row.publication_id,
+                    'journal': row.pub_format_name,
+                    'conference_title': row.conference_title,
+                    'city': row.conference_venue.split(',')[0].strip() if row.conference_venue else None,
+                    'country': row.conference_venue.split(',')[1].strip() if row.conference_venue and ',' in row.conference_venue else None,
+                    'conference_date': row.conference_date.strftime("%B %d, %Y") if row.conference_date else None,
+                    'publication_name': row.publication_name,
+                    'date_published': row.date_published.strftime("%B %d, %Y") if row.date_published else None,
+                    'scopus': row.scopus
+                }
+                for row in result
+            ]
 
-        result=query.all()
+            return jsonify({"dataset": data}), 200
 
-        data = [
-            {
-                'publication_id': row.publication_id,
-                'journal': row.pub_format_name,
-                'conference_title': row.conference_title,
-                'city': (
-                    row.conference_venue.split(',', 1)[0].strip() 
-                    if row.conference_venue else None
-                    ),
-                'country': (
-                    row.conference_venue.split(',', 1)[1].strip() 
-                    if row.conference_venue and ',' in row.conference_venue else None
-                    ),
-                'conference_date': (
-                    row.conference_date.strftime("%B %d, %Y") 
-                    if row.conference_date else None
-                ),
-                'publication_name': row.publication_name,
-                'date_published': (
-                    row.date_published.strftime("%B %d, %Y") 
-                    if row.date_published else None
-                ),
-                'scopus': row.scopus
-            }
-            for row in result
-        ]
-         
-        return jsonify({"dataset": [dict(row) for row in data]}), 200
-    elif request.method == 'POST':
-        # Get data from form submission
-        try:
-            # Check if ResearchOutput exists
+        elif request.method == 'POST':
+            # Handle publication creation
             research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
-
             if not research_output:
                 return jsonify({'message': 'ResearchOutput not found'}), 404
-            
-            publication = db.session.query(Publication).filter(Publication.research_id == research_id).first() is None
 
-            if not publication:
-                return jsonify({'message': 'Publication Details already existing'}), 400
+            # Prevent duplicate publications
+            publication_exists = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+            if publication_exists:
+                return jsonify({'message': 'Publication already exists'}), 400
 
-            # Check if conference exists or create a new one
             conference_title = request.form.get('conference_title')
-            conference = db.session.query(Conference).filter(Conference.conference_title.ilike(conference_title)).first()
+            if conference_title:
+                conference = db.session.query(Conference).filter(
+                    Conference.conference_title.ilike(conference_title),
+                    Conference.conference_venue.ilike(f"{request.form.get('city')}, {request.form.get('country')}"),
+                    Conference.conference_date == datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
+                ).first()
 
-            if not conference:
-                # Generate a unique conference_id
-                cf_id = formatting_id("CF", Conference, 'conference_id')
+                if not conference:
+                    cf_id = formatting_id("CF", Conference, 'conference_id')  # Generate new CF_ID
+                    conference_date = datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
 
-                # Parse conference_date into a datetime object
-                conference_date = (
-                    datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') 
-                    if request.form.get('conference_date') else None
-                )
+                    conference = Conference(
+                        conference_id=cf_id,
+                        conference_title=conference_title,
+                        conference_venue=f"{request.form.get('city')}, {request.form.get('country')}",
+                        conference_date=conference_date
+                    )
+                    
+                    db.session.add(conference)  # Add new conference to the database
+                    db.session.commit()  # Commit changes
+                    log_audit_trail(
+                        user_id=user_id,
+                        table_name='Conference',
+                        record_id=cf_id,
+                        operation='CREATE',
+                        action_desc=f"Added new conference: {conference.conference_title}"
+                    )
 
-                # Create a new Conference
-                conference = Conference(
-                    conference_id=cf_id,
-                    conference_title=request.form.get('conference_title'),
-                    conference_venue=request.form.get('city') + ", " + request.form.get('country'),
-                    conference_date=conference_date
-                )
-                db.session.add(conference)
-            else:
-                cf_id = conference.conference_id  # Use existing conference_id
-            if request.form.get('journal')=='journal':
-                cf_id=None
-
-            # Parse date_published into a datetime object
-            date_published = (
-                datetime.strptime(request.form.get('date_published'), '%Y-%m-%d') 
-                if request.form.get('date_published') else None
-            )
-
-            # Generate a unique publication_id
+            # Create publication
             publication_id = formatting_id("PBC", Publication, 'publication_id')
-
-            # Create Publication
+            date_published = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d') if request.form.get('date_published') else None
             new_publication = Publication(
                 publication_id=publication_id,
                 research_id=research_id,
                 publication_name=request.form.get('publication_name'),
-                conference_id=cf_id,
-                journal=request.form.get('journal'),
+                conference_id=conference.conference_id if conference_title else None,
+                pub_format_id=request.form.get('pub_format_id'),
                 date_published=date_published,
                 scopus=request.form.get('scopus')
             )
             db.session.add(new_publication)
             db.session.commit()
 
-            # Audit trail logging
-            # Get the current user's identity
-            user_id = get_jwt_identity()
+            # Log audit trail
             log_audit_trail(
                 user_id=user_id,
-                table_name='Publication and Conference',
-                record_id=new_publication.publication_id,
+                table_name='Publication',
+                record_id=publication_id,
                 operation='CREATE',
-                action_desc='Added Publication and associated Conference details')
+                action_desc=f"Added new publication: {new_publication.publication_name}"
+            )
 
-            return jsonify({'message': 'Publication and Conference created successfully'}), 201
+            return jsonify({'message': 'Publication created successfully'}), 201
 
-        except Exception as e:
-            db.session.rollback()  # Rollback in case of error
-            return jsonify({'error': str(e)}), 400
-    if request.method == 'PUT':
-        # Handle PUT request - Update an existing publication entry
-        data = request.form  # Use form-data instead of JSON
-        print("Form Data:", dict(request.form))
+        elif request.method == 'PUT':
+            # Extract publication ID from request
+            publication_id = request.form.get('publication_id')
 
-        try:
-            # Check if ResearchOutput exists
-            research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
-            
-            if research_output:
-                # Now update the Publication
-                publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
-                print("Publication Content:", vars(publication))
+            # Find the existing publication
+            publication = db.session.query(Publication).filter(Publication.publication_id == publication_id, Publication.research_id == research_id).first()
+            if not publication:
+                return jsonify({'message': 'Publication not found'}), 404
 
-                if publication:
-                    # Handle journal or proceeding logic
-                    if data.get('journal') == "PC":
-                        conferences = db.session.query(Conference).filter(Conference.conference_title == data.get('conference_title')).first()
-                        # Create a new conference if needed
-                        if not conferences:
-                            cf_id = formatting_id("CF", Conference, 'conference_id')
-                            conference = Conference(
-                                conference_title=data.get('conference_title'),
-                                conference_venue=data.get('conference_venue'),
-                                conference_date=data.get('conference_date'),
-                            )
-                            db.session.add(conference)
-                        else:
-                            publication.conference_id = conferences.conference_id
-                    else:
-                        publication.conference_id = None
+            # Store previous data
+            previous_data = {
+                'publication_name': publication.publication_name,
+                'conference_id': publication.conference_id,
+                'pub_format_id': publication.pub_format_id,
+                'date_published': publication.date_published,
+                'scopus': publication.scopus
+            }
 
-                     # Update publication fields
-                    publication.journal = data.get('journal', publication.journal)
-                    publication.publication_name = data.get('publication_name', publication.publication_name)
-                    publication.date_published = parse_date(data.get('date_published')) or publication.date_published
-                    publication.scopus = data.get('scopus', publication.scopus)
-                    db.session.commit()
-                    publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
-                    print("Publication UPDATED Content:", vars(publication))
+            # Update conference information if provided
+            conference_title = request.form.get('conference_title')
+            if conference_title:
+                conference = db.session.query(Conference).filter(
+                    Conference.conference_title.ilike(conference_title),
+                    Conference.conference_venue.ilike(f"{request.form.get('city')}, {request.form.get('country')}"),
+                    Conference.conference_date == datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
+                ).first()
 
-                    # Log audit trail here asynchronously (optional)
-                    # Get the current user's identity
-                    user_id = get_jwt_identity()
+                if not conference:
+                    cf_id = formatting_id("CF", Conference, 'conference_id')  # Generate new CF_ID
+                    conference_date = datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
+
+                    conference = Conference(
+                        conference_id=cf_id,
+                        conference_title=conference_title,
+                        conference_venue=f"{request.form.get('city')}, {request.form.get('country')}",
+                        conference_date=conference_date
+                    )
+
+                    db.session.add(conference)  # Add new conference to the database
+                    db.session.commit()  # Commit changes
                     log_audit_trail(
-                            user_id=user_id,
-                            table_name='Publication and Status',
-                            record_id=research_id,
-                            operation='UPDATE',
-                            action_desc='Updated research output publication data')
-                    
-                    return jsonify({'message': 'Publication updated successfully'}), 200
-                else:
-                    return jsonify({'message': 'Publication not found'}), 404
-            else:
-                return jsonify({'message': 'ResearchOutput not found'}), 404
-        
-        except Exception as e:
-            db.session.rollback()  # Rollback in case of error
-            return jsonify({'error': str(e)}), 400
+                        user_id=user_id,
+                        table_name='Conference',
+                        record_id=cf_id,
+                        operation='CREATE',
+                        action_desc=f"Added new conference: {conference.conference_title}"
+                    )
+
+                publication.conference_id = conference.conference_id
+
+            # Update publication fields
+            publication.publication_name = request.form.get('publication_name', publication.publication_name)
+            publication.pub_format_id = request.form.get('pub_format_id', publication.pub_format_id)
+            publication.date_published = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d') if request.form.get('date_published') else publication.date_published
+            publication.scopus = request.form.get('scopus', publication.scopus)
+
+            db.session.commit()
+
+            # Generate the action description with previous and new data
+            action_desc = (
+                f"Updated publication: {publication.publication_name}\n"
+                f"Previous Data: {previous_data}\n"
+                f"New Data: {{'publication_name': {publication.publication_name}, "
+                f"conference_id': {publication.conference_id}, "
+                f"pub_format_id': {publication.pub_format_id}, "
+                f"date_published': {publication.date_published}, "
+                f"scopus': {publication.scopus}}}"
+            )
+
+            # Log audit trail with previous and new data
+            log_audit_trail(
+                user_id=user_id,
+                table_name='Publication',
+                record_id=publication_id,
+                operation='UPDATE',
+                action_desc=action_desc
+            )
+
+            return jsonify({'message': 'Publication updated successfully'}), 200
+
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
 
 from datetime import datetime
 def parse_date(date_string):
