@@ -61,6 +61,14 @@ def add_paper():
         if file.content_type != 'application/pdf':
             return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
 
+        # Validate the extended abstract (required)
+        extended_abstract = request.files.get('extended_abstract')
+        if not extended_abstract:
+            return jsonify({"error": "Extended Abstract file is required."}), 400
+
+        if extended_abstract.content_type != 'application/pdf':
+            return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
+
         # Check if authors array is empty
         if 'author_ids' in data and not request.form.getlist('author_ids'):
             missing_fields.append('author_ids')
