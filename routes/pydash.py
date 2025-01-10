@@ -88,7 +88,7 @@ def analytics_dash():
         if account_info.role_id == "02":
             dash_url = f"{base_url}/sdg/map/"
         elif account_info.role_id == "04":
-            dash_url = f"{base_url}/sdg/college/?{query_string}"
+            dash_url = f"{base_url}/sdg/map/college/?{query_string}"
 
         print(f"Generated Dash URL: {dash_url}")
 
@@ -97,3 +97,5 @@ def analytics_dash():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+    
