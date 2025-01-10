@@ -146,7 +146,7 @@ def update_account(user_id):
         # Determine required fields and validation message
         required_fields = ['first_name', 'last_name']
         message = 'First name and last name are required.'
-        
+
         if researcher_info and user_acc.role_id not in ['01', '02', '03']:
             required_fields = ['college_id', 'program_id'] + required_fields
             message = 'College department, program, first name, and last name are required.'
@@ -156,12 +156,19 @@ def update_account(user_id):
         if missing_fields:
             return jsonify({"message": message, "missing_fields": missing_fields}), 400
 
-        # Function to update fields
+        # Dictionary to track changes
+        changes = []
+
+        # Function to update fields and track changes
         def update_fields(target, fields):
             for field in fields:
                 if field in data:
                     value = data[field]
-                    setattr(target, field, None if value is None or value.strip() == '' else value)
+                    new_value = None if value is None or value.strip() == '' else value
+                    current_value = getattr(target, field, None)
+                    if current_value != new_value:  # Track only if there's a change
+                        setattr(target, field, new_value)
+                        changes.append(f"{field}: '{current_value}' -> '{new_value}'")
 
         # Update fields for researcher or visitor
         if researcher_info:
@@ -172,10 +179,14 @@ def update_account(user_id):
         # Commit changes to the database
         db.session.commit()
 
-        # Log the update event in the Audit_Trail
+        # Log the update event in the Audit_Trail with specific changes
+        formatted_changes = "\n".join(changes)
         auth_services.log_audit_trail(
-            user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
-            operation='UPDATE', action_desc='Account profile updated'
+            user_id=user_acc.user_id, 
+            table_name='Account', 
+            record_id=user_acc.user_id,
+            operation='UPDATE', 
+            action_desc=f'Account profile updated:\n{formatted_changes}'
         )
 
         # Return the updated account and researcher/visitor data
@@ -197,6 +208,49 @@ def update_account(user_id):
 
     finally:
         db.session.close()  # Ensure the session is closed
+
+@accounts.route('/update_status/<user_id>', methods=['PUT'])
+def update_status(user_id):
+    try:
+        data = request.json
+
+        # Validate that 'acc_status' is provided in the request body
+        if 'acc_status' not in data:
+            return jsonify({"message": "Missing 'acc_status' in request body"}), 400
+
+        new_status = data['acc_status']
+
+        # Retrieve the user's account and associated information
+        user_acc = Account.query.filter_by(user_id=user_id).first()
+        if not user_acc:
+            return jsonify({"message": "User not found"}), 404
+
+        # Update the acc_status field
+        user_acc.acc_status = new_status
+
+        # Commit changes to the database
+        db.session.commit()
+
+        # Log the update event in the Audit_Trail
+        auth_services.log_audit_trail(
+            user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
+            operation='UPDATE', action_desc=f"Account status updated to '{new_status}'"
+        )
+
+        # Return the updated account status
+        return jsonify({
+            "researcher": {
+                "status": user_acc.acc_status
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of any error
+        return jsonify({"message": f"Failed to update status account: {e}"}), 500
+
+    finally:
+        db.session.close()  # Ensure the session is closed
+
 
 @accounts.route('/search_user', methods=['GET'])
 @accounts.route('/search_user/<college_id>', methods=['GET'])

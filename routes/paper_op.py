@@ -300,42 +300,53 @@ def update_paper(research_id):
         if not existing_paper:
             return jsonify({"error": "Paper not found"}), 404
 
+        # Track changes for action description
+        changes = []
+
         # Update basic fields
-        existing_paper.abstract = data['abstract']
+        if 'abstract' in data and existing_paper.abstract != data['abstract']:
+            changes.append(f"Abstract: '{existing_paper.abstract}' -> '{data['abstract']}'")
+            existing_paper.abstract = data['abstract']
 
         # Handle research areas update
         if 'research_areas' in data and data['research_areas']:
-            ResearchOutputArea.query.filter_by(research_id=research_id).delete()
-            research_area_ids = data['research_areas'].split(';')
-            for area_id in research_area_ids:
-                if area_id.strip():
+            old_research_areas = [area.research_area_id for area in ResearchOutputArea.query.filter_by(research_id=research_id).all()]
+            new_research_areas = [area_id.strip() for area_id in data['research_areas'].split(';') if area_id.strip()]
+            if set(old_research_areas) != set(new_research_areas):
+                changes.append(f"Research Areas: {old_research_areas} -> {new_research_areas}")
+                ResearchOutputArea.query.filter_by(research_id=research_id).delete()
+                for area_id in new_research_areas:
                     new_research_area = ResearchOutputArea(
                         research_id=research_id,
-                        research_area_id=area_id.strip()
+                        research_area_id=area_id
                     )
                     db.session.add(new_research_area)
 
         # Handle keywords update
         if 'keywords' in data and data['keywords']:
-            Keywords.query.filter_by(research_id=research_id).delete()
-            keywords = data['keywords'].split(';')
-            for keyword in keywords:
-                if keyword.strip():
+            old_keywords = [kw.keyword for kw in Keywords.query.filter_by(research_id=research_id).all()]
+            new_keywords = [kw.strip() for kw in data['keywords'].split(';') if kw.strip()]
+            if set(old_keywords) != set(new_keywords):
+                changes.append(f"Keywords: {old_keywords} -> {new_keywords}")
+                Keywords.query.filter_by(research_id=research_id).delete()
+                for keyword in new_keywords:
                     new_keyword = Keywords(
                         research_id=research_id,
-                        keyword=keyword.strip()
+                        keyword=keyword
                     )
                     db.session.add(new_keyword)
 
         # Handle SDG update
         if 'sdg' in data:
-            SDG.query.filter_by(research_id=research_id).delete()
-            sdg_list = data['sdg'].split(';') if data['sdg'] else []
-            for sdg_id in sdg_list:
-                if sdg_id.strip():
+            old_sdgs = [sdg.sdg for sdg in SDG.query.filter_by(research_id=research_id).all()]
+            new_sdgs = [sdg_id.strip() for sdg_id in data['sdg'].split(';') if sdg_id.strip()]
+            if set(old_sdgs) != set(new_sdgs):
+                changes.append(f"SDGs: {old_sdgs} -> {new_sdgs}")
+                SDG.query.filter_by(research_id=research_id).delete()
+                for sdg_id in new_sdgs:
                     new_sdg = SDG(
                         research_id=research_id,
-                        sdg=sdg_id.strip()
+                        sdg=sdg_id
                     )
                     db.session.add(new_sdg)
 
@@ -344,7 +355,7 @@ def update_paper(research_id):
             if not file.content_type == 'application/pdf':
                 return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
 
-            # Create directory structure using existing paper's information
+            filename = secure_filename(f"{research_id}_manuscript.pdf")
             dir_path = os.path.join(
                 UPLOAD_FOLDER,
                 existing_paper.research_type_id,
@@ -354,19 +365,19 @@ def update_paper(research_id):
                 existing_paper.program_id
             )
             os.makedirs(dir_path, exist_ok=True)
-
-            # Save new file (will overwrite if exists)
-            filename = secure_filename(f"{research_id}_manuscript.pdf")
             file_path = os.path.normpath(os.path.join(dir_path, filename))
             file.save(file_path)
-            existing_paper.full_manuscript = file_path
+
+            if existing_paper.full_manuscript != file_path:
+                changes.append(f"Manuscript File: '{existing_paper.full_manuscript}' -> '{file_path}'")
+                existing_paper.full_manuscript = file_path
 
         # Handle extended abstract update
         if file_ea:
             if not file_ea.content_type == 'application/pdf':
                 return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
 
-            # Create directory structure for extended abstract
+            filename_ea = secure_filename(f"{research_id}_extended_abstract.pdf")
             dir_path_ea = os.path.join(
                 UPLOAD_FOLDER,
                 existing_paper.research_type_id,
@@ -376,22 +387,23 @@ def update_paper(research_id):
                 existing_paper.program_id
             )
             os.makedirs(dir_path_ea, exist_ok=True)
-
-            # Save new extended abstract (will overwrite if exists)
-            filename_ea = secure_filename(f"{research_id}_extended_abstract.pdf")
             file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
             file_ea.save(file_path_ea)
-            existing_paper.extended_abstract = file_path_ea
+
+            if existing_paper.extended_abstract != file_path_ea:
+                changes.append(f"Extended Abstract File: '{existing_paper.extended_abstract}' -> '{file_path_ea}'")
+                existing_paper.extended_abstract = file_path_ea
 
         db.session.commit()
 
-        # Log audit trail
+        # Log audit trail with detailed changes
+        formatted_changes = "\n".join(changes)
         auth_services.log_audit_trail(
             user_id=user_id,
             table_name='Research_Output',
             record_id=research_id,
             operation='UPDATE',
-            action_desc='Updated research paper'
+            action_desc=f"Updated research paper with the following changes:\n{formatted_changes}"
         )
 
         return jsonify({"message": "Paper updated successfully"}), 200
@@ -404,6 +416,7 @@ def update_paper(research_id):
 
     finally:
         db.session.close()
+
 
 @paper.route('/view_manuscript/<research_id>', methods=['GET'])
 def view_manuscript(research_id):
