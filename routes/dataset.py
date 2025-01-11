@@ -150,14 +150,23 @@ def retrieve_dataset(research_id=None):
         engagement_subquery.c.research_id == aggr_engagement_subquery.c.research_id
     ).subquery()
 
+    base_query = db.session.query(
+        ResearchOutput.research_id
+    ).select_from(ResearchOutput)
 
+    if research_id:
+        base_query = base_query.filter(ResearchOutput.research_id == research_id)
+
+    research_ids = base_query.all()
+    
+    # Main query using the filtered research_ids
     query = db.session.query(
+        ResearchOutput.research_id,
         College.college_id,
         College.college_name,
         Program.program_id,
         Program.program_name,
         sdg_subquery.c.concatenated_sdg,
-        ResearchOutput.research_id,
         ResearchOutput.title,
         ResearchOutput.view_count,
         ResearchOutput.download_count,
@@ -182,8 +191,9 @@ def retrieve_dataset(research_id=None):
         latest_status_subquery.c.timestamp,
         adviser_subquery.c.adviser_info,
         research_areas_subquery.c.research_areas_array,
-        ResearchOutput.date_uploaded  # Add this column to the SELECT list
-    ).join(College, ResearchOutput.college_id == College.college_id) \
+        ResearchOutput.date_uploaded
+    ).select_from(ResearchOutput) \
+    .join(College, ResearchOutput.college_id == College.college_id) \
     .join(Program, ResearchOutput.program_id == Program.program_id) \
     .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
     .outerjoin(Conference, Publication.conference_id == Conference.conference_id) \
@@ -196,12 +206,9 @@ def retrieve_dataset(research_id=None):
     .outerjoin(research_areas_subquery, ResearchOutput.research_id == research_areas_subquery.c.research_id) \
     .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
     .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
-    .outerjoin(engagement_subquery, ResearchOutput.research_id == engagement_subquery.c.research_id) \
+    .outerjoin(combined_engagement_subquery, ResearchOutput.research_id == combined_engagement_subquery.c.research_id) \
+    .filter(ResearchOutput.research_id.in_([r.research_id for r in research_ids])) \
     .order_by(desc(latest_status_subquery.c.timestamp), nulls_last(latest_status_subquery.c.timestamp))
-
-    #filter by research_id if provided
-    if research_id:
-        query = query.filter(ResearchOutput.research_id == research_id)
 
     result = query.all()
 
