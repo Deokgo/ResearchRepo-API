@@ -200,7 +200,7 @@ def publication_papers(research_id=None):
             # Fetch publication details
             query = (
                 db.session.query(
-                    PublicationFormat.pub_format_name,
+                    PublicationFormat.pub_format_id,
                     Conference.conference_title,
                     Conference.conference_venue,
                     Conference.conference_date,
@@ -220,7 +220,7 @@ def publication_papers(research_id=None):
             data = [
                 {
                     'publication_id': row.publication_id,
-                    'journal': row.pub_format_name,
+                    'journal': row.pub_format_id,
                     'conference_title': row.conference_title,
                     'city': row.conference_venue.split(',')[0].strip() if row.conference_venue else None,
                     'country': row.conference_venue.split(',')[1].strip() if row.conference_venue and ',' in row.conference_venue else None,
@@ -283,6 +283,7 @@ def publication_papers(research_id=None):
                 publication_name=request.form.get('publication_name'),
                 conference_id=conference.conference_id if conference_title else None,
                 pub_format_id=request.form.get('pub_format_id'),
+                user_id=user_id,
                 date_published=date_published,
                 scopus=request.form.get('scopus')
             )
