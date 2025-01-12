@@ -224,9 +224,9 @@ def publication_papers(research_id=None):
                     'conference_title': row.conference_title,
                     'city': row.conference_venue.split(',')[0].strip() if row.conference_venue else None,
                     'country': row.conference_venue.split(',')[1].strip() if row.conference_venue and ',' in row.conference_venue else None,
-                    'conference_date': row.conference_date.strftime("%B %d, %Y") if row.conference_date else None,
+                    'conference_date': row.conference_date.strftime('%Y-%m-%d') if row.conference_date else None,
                     'publication_name': row.publication_name,
-                    'date_published': row.date_published.strftime("%B %d, %Y") if row.date_published else None,
+                    'date_published': row.date_published.strftime('%Y-%m-%d') if row.date_published else None,
                     'scopus': row.scopus
                 }
                 for row in result
