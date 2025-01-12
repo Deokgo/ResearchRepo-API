@@ -197,72 +197,77 @@ class MainDashboard:
             dbc.Container([
                 dbc.Row([
                     dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
-                    dbc.Col([
-                        dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-main-dash",
-                                type="circle",
-                                children=main_dash
-                            ), style={"flex": "2"}
-                        ),
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash5",
-                                type="circle",
-                                children=sub_dash5
-                            ), style={"flex": "1"}
-                        ),  
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash1",
-                                type="circle",
-                                children=sub_dash1
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash3",
-                                type="circle",
-                                children=sub_dash3
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash2",
-                                type="circle",
-                                children=sub_dash2
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash4",
-                                type="circle",
-                                children=sub_dash4
-                            ), style={"flex": "1"}
-                        ),    
-                    ], style={
-                        "height": "100%",
+                    dbc.Col(
+                        html.Div([  # Wrapper div for horizontal scrolling
+                            dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-main-dash",
+                                    type="circle",
+                                    children=main_dash
+                                ), style={"flex": "2"}
+                            ),
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash5",
+                                    type="circle",
+                                    children=sub_dash5
+                                ), style={"flex": "1"}
+                            ),  
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash1",
+                                    type="circle",
+                                    children=sub_dash1
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash3",
+                                    type="circle",
+                                    children=sub_dash3
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash2",
+                                    type="circle",
+                                    children=sub_dash2
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash4",
+                                    type="circle",
+                                    children=sub_dash4
+                                ), style={"flex": "1"}
+                            ),    
+                        ], style={
+                            "height": "90%",  # Reduced content area height
+                            "display": "flex",
+                            "flex-direction": "column",
+                            "overflow-x": "auto",  # Allow horizontal scrolling for the entire content
+                            "flex-grow": "1",  # Ensure content area grows to fill available space
+                            "margin": "0",
+                            "padding": "3px",
+                        })
+                    , style={
+                        "height": "100%",  # Ensure wrapper takes full height
                         "display": "flex",
-                        "flex-direction": "column",
-                        "overflow-y": "auto",  # Allow vertical scrolling
-                        "overflow-x": "auto",  # Allow horizontal scrolling
-                        "flex-grow": "1",      # Ensure content area grows to fill available space
-                        "margin": "0", 
-                        "padding": "5px",
+                        "flex-direction": "column"
                     }),
                 ], style={"height": "100%", "display": "flex"}),
             ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "90vh",  # Use full viewport height
+                "height": "80vh",  # Reduced viewport height
                 "margin": "0", 
                 "padding": "0",
             })
         ], style={
-            "height": "100vh",  # Use full viewport height
+            "height": "90vh",  # Reduced overall height
             "margin": "0",
             "padding": "0",
-            "overflow-x": "hidden",  # Disable horizontal scrolling
-            "overflow-y": "hidden",  # Disable vertical scrolling
+            "overflow-x": "hidden",  # No scrolling for outermost div
+            "overflow-y": "hidden",  # No vertical scrolling for outermost div
         })
 
 
@@ -682,6 +687,7 @@ class MainDashboard:
 
         if len(selected_colleges) == 1:
             # Group by year, program_id, and term for a single college
+            self.get_program_colors(df) 
             grouped_df = df.groupby(['year', 'program_id', 'term']).size().reset_index(name='Count')
             x_axis = 'year'
             color_axis = 'program_id'
@@ -706,7 +712,7 @@ class MainDashboard:
             y='Count',
             color=color_axis,
             barmode='stack',  # Stack bars for the same year
-            color_discrete_map=self.palette_dict,
+            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors,
             facet_col='term',  # Facet by term (1, 2, 3)
             labels={x_axis: xaxis_title, 'Count': yaxis_title, color_axis: color_label}
         )

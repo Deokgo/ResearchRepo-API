@@ -181,83 +181,86 @@ class CollegeDashApp:
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
-                    dbc.Col(controls, width=2, style={"height": "100%"}),      # Controls on the side
-                    dbc.Col([
-                        html.H1(self.title),
-                        html.P(self.college),
-                        html.P(self.program),
-                        #html.Button('Click Me', id='common-button'),
-                        html.Div(id='output-container'),
-                        # Placeholder for displaying user role, college, and program information
-                        html.Div(id='user-role'),
-                        html.Div(id='college-info'),
-                        html.Div(id='program-info'),
-                        # Contets of the Dash App
-                        dbc.Row(text_display, style={"flex": "1"}),
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-main-dash",
-                                type="circle",
-                                children=main_dash
-                            ), style={"flex": "2"}
-                        ),
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash5",
-                                type="circle",
-                                children=sub_dash5
-                            ), style={"flex": "1"}
-                        ),  
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash1",
-                                type="circle",
-                                children=sub_dash1
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash3",
-                                type="circle",
-                                children=sub_dash3
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash2",
-                                type="circle",
-                                children=sub_dash2
-                            ), style={"flex": "1"}
-                        ),    
-                        dbc.Row(
-                            dcc.Loading(
-                                id="loading-sub-dash4",
-                                type="circle",
-                                children=sub_dash4
-                            ), style={"flex": "1"}
-                        ),  
+                    dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
+                    dbc.Col(
+                        html.Div([  # Wrapper div for horizontal scrolling
+                            html.H1(self.title),
+                            html.P(self.college),
+                            html.P(self.program),
+                            html.Div(id='output-container'),
+                            html.Div(id='user-role'),
+                            html.Div(id='college-info'),
+                            html.Div(id='program-info'),
+                            # Content of the Dash App
+                            dbc.Row(text_display, style={"flex": "1"}),
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-main-dash",
+                                    type="circle",
+                                    children=main_dash
+                                ), style={"flex": "2"}
+                            ),
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash5",
+                                    type="circle",
+                                    children=sub_dash5
+                                ), style={"flex": "1"}
+                            ),  
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash1",
+                                    type="circle",
+                                    children=sub_dash1
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash3",
+                                    type="circle",
+                                    children=sub_dash3
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash2",
+                                    type="circle",
+                                    children=sub_dash2
+                                ), style={"flex": "1"}
+                            ),    
+                            dbc.Row(
+                                dcc.Loading(
+                                    id="loading-sub-dash4",
+                                    type="circle",
+                                    children=sub_dash4
+                                ), style={"flex": "1"}
+                            ),  
                         ], style={
-                        "height": "100%",
+                            "height": "90%",  # Reduced content area height
+                            "display": "flex",
+                            "flex-direction": "column",
+                            "overflow-x": "auto",  # Allow horizontal scrolling for the entire content
+                            "flex-grow": "1",  # Ensure content area grows to fill available space
+                            "margin": "0",
+                            "padding": "3px",
+                        })
+                    , style={
+                        "height": "100%",  # Ensure wrapper takes full height
                         "display": "flex",
-                        "flex-direction": "column",
-                        "overflow-y": "auto",  # Allow vertical scrolling
-                        "overflow-x": "auto",  # Allow horizontal scrolling
-                        "flex-grow": "1",      # Ensure content area grows to fill available space
-                        "margin": "0", 
-                        "padding": "5px",
+                        "flex-direction": "column"
                     }),
                 ], style={"height": "100%", "display": "flex"}),
             ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "90vh",  # Use full viewport height
+                "height": "80vh",  # Reduced viewport height
                 "margin": "0", 
                 "padding": "0",
             })
         ], style={
-            "height": "100vh",  # Use full viewport height
+            "height": "90vh",  # Reduced overall height
             "margin": "0",
             "padding": "0",
-            "overflow-x": "hidden",  # Disable horizontal scrolling
-            "overflow-y": "hidden",  # Disable vertical scrolling
+            "overflow-x": "hidden",  # No scrolling for outermost div
+            "overflow-y": "hidden",  # No vertical scrolling for outermost div
         })
 
 
@@ -314,9 +317,8 @@ class CollegeDashApp:
             title = 'Number of Research Outputs per Program'
         
         # Generate a dynamic color mapping based on unique values in the color_column
-        unique_values = grouped_df[color_column].unique()
-        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                            for i, value in enumerate(unique_values)}
+        self.get_program_colors(df)
+        color_discrete_map = self.program_colors
         
         # Generate the line plot
         fig_line = px.line(
@@ -364,9 +366,8 @@ class CollegeDashApp:
             title = "Research Outputs per Program"
 
             # Generate a dynamic color mapping based on unique values in the `program_id`
-            unique_values = detail_counts['program_id'].unique()
-            color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                                for i, value in enumerate(unique_values)}
+            self.get_program_colors(df)
+            color_discrete_map = self.program_colors
 
             # Create the pie chart
             fig_pie = px.pie(
@@ -402,10 +403,8 @@ class CollegeDashApp:
         sorted_programs = sorted(pivot_df.columns)
         title = f"Comparison of Research Output Type Across Programs"
 
-        # Generate a dynamic color mapping based on unique values in the `program_id`
-        unique_values = status_count['program_id'].unique()
-        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                            for i, value in enumerate(unique_values)}
+        self.get_program_colors(df)
+        color_discrete_map = self.program_colors
 
         for program in sorted_programs:
             fig.add_trace(go.Bar(
@@ -440,10 +439,8 @@ class CollegeDashApp:
         sorted_programs = sorted(pivot_df.columns)
         title = f"Comparison of Research Status Across Program/s"
 
-        # Generate a dynamic color mapping based on unique values in the `program_id`
-        unique_values = status_count['program_id'].unique()
-        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                            for i, value in enumerate(unique_values)}
+        self.get_program_colors(df)
+        color_discrete_map = self.program_colors
 
         for program in sorted_programs:
             fig.add_trace(go.Bar(
@@ -497,9 +494,8 @@ class CollegeDashApp:
         fig = go.Figure()
 
         # Generate a dynamic color mapping based on unique values in the `program_id`
-        unique_values = sdg_count['program_id'].unique()
-        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                            for i, value in enumerate(unique_values)}
+        self.get_program_colors(df)
+        color_discrete_map = self.program_colors
 
         for program in sorted_programs:
             fig.add_trace(go.Bar(
@@ -588,7 +584,10 @@ class CollegeDashApp:
     
     def update_research_outputs_by_year_and_term(self, selected_programs, selected_status, selected_years):
         df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
-        
+        self.get_program_colors(df)
+        color_discrete_map = self.program_colors
+
+
         if df.empty:
             return px.bar(title="No data available")
 
@@ -608,7 +607,7 @@ class CollegeDashApp:
             y='Count',
             color=color_axis,
             barmode='stack',  # Stack bars for the same year
-            color_discrete_map=self.palette_dict,
+            color_discrete_map=color_discrete_map,
             facet_col='term',  # Facet by term (1, 2, 3)
             labels={x_axis: xaxis_title, 'Count': yaxis_title, color_axis: color_label}
         )
