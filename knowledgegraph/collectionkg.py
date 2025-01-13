@@ -144,8 +144,18 @@ def collection_kg(flask_app):
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/collectionkg/')
 
     # Layout for Dash app including filters for year and colleges
-    dash_app.layout = html.Div([
-        html.Div([
+    dash_app.layout = html.Div(
+        style={
+            'width': '100vw',  # Use full viewport width
+            'height': '100vh',  # Use full viewport height
+            'margin': '0',  # Remove margins
+            'padding': '0',  # Remove padding
+            'display': 'flex',
+            'justifyContent': 'center',
+            'alignItems': 'center',
+            'overflow': 'hidden',  # Ensure no scrollbars
+        },
+        children=[
             dcc.Graph(
                 id='knowledge-graph',
                 figure={
@@ -153,44 +163,38 @@ def collection_kg(flask_app):
                     'layout': go.Layout(
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=0),
-                        autosize=True,
+                        margin=dict(b=0, l=0, r=0, t=0),  # Remove graph margins
+                        autosize=True,  # Automatically size graph to container
                         xaxis=dict(
-                            showgrid=False, 
+                            showgrid=False,
                             zeroline=False,
-                            range=[-3, 3],  # Fixed range for x-axis
-                            fixedrange=True   # Prevents zoom on x-axis
+                            range=[-3, 3],  # Fixed x-axis range
+                            fixedrange=True,  # Disable zoom on x-axis
                         ),
                         yaxis=dict(
-                            showgrid=False, 
+                            showgrid=False,
                             zeroline=False,
-                            range=[-3, 3],  # Fixed range for y-axis
-                            fixedrange=True   # Prevents zoom on y-axis
+                            range=[-3, 3],  # Fixed y-axis range
+                            fixedrange=True,  # Disable zoom on y-axis
                         ),
                         transition=dict(duration=500),
-                    )
+                    ),
                 },
                 style={
-                    'height': '100%',
-                    'width': '100%',
+                    'height': '100%',  # Fully occupy parent height
+                    'width': '100%',  # Fully occupy parent width
+                    'padding': '0',  # Remove padding
+                    'margin': '0',  # Remove margins
+                    'overflow': 'hidden',  # Prevent any overflow within graph
                 },
                 config={
                     'displayModeBar': False,  # Hide the mode bar
-                    'staticPlot': True,  # Make the plot completely static
-                }
+                    'staticPlot': True,  # Make the plot static
+                },
             )
-        ], style={
-            'width': '100%',
-            'display': 'flex',
-            'justifyContent': 'center',
-        })
-    ], style={
-        'width': '100%',
-        'height': '100%',
-        'display': 'flex',
-        'justifyContent': 'center',
-        'alignItems': 'center',
-    })
+        ],
+    )
+
 
     # Callback to handle initial graph display, filters, and node click events
     @dash_app.callback(
