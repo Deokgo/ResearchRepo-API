@@ -12,6 +12,8 @@ class ArchUserProfile(db.Model):
     last_name = db.Column(db.String(30))
     suffix = db.Column(db.String(10))
 
+    """
     # Define relationships to College and Program
     college = db.relationship('College', backref=db.backref('user_profiles', lazy=True))
     program = db.relationship('Program', backref=db.backref('user_profiles', lazy=True))
+    """
