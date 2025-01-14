@@ -512,12 +512,32 @@ def increment_downloads(research_id):
         user_id = get_jwt_identity()
         philippine_tz = pytz.timezone('Asia/Manila')
 
-        # Fetch the record using SQLAlchemy query
+        # Fetch the research record using SQLAlchemy query
         research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
         if not research_output:
             return jsonify({"message": "Research record not found"}), 404
 
-        # Log user engagement
+        # Check if the user has already downloaded this research
+        existing_download = UserEngagement.query.filter_by(
+            research_id=research_id,
+            user_id=user_id,
+            download=1
+        ).first()
+
+        if existing_download:
+            # If a download already exists, do not record a new one
+            total_downloads = (
+                db.session.query(func.sum(UserEngagement.download))
+                .filter(UserEngagement.research_id == research_id)
+                .scalar()
+            )
+            print(f'existing download: {total_downloads}')
+            return jsonify({
+                "message": "Download already recorded for this user",
+                "updated_downloads": total_downloads
+            }), 200
+
+        # Log user engagement for a new download
         new_engagement = UserEngagement(
             research_id=research_id,
             user_id=user_id,
@@ -535,19 +555,21 @@ def increment_downloads(research_id):
             .scalar()
         )
 
+        print(f'total downloads: {total_downloads}')
+
         return jsonify({
-            "message": "Download count incremented", 
+            "message": "Download count incremented",
             "updated_downloads": total_downloads or 0
         }), 200
-            
-    
+
     except Exception as e:
         db.session.rollback()
         print(f"Error in increment_downloads: {str(e)}")  # Add detailed error logging
         return jsonify({"message": f"Failed to update download counts: {str(e)}"}), 500
-    
+
     finally:
         db.session.close()
+
 
 @paper.route('/view_extended_abstract/<research_id>', methods=['GET'])
 def view_extended_abstract(research_id):
