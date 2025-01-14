@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 import networkx as nx
 from collections import defaultdict
-from flask import Flask
+from flask import Flask, redirect, url_for
 from . import db_manager
 import pandas as pd
 
@@ -80,6 +80,14 @@ def create_kg_sdg(flask_app):
         else:
             max_connections = min_connections = 0
 
+        # Add customdata array to store research IDs
+        customdata = []
+        for node in nodes_to_show:
+            if G.nodes[node]['type'] == 'study':
+                customdata.append({'research_id': G.nodes[node]['research']})
+            else:
+                customdata.append(None)
+
         for node in nodes_to_show:
             x, y = fixed_pos[node]
             node_x.append(x)
@@ -139,8 +147,9 @@ def create_kg_sdg(flask_app):
             text=node_labels,
             hovertext=hover_text,
             marker=dict(color=node_color, size=node_size),
-            textfont=dict(color='black', size=12),  # Main text style
-            hoverinfo='text'
+            textfont=dict(color='black', size=12),
+            hoverinfo='text',
+            customdata=customdata
         )
 
         return edge_trace, shadow_trace, node_trace
@@ -214,7 +223,7 @@ def create_kg_sdg(flask_app):
 
     # Updated layout with inline styles
     dash_app.layout = html.Div([
-        # Container for filters
+        dcc.Store(id='click-store', storage_type='memory'),
         html.Div([
             html.Label('Filters', style=styles['main_label']),
             html.Div([
@@ -288,13 +297,14 @@ def create_kg_sdg(flask_app):
 
     # Callback to handle initial graph display, filters, and node click events
     @dash_app.callback(
-    Output('knowledge-graph', 'figure'),
-    [Input('apply-filters', 'n_clicks'),
-     Input('knowledge-graph', 'clickData')],
-    [State('year-slider', 'value'),
-     State('college-dropdown', 'value'),
-     State('knowledge-graph', 'figure')]
-)
+        [Output('knowledge-graph', 'figure'),
+         Output('click-store', 'data')],
+        [Input('apply-filters', 'n_clicks'),
+         Input('knowledge-graph', 'clickData')],
+        [State('year-slider', 'value'),
+         State('college-dropdown', 'value'),
+         State('knowledge-graph', 'figure')]
+    )
     def update_graph(n_clicks, clickData, year_range, selected_colleges, current_figure):
         show_labels = False
         ctx = dash.callback_context
@@ -317,31 +327,23 @@ def create_kg_sdg(flask_app):
         # Set default title
         new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
 
-        # Handle SDG node click events
-        if (clickData and 'points' in clickData):
-            clicked_node = clickData['points'][0]['text']
-            if (current_figure['layout']['title']['text'] == f"<br>Research Studies Knowledge Graph - {clicked_node}") and (triggered_input != "apply-filters"):
-                # If the same SDG is clicked again, return to the filtered or overall view
-                nodes_to_show = filtered_nodes
-                edges_to_show = [
-                    edge for edge in G.edges()
-                    if edge[0] in nodes_to_show and edge[1] in nodes_to_show
-                ]
-                new_title = '<br>Research Studies Knowledge Graph (Filtered)' if n_clicks > 0 else '<br>Research Studies Knowledge Graph (Overall View)'
-                show_labels=False
-            elif (G.nodes[clicked_node]['type'] == 'sdg') and (triggered_input != "apply-filters"):
-                # Zoom in on the selected SDG node and show its connected studies, respecting current filters
-                nodes_to_show = [clicked_node] + [
-                    node for node in connected_nodes[clicked_node]
-                    if node in filtered_nodes  # Respect current filters
-                ]
-                edges_to_show = [
-                    edge for edge in G.edges(clicked_node)
-                    if edge[1] in filtered_nodes  # Respect current filters
-                ]
-                new_title = f'<br>Research Studies Knowledge Graph - {clicked_node}'
-                show_labels = True
+        # Handle node click events
+        if clickData and 'points' in clickData:
+            point = clickData['points'][0]
+            
+            # Get the node data directly from the customdata
+            if point.get('customdata') and isinstance(point['customdata'], dict):
+                research_id = point['customdata'].get('research_id')
+                if research_id:
+                    # Create a window.postMessage call that React will listen for
+                    click_store_data = {
+                        'type': 'study_click',
+                        'research_id': research_id,
+                        'action': 'redirect'
+                    }
+                    return dash.no_update, click_store_data
 
+        # Build and return the figure normally
         edge_trace, shadow_trace, node_trace = build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=show_labels)
         new_figure = {
             'data': [edge_trace, shadow_trace, node_trace],
@@ -353,11 +355,26 @@ def create_kg_sdg(flask_app):
                 margin=dict(b=0, l=0, r=0, t=25),
                 xaxis=dict(showgrid=False, zeroline=False),
                 yaxis=dict(showgrid=False, zeroline=False),
-                transition=dict(duration=500),  
-                
+                transition=dict(duration=500),
             )
         }
-        return new_figure
+        return new_figure, None
 
+    # Add clientside callback to handle redirects
+    dash_app.clientside_callback(
+        """
+        function(clickStoreData) {
+            if (clickStoreData && clickStoreData.type === 'study_click' && clickStoreData.action === 'redirect') {
+                window.parent.postMessage({
+                    type: 'study_click',
+                    research_id: clickStoreData.research_id
+                }, '*');
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('knowledge-graph', 'id'),  # Dummy output
+        Input('click-store', 'data')
+    )
 
     return dash_app
