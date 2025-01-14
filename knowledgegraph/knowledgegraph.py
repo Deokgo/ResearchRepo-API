@@ -51,6 +51,20 @@ def create_kg_sdg(flask_app):
 
 
     def build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=True):
+        # Calculate the number of studies connected to each SDG
+        sdg_connections = {
+            node: len([study for study in connected_nodes[node] if study in filtered_nodes])
+            for node in G.nodes() if G.nodes[node]['type'] == 'sdg'
+        }
+
+        # Remove SDG nodes with zero connections from nodes_to_show
+        nodes_to_show = [node for node in nodes_to_show 
+                        if G.nodes[node]['type'] != 'sdg' or sdg_connections.get(node, 0) > 0]
+        
+        # Update edges_to_show to remove edges connected to removed nodes
+        edges_to_show = [edge for edge in edges_to_show 
+                        if edge[0] in nodes_to_show and edge[1] in nodes_to_show]
+        
         node_x = []
         node_y = []
         hover_text = []
@@ -58,16 +72,13 @@ def create_kg_sdg(flask_app):
         node_color = []
         node_size = []
 
-        # Calculate the number of studies connected to each SDG
-        sdg_connections = {
-            node: len([study for study in connected_nodes[node] if study in filtered_nodes])
-            for node in G.nodes() if G.nodes[node]['type'] == 'sdg'
-        }
-
-        # Get min and max connection counts for scaling
-        if sdg_connections:
-            max_connections = max(sdg_connections.values())
-            min_connections = min(sdg_connections.values())
+        # Get min and max connection counts for scaling (only for nodes with connections)
+        connected_sdg_counts = [count for count in sdg_connections.values() if count > 0]
+        if connected_sdg_counts:
+            max_connections = max(connected_sdg_counts)
+            min_connections = min(connected_sdg_counts)
+        else:
+            max_connections = min_connections = 0
 
         for node in nodes_to_show:
             x, y = fixed_pos[node]
@@ -75,7 +86,7 @@ def create_kg_sdg(flask_app):
             node_y.append(y)
 
             if G.nodes[node]['type'] == 'sdg':
-                filtered_count = len([study for study in connected_nodes[node] if study in filtered_nodes])
+                filtered_count = sdg_connections[node]
                 hover_text.append(f"{filtered_count} studies connected")
                 node_color.append('#0A438F')
                 size = 60 + (filtered_count - min_connections) / (max_connections - min_connections) * (150 - 60) if max_connections > min_connections else 60
@@ -145,7 +156,7 @@ def create_kg_sdg(flask_app):
     # Define styles as Python dictionaries
     styles = {
         'filter_container': {
-            'width': '25%',
+            'width': '30%',
             'padding': '25px',
             'border': "1px solid #0A438F",
             'borderRadius': '14px',
@@ -163,11 +174,10 @@ def create_kg_sdg(flask_app):
             'backgroundColor': 'white',
         },
         'slider_container': {
-            'width': 'inherit',
-            'padding': '5px',
-            'fontSize' : '10px',
+            'fontSize': '5px',
             'color': '#08397C',
-            'marginBottom': '20px'
+            'marginTop': '20px',
+            'marginBottom': '30px',
         },
         'dropdown_container': {
             'width': 'inherit',
@@ -186,7 +196,7 @@ def create_kg_sdg(flask_app):
             'cursor': 'pointer'
         },
         'label': {
-            'marginBottom': '8px',
+            'marginBottom': '10px',
             'fontSize' : '13px',
             'color': '#08397C',
             'fontFamily': 'Montserrat',
@@ -216,7 +226,7 @@ def create_kg_sdg(flask_app):
                         max=df['year'].max(),
                         value=[df['year'].min(), df['year'].max()],
                         marks={year: str(year) for year in range(int(df['year'].min()), 
-                                                               int(df['year'].max()) + 1)},
+                                                               int(df['year'].max()) + 1, 2)},
                         step=1
                     )
                 ], style=styles['slider_container']),
