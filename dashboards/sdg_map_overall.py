@@ -17,7 +17,12 @@ class SDG_Map:
     def __init__(self, flask_app):
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/map/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
-        self.palette_dict = db_manager.get_college_colors()
+        self.palette_dict = {
+            'CAS':'#141cff', 
+            'CCIS':'#04a417', 
+            'CHS':'#c2c2c2', 
+            'MITL':'#bb0c0c',
+            'ETYCB':'#e9e107'}
         self.sdg_colors=sdg_colors
         self.all_sdgs = [f'SDG {i}' for i in range(1, 18)]
         # Get default values

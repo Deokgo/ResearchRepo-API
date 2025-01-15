@@ -26,12 +26,11 @@ class SDG_College:
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/college/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
         self.palette_dict = {
-            'MITL': 'red',
-            'ETYCB': 'yellow',
-            'CCIS': 'green',
-            'CAS': 'blue',
-            'CHS': 'orange'
-        }
+            'CAS':'#141cff', 
+            'CCIS':'#04a417', 
+            'CHS':'#c2c2c2', 
+            'MITL':'#bb0c0c',
+            'ETYCB':'#e9e107'}
 
         self.title = title
         self.college = college

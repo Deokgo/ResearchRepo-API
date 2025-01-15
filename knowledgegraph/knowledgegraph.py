@@ -18,11 +18,11 @@ def create_kg_area(flask_app):
 
     # Define color palette
     palette_dict = {
-        'MITL': 'red',
-        'ETYCB': 'yellow',
-        'CCIS': 'green',
-        'CAS': 'blue',
-        'CHS': 'orange',
+        'CAS':'#141cff', 
+        'CCIS':'#04a417', 
+        'CHS':'#c2c2c2', 
+        'MITL':'#bb0c0c',
+        'ETYCB':'#e9e107',
         'SDG': '#FF4500',  # Orange-red for SDG nodes
         'area': '#0A438F'  # Keep existing area color
     }

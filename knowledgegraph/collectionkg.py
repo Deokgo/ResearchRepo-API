@@ -10,17 +10,17 @@ import pandas as pd
 
 def collection_kg(flask_app):
     df = db_manager.get_all_data()
-    df['date_approved'] = pd.to_datetime(df['date_approved'], errors='coerce')
+    df['year'] = pd.to_datetime(df['year'], errors='coerce')
     G = nx.Graph()
     connected_nodes = defaultdict(list)
 
     # Define color palette for colleges
     palette_dict = {
-        'MITL': 'red',
-        'ETYCB': 'yellow',
-        'CCIS': 'green',
-        'CAS': 'blue',
-        'CHS': 'orange'
+        'CAS':'#141cff', 
+        'CCIS':'#04a417', 
+        'CHS':'#c2c2c2', 
+        'MITL':'#bb0c0c',
+        'ETYCB':'#e9e107'
     }
 
     # Build the graph
@@ -31,7 +31,7 @@ def collection_kg(flask_app):
         college_id = row['college_id']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
-        year = row['date_approved'].year
+        year = row['year']
 
         # Add study node
         G.add_node(research_id, type='study', research=research_id, title=study,college=college_id, program=program_name,

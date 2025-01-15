@@ -10,3 +10,5 @@ class Publication(db.Model):
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
     date_published = db.Column(db.Date)
     scopus = db.Column(db.String(30))
+    date_submitted = db.Column(db.Date)
+    publication_paper = db.Column(db.String(100))
