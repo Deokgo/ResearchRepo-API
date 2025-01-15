@@ -25,7 +25,12 @@ class Engage_College:
         self.college = college
         self.program = program
 
-        self.palette_dict = view_manager.get_college_colors()
+        self.palette_dict = {
+            'CAS':'#141cff', 
+            'CCIS':'#04a417', 
+            'CHS':'#c2c2c2', 
+            'MITL':'#bb0c0c',
+            'ETYCB':'#e9e107'}
         self.default_colleges = view_manager.get_unique_values('college_id')
         self.default_programs = []
         self.default_statuses = view_manager.get_unique_values('status')
@@ -134,32 +139,7 @@ class Engage_College:
             text_display = dbc.Container([
                 dbc.Row([
                     dbc.Container([
-                        dbc.Row([
-                            dbc.Col(
-                            self.create_display_card("Total Research Papers", str(len(view_manager.get_all_data()))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        ),
-                        dbc.Col(
-                            self.create_display_card("Intended for Publication", str(len(view_manager.filter_data('status', 'READY', invert=False)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        ),
-                        dbc.Col(
-                            self.create_display_card("Submitted Papers", str(len(view_manager.filter_data('status', 'SUBMITTED', invert=False)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        ),
-                        dbc.Col(
-                            self.create_display_card("Accepted Papers", str(len(view_manager.filter_data('status', 'ACCEPTED', invert=False)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        ),
-                        dbc.Col(
-                            self.create_display_card("Published Papers", str(len(view_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        ),
-                        dbc.Col(
-                            self.create_display_card("Pulled-out Papers", str(len(view_manager.filter_data('status', 'PULLOUT', invert=False)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                        )
-                        ])
+                        
                     ])
                 ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
             ], style={"padding": "2rem"}, id="text-display-container")
@@ -559,7 +539,7 @@ class Engage_College:
             ]
         )
         def update_linechart(selected_programs, selected_status, selected_years,selected_range):
-            selected_programs = default_if_empty(selected_programs, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
@@ -577,7 +557,7 @@ class Engage_College:
             ]
         )
         def update_linechart(selected_programs, selected_status, selected_years,selected_range):
-            selected_programs = default_if_empty(selected_programs, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
@@ -595,7 +575,7 @@ class Engage_College:
             ]
         )
         def update_linechart(selected_programs, selected_status, selected_years,selected_range):
-            selected_programs = default_if_empty(selected_programs, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
@@ -613,7 +593,7 @@ class Engage_College:
             ]
         )
         def update_linechart(selected_programs, selected_status, selected_years,selected_range):
-            selected_programs = default_if_empty(selected_programs, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
@@ -631,14 +611,13 @@ class Engage_College:
             ]
         )
         def update_linechart(selected_programs, selected_status, selected_years,selected_range):
-            selected_programs = default_if_empty(selected_programs, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
             start,end = self.get_date_range(selected_range)
            
             return self.top_10_research_downloads(selected_programs, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
-
 
         @self.dash_app.callback(
         Output('program', 'options'),  # Update the program options based on the selected college

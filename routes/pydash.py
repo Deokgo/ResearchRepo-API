@@ -100,7 +100,7 @@ def analytics_dash():
     
     
 @pydash.route('/engagement', methods=['GET'])
-#@jwt_required()
+@jwt_required()
 def engage_dash():
     try:
         user_id = get_jwt_identity()
