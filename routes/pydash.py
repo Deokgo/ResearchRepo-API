@@ -100,7 +100,7 @@ def analytics_dash():
     
     
 @pydash.route('/engagement', methods=['GET'])
-@jwt_required()
+#@jwt_required()
 def engage_dash():
     try:
         user_id = get_jwt_identity()
@@ -126,6 +126,7 @@ def engage_dash():
             "user-role": account_info.role_id,
             "college": user_prof.college_id,
             "program": user_prof.program_id,
+
         }
 
         # Ensure all query parameters are valid (non-null)
@@ -134,9 +135,8 @@ def engage_dash():
         if account_info.role_id == "02":
             dash_url = f"{base_url}/engage/"
         elif account_info.role_id == "04":
-            dash_url = f"{base_url}/sdg/map/college/?{query_string}"
+            dash_url = f"{base_url}/engage-college/?{query_string}"
 
-        dash_url = f"{base_url}/engage/"
 
         print(f"Generated Dash URL: {dash_url}")
 

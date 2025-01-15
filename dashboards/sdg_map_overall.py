@@ -355,6 +355,8 @@ class SDG_Map:
     def create_sdg_plot(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Get filtered data based on selected parameters
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
 
         # Check if df is empty
         if df.empty:
@@ -425,7 +427,11 @@ class SDG_Map:
 
     def create_sdg_pie_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Get filtered data based on selected parameters
+
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
+
         
         # Create a temporary DataFrame by splitting the SDGs in the SDG column (by ';')
         df_temp = df.copy()
@@ -498,6 +504,8 @@ class SDG_Map:
     def create_geographical_heatmap(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Fetch filtered data from the database
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
         
         # Step 2: Split SDGs by ';' and explode into separate rows
         df_temp = df.copy()
@@ -658,14 +666,16 @@ class SDG_Map:
 
         return fig
 
-    def create_sdg_research_chart(self,selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Define the list of types and SDGs
-        types = ['Integrative', 'College-Driven', 'Extramural']
+    def create_sdg_research_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+        types = db_manager.get_unique_values('research_type')
+        print(types)
         # Fetch filtered data from the database
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
 
         # Prepare the DataFrame
         df_temp = df.copy()
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
         df_temp['sdg'] = df_temp['sdg'].str.split(';')  # Split SDGs by ';'
         df_temp = df_temp.explode('sdg')  # Explode into separate rows for each SDG
         df_temp['sdg'] = df_temp['sdg'].str.strip()  # Remove unnecessary spaces
@@ -692,7 +702,6 @@ class SDG_Map:
                 color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
             )
         else:
-
             # Ensure 'Research Type' is treated as a categorical column with all types
             df_temp['research_type'] = pd.Categorical(df_temp['research_type'], categories=types)
 
@@ -716,6 +725,7 @@ class SDG_Map:
                     'research_type': 'Type of Research Output'
                 },
                 color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
+                category_orders={'sdg': self.all_sdgs}  # Correctly reverse SDGs
             )
 
         # Customize layout
@@ -741,6 +751,8 @@ class SDG_Map:
     def create_sdg_status_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Fetch filtered data from the database
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
         
         # Step 1: Create a temporary DataFrame
         df_temp = df.copy()
@@ -754,6 +766,10 @@ class SDG_Map:
         all_sdgs = ['SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 'SDG 8', 'SDG 9', 'SDG 10',
                     'SDG 11', 'SDG 12', 'SDG 13', 'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17']
         df_temp['sdg'] = pd.Categorical(df_temp['sdg'], categories=all_sdgs, ordered=True)
+
+        # Define the correct order for statuses
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED']
+        df_temp['status'] = pd.Categorical(df_temp['status'], categories=status_order, ordered=True)
 
         # Step 4: Handle filtering based on sdg_dropdown_value
         if sdg_dropdown_value != "ALL":
@@ -776,6 +792,7 @@ class SDG_Map:
                 title=f"Research Status Distribution for {sdg_dropdown_value} Over Years",
                 labels={'year': 'Year', 'Percentage': 'Percentage of Outputs', 'status': 'Research Status'},
                 color_discrete_sequence=px.colors.qualitative.Dark2,  # Use Dark2 color palette
+                category_orders={'status': status_order}  # Enforce the correct order of statuses
             )
         else:
             # Group by SDG and status to calculate counts for all SDGs
@@ -793,7 +810,7 @@ class SDG_Map:
                 orientation='h',  # Horizontal bars
                 title="Percentage of Research Outputs by Status for Each SDG",
                 labels={'sdg': 'Sustainable Development Goals (SDGs)', 'Percentage': 'Percentage of Outputs', 'status': 'Research Status'},
-                category_orders={'sdg': all_sdgs}
+                category_orders={'sdg': all_sdgs, 'status': status_order}  # Enforce the correct order of statuses
             )
 
         # Step 7: Customize the layout
@@ -990,6 +1007,8 @@ class SDG_Map:
             df = df.explode('sdg')  # Explode into separate rows for each SDG
             df['sdg'] = df['sdg'].str.strip()  # Remove unnecessary spaces
             df = df[df['sdg'] == sdg_dropdown_value]
+            df = df[df['journal'] != 'unpublished']
+            df = df[df['status'] != 'PULLOUT']
 
         publication_counts = df.groupby('journal').size().reset_index(name='Count')
 

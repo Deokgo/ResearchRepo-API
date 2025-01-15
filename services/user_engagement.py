@@ -151,7 +151,6 @@ class UserEngagementManager:
 
             # Optional: Reset index if needed
             self.df = self.df.reset_index(drop=True)
-            print(self.df.columns)
 
         finally:
             session.close()
@@ -238,15 +237,34 @@ class UserEngagementManager:
                 raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+    
+    def get_sum_value(self, column_name, college_id=None):
+        """
+        Get the sum of a column, optionally filtering by a specific college ID.
 
-    def get_sum_value(self, column_name):
+        :param column_name: The name of the column to sum.
+        :param college_id: Optional; filter rows by a specific college ID.
+        :return: The sum of the column values, optionally filtered.
+        """
         if self.df is not None:
             if column_name in self.df.columns:
-                return self.df[column_name].sum()
+                if college_id is not None:
+                    if 'college_id' in self.df.columns:
+                        # Ensure `college_id` is a scalar
+                        if isinstance(college_id, (str, int)):
+                            filtered_df = self.df[self.df['college_id'] == college_id]
+                            return filtered_df[column_name].sum()
+                        else:
+                            raise ValueError("`college_id` must be a string or integer.")
+                    else:
+                        raise ValueError("Column 'college_id' does not exist in the DataFrame.")
+                else:
+                    return self.df[column_name].sum()
             else:
                 raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
         else:
             raise ValueError("DataFrame is not initialized.")
+
         
     def get_min_value(self, column_name):
         if self.df is not None and column_name in self.df.columns:
@@ -260,30 +278,79 @@ class UserEngagementManager:
         else:
             raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
         
-    def get_conversion_rate(self):
-        if self.df is not None:
-            if 'total_downloads' in self.df.columns and 'total_unique_views' in self.df.columns:
-                # Avoid division by zero
-                if self.df['total_unique_views'].sum() > 0:
-                    # Calculate conversion rate
-                    conversion_rate = (self.df['total_downloads'].sum() / self.df['total_unique_views'].sum()) * 100
-                    return conversion_rate
-                else:
-                    return 0.0  
-        
-    def get_average_views_per_research_id(self):
-        if self.df is not None:
-            if 'total_views' in self.df.columns and 'research_id' in self.df.columns:
-                # Group by 'research_id' and calculate the total views for each ID
-                grouped = self.df.groupby('research_id')['total_views'].sum()
+    def get_conversion_rate(self, college_id=None):
+        """
+        Calculate the conversion rate, optionally filtering by a specific college_id.
 
-                # Calculate the average views per research ID
+        :param college_id: Optional; filter by rows where the 'college_id' column matches this value.
+        :return: Conversion rate as a percentage.
+        """
+        if self.df is not None:
+            # Validate required columns
+            required_columns = {'total_downloads', 'total_unique_views'}
+            missing_columns = required_columns - set(self.df.columns)
+            if missing_columns:
+                raise ValueError(f"DataFrame must contain columns: {', '.join(missing_columns)}")
+
+            if college_id is not None:
+                if 'college_id' not in self.df.columns:
+                    raise ValueError("Column 'college_id' does not exist in the DataFrame.")
+
+                # Filter by college_id
+                filtered_df = self.df[self.df['college_id'] == college_id]
+            else:
+                # Use the entire DataFrame if no college_id filter is specified
+                filtered_df = self.df
+
+            # Avoid division by zero
+            total_views = filtered_df['total_unique_views'].sum()
+            if total_views > 0:
+                # Calculate conversion rate
+                total_downloads = filtered_df['total_downloads'].sum()
+                conversion_rate = (total_downloads / total_views) * 100
+                return conversion_rate
+            else:
+                return 0.0
+        else:
+            raise ValueError("DataFrame is not initialized.")
+
+
+    def get_average_views_per_research_id(self, college_id=None):
+        """
+        Calculate the average views per research ID, optionally filtering by a specific college_id.
+
+        :param college_id: Optional; filter by rows where the 'college_id' column matches this value.
+        :return: Average views per research ID.
+        """
+        if self.df is not None:
+            # Validate required columns
+            required_columns = {'total_views', 'research_id'}
+            missing_columns = required_columns - set(self.df.columns)
+            if missing_columns:
+                raise ValueError(f"DataFrame must contain columns: {', '.join(missing_columns)}")
+
+            if college_id is not None:
+                if 'college_id' not in self.df.columns:
+                    raise ValueError("Column 'college_id' does not exist in the DataFrame.")
+
+                # Filter by college_id
+                filtered_df = self.df[self.df['college_id'] == college_id]
+            else:
+                # Use the entire DataFrame if no college_id filter is specified
+                filtered_df = self.df
+
+            # Group by 'research_id' and calculate the total views for each ID
+            grouped = filtered_df.groupby('research_id')['total_views'].sum()
+
+            # Calculate the average views per research ID
+            if not grouped.empty:
                 average_views = grouped.mean()
                 return average_views
             else:
-                raise ValueError("DataFrame must contain 'total_views' and 'research_id' columns.")
+                return 0.0  # Return 0.0 if there are no research IDs in the filtered DataFrame
         else:
             raise ValueError("DataFrame is not initialized.")
+
 
     def get_filtered_data(self, selected_colleges, selected_status, selected_years):
         if self.df is not None:
@@ -303,7 +370,9 @@ class UserEngagementManager:
                 (self.df['status'].isin(selected_status)) & 
                 (self.df['year'].between(selected_years[0], selected_years[1]))
             ]
+            print(filtered_df)
             return filtered_df
+            
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
         

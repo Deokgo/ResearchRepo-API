@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, func, desc
-from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat
+from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, SDG, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat, UserEngagement
 from services.data_fetcher import ResearchDataFetcher
 from collections import Counter
 import re
@@ -79,6 +79,15 @@ class DatabaseManager:
             ).join(ResearchArea, ResearchOutputArea.research_area_id == ResearchArea.research_area_id) \
             .group_by(ResearchOutputArea.research_id).subquery()
 
+            agg_user_engage = session.query(
+                UserEngagement.research_id,
+                func.sum(UserEngagement.view).label('sum_views'),
+                func.count(func.distinct(UserEngagement.user_id)).label('distinct_user_ids'),
+                func.sum(UserEngagement.download).label('sum_downloads')
+            ).group_by(
+                UserEngagement.research_id
+            ).subquery()
+
             # Main query
             query = session.query(
                 College.college_id,
@@ -101,7 +110,10 @@ class DatabaseManager:
                 Conference.conference_date,
                 latest_status_subquery.c.status,
                 area_subquery.c.concatenated_areas,
-                ResearchOutput.abstract
+                ResearchOutput.abstract,
+                agg_user_engage.c.sum_views,
+                agg_user_engage.c.distinct_user_ids,
+                agg_user_engage.c.sum_downloads,
             ).join(College, ResearchOutput.college_id == College.college_id) \
             .join(Program, ResearchOutput.program_id == Program.program_id) \
             .outerjoin(Publication, ResearchOutput.research_id == Publication.research_id) \
@@ -113,6 +125,7 @@ class DatabaseManager:
             .outerjoin(area_subquery, ResearchOutput.research_id ==  area_subquery.c.research_id) \
             .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
             .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
+            .outerjoin(agg_user_engage, agg_user_engage.c.research_id == ResearchOutput.research_id)\
             .distinct()
 
             result = query.all()
@@ -141,6 +154,10 @@ class DatabaseManager:
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'abstract': row.abstract if pd.notnull(row.abstract) else '',
                 'concatenated_areas': row.concatenated_areas if pd.notnull(row.concatenated_areas) else 'No Research Areas',
+                'views': row.sum_views,
+                'downloads': row.sum_downloads,
+                'unique_views':row.distinct_user_ids
+
             } for row in result]
 
             # Convert the list of dictionaries to a DataFrame
