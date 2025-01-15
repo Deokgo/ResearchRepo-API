@@ -284,6 +284,7 @@ class DatabaseManager:
                 (self.df['status'].isin(selected_status)) & 
                 (self.df['year'].between(selected_years[0], selected_years[1]))
             ]
+            print("Filtered by program:",filtered_df)
             return filtered_df
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")

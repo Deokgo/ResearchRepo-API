@@ -599,7 +599,7 @@ class Engage_College:
         @self.dash_app.callback(
             Output('proceeding_conference_bar_plot', 'figure'),
             [
-                Input('college', 'value'),
+                Input('program', 'value'),
                 Input('status', 'value'),
                 Input('years', 'value'),
                 Input('date-range-dropdown', 'value')
