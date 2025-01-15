@@ -173,9 +173,6 @@ def add_paper():
             adviser_id=adviser_id,
             user_id=user_id,
             date_uploaded=current_datetime,
-            view_count=0,
-            download_count=0, 
-            unique_views=0
         )
         db.session.add(new_research)
         db.session.flush()
