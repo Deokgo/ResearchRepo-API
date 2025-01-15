@@ -345,21 +345,30 @@ def update_paper(research_id):
                     db.session.add(new_keyword)
 
         # Handle SDGs update
-        if 'sdg' in request.form:
-            # First, delete all existing SDGs for this research
-            SDG.query.filter_by(research_id=research_id).delete()
+        if 'sdg' in data and data['sdg']:
+            # Retrieve old SDGs and concatenate them into a string with ", "
+            old_sdgs = [sdg.sdg for sdg in SDG.query.filter_by(research_id=research_id).all()]
+            print(old_sdgs)
+
+            # Process the new SDGs from the input data
+            new_sdgs = [sdg.strip() for sdg in data['sdg'].split(';') if sdg.strip()]
+            print(new_sdgs)
             
-            # Then add the new SDGs
-            new_sdgs = request.form['sdg'].split(';')
-            for sdg in new_sdgs:
-                if sdg.strip():  # Only add non-empty SDGs
+            print(f'{set(old_sdgs)}!={set(new_sdgs)}')
+            if set(old_sdgs) != set(new_sdgs):
+                changes.append(f"SDGs: {old_sdgs} -> {', '.join(new_sdgs)}")
+                # Delete old SDGs associated with this research ID
+                SDG.query.filter_by(research_id=research_id).delete()
+
+                # Add new SDGs to the database
+                for sdg in new_sdgs:
                     new_sdg = SDG(
                         research_id=research_id,
-                        sdg=sdg.strip()
+                        sdg=sdg
                     )
                     db.session.add(new_sdg)
 
-        # Handle manuscript file update
+        # Manuscript update
         if file:
             if not file.content_type == 'application/pdf':
                 return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
@@ -377,11 +386,10 @@ def update_paper(research_id):
             file_path = os.path.normpath(os.path.join(dir_path, filename))
             file.save(file_path)
 
-            if existing_paper.full_manuscript != file_path:
-                changes.append(f"Manuscript File: '{existing_paper.full_manuscript}' -> '{file_path}'")
-                existing_paper.full_manuscript = file_path
+            changes.append("Changed full manuscript file")
+            existing_paper.full_manuscript = file_path
 
-        # Handle extended abstract update
+        # Extended abstract update
         if file_ea:
             if not file_ea.content_type == 'application/pdf':
                 return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
@@ -399,9 +407,8 @@ def update_paper(research_id):
             file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
             file_ea.save(file_path_ea)
 
-            if existing_paper.extended_abstract != file_path_ea:
-                changes.append(f"Extended Abstract File: '{existing_paper.extended_abstract}' -> '{file_path_ea}'")
-                existing_paper.extended_abstract = file_path_ea
+            changes.append("Changed extended abstract file")
+            existing_paper.extended_abstract = file_path_ea
 
         db.session.commit()
 
@@ -415,6 +422,8 @@ def update_paper(research_id):
             action_desc=f"Updated research paper with the following changes:\n{formatted_changes}"
         )
 
+        print(f"Updated research paper with the following changes:\n{formatted_changes}")
+
         return jsonify({"message": "Paper updated successfully"}), 200
 
     except Exception as e:
@@ -425,7 +434,6 @@ def update_paper(research_id):
 
     finally:
         db.session.close()
-
 
 @paper.route('/view_manuscript/<research_id>', methods=['GET'])
 def view_manuscript(research_id):
@@ -487,12 +495,17 @@ def increment_views(research_id):
             .filter(UserEngagement.research_id == research_id)
             .scalar()
         )
+        total_downloads = (
+                db.session.query(func.sum(UserEngagement.download))
+                .filter(UserEngagement.research_id == research_id)
+                .scalar()
+            )
         print(f'total views: {total_views}')
 
         return jsonify({
             "message": "View count updated",
             "updated_views": total_views or 0,
-            "download_count": research_output.download_count or 0
+            "download_count": total_downloads or 0
         }), 200
 
     except Exception as e:

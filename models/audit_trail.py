@@ -10,7 +10,7 @@ class AuditTrail(db.Model):
     record_id = db.Column(db.String(16))
     operation = db.Column(db.String(50))
     change_datetime = db.Column(db.TIMESTAMP)
-    action_desc = db.Column(db.String(1000))
+    action_desc = db.Column(db.String(10000))
 
 
 
