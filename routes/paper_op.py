@@ -345,20 +345,33 @@ def update_paper(research_id):
                     db.session.add(new_keyword)
 
         # Handle SDGs update
+        from sqlalchemy import func
         if 'sdg' in data and data['sdg']:
-            # Retrieve old SDGs and concatenate them into a string with ", "
-            old_sdgs = [sdg.sdg for sdg in SDG.query.filter_by(research_id=research_id).all()]
-            print(old_sdgs)
+            # Create the subquery to retrieve concatenated SDGs for each research_id
+            sdg_subquery = db.session.query(
+                SDG.research_id,
+                func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
+            ).group_by(SDG.research_id).subquery()
+
+            # Retrieve concatenated SDGs for the specific research_id
+            concatenated_sdgs = db.session.query(sdg_subquery.c.concatenated_sdg).filter(
+                sdg_subquery.c.research_id == research_id
+            ).scalar()  # Use scalar to get the single value
+
+            # Split the concatenated string into a list of SDGs
+            old_sdgs = concatenated_sdgs.split('; ') if concatenated_sdgs else []
+            print(f"Old SDGs: {old_sdgs}")
 
             # Process the new SDGs from the input data
             new_sdgs = [sdg.strip() for sdg in data['sdg'].split(';') if sdg.strip()]
-            print(new_sdgs)
+            print(f"New SDGs: {new_sdgs}")
             
-            print(f'{set(old_sdgs)}!={set(new_sdgs)}')
+            print(f"{set(old_sdgs)} != {set(new_sdgs)}")
             if set(old_sdgs) != set(new_sdgs):
                 changes.append(f"SDGs: {old_sdgs} -> {', '.join(new_sdgs)}")
+                
                 # Delete old SDGs associated with this research ID
-                SDG.query.filter_by(research_id=research_id).delete()
+                SDG.query.filter(SDG.research_id == research_id).delete()
 
                 # Add new SDGs to the database
                 for sdg in new_sdgs:
@@ -367,6 +380,8 @@ def update_paper(research_id):
                         sdg=sdg
                     )
                     db.session.add(new_sdg)
+                
+                db.session.commit()  # Commit changes to the database
 
         # Manuscript update
         if file:
