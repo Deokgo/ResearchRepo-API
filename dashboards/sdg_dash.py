@@ -24,12 +24,7 @@ class SDG_Dash:
         """
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/sdg/overall/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP])
-        self.palette_dict = {
-            'CAS':'#141cff', 
-            'CCIS':'#04a417', 
-            'CHS':'#c2c2c2', 
-            'MITL':'#bb0c0c',
-            'ETYCB':'#e9e107'}
+        self.palette_dict = db_manager.get_college_colors()
         # Get default values
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_statuses = db_manager.get_unique_values('status')

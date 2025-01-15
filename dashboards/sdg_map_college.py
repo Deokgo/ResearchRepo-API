@@ -27,12 +27,7 @@ class SDG_Map_College:
         self.sdg_colors=sdg_colors
         self.all_sdgs = [f'SDG {i}' for i in range(1, 18)]
 
-        self.palette_dict = {
-            'CAS':'#141cff', 
-            'CCIS':'#04a417', 
-            'CHS':'#c2c2c2', 
-            'MITL':'#bb0c0c',
-            'ETYCB':'#e9e107'}
+        self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_programs = []
         self.default_statuses = db_manager.get_unique_values('status')

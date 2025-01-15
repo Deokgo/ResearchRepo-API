@@ -25,12 +25,7 @@ class Engage_College:
         self.college = college
         self.program = program
 
-        self.palette_dict = {
-            'CAS':'#141cff', 
-            'CCIS':'#04a417', 
-            'CHS':'#c2c2c2', 
-            'MITL':'#bb0c0c',
-            'ETYCB':'#e9e107'}
+        self.palette_dict = view_manager.get_college_colors()
         self.default_colleges = view_manager.get_unique_values('college_id')
         self.default_programs = []
         self.default_statuses = view_manager.get_unique_values('status')
