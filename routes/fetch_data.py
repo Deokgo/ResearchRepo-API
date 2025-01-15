@@ -98,7 +98,7 @@ def college():
         return jsonify({'error': str(e)}), 400
     
 @data.route('/colleges', methods =['GET','POST'])
-@data.route('/colleges/<current_college>', methods =['GET','PUT','DELETE'])
+@data.route('/colleges/<current_college>', methods =['GET'])
 @jwt_required()
 def colleges(current_college=None):
     #current_user = get_jwt_identity()
@@ -164,92 +164,10 @@ def colleges(current_college=None):
         except Exception as e:
             # If an error occurs, return a 400 error with the message
             return jsonify({'error': str(e)}), 400
-    elif request.method == 'PUT':
-        try:   
-            if current_college is None:
-                return jsonify({'error': 'College is required'}), 400
-
-            data = request.form
-
-            # Extracting values from the JSON data
-            college_name = data.get('college_name')
-            color_code = data.get('color_code')
-
-            # Check if the data is valid
-            if not college_name:
-                return jsonify({'error': 'College Name is required'}), 400
-
-            # Check if the college exists
-            college = College.query.filter_by(college_id=current_college).first()
-            if not college:
-                return jsonify({'error': 'College not found'}), 404
-
-            # Check if the new college name already exists (excluding the current college)
-            existing_college = College.query.filter(College.college_name == college_name, College.college_id != current_college).first()
-            if existing_college:
-                return jsonify({'error': 'College with this name already exists'}), 400
-
-            # Update the college name and color_code if given
-            college.college_name = college_name
-            
-            if color_code:
-                college.colo_code = color_code
-
-            db.session.commit()
-
-            # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='College',
-                record_id=current_college,
-                operation='UPDATE',
-                action_desc='Updated college department'
-            )
-        
-            return jsonify({'message': 'College updated successfully'}), 200
-
-        except Exception as e:
-            # If an error occurs, return a 400 error with the message
-            return jsonify({'error': str(e)}), 400
-        
-    if request.method == 'DELETE':
-        try:
-            if current_college is None:
-                return jsonify({'error': 'College is required'}), 400
-
-            # Check if the college exists
-            college = College.query.filter_by(college_id=current_college).first()
-        
-            if not college:
-                return jsonify({'error': 'No matching college found'}), 404
-            
-             # Delete college from the database
-            db.session.delete(college)
-            db.session.commit()
-
-
-            # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='College',
-                record_id=current_college,
-                operation='DELETE',
-                action_desc='Deleted college department'
-            )
-
-            return jsonify({'message': f'{current_college} college deleted successfully'}), 200
-
-        except Exception as e:
-            # If an error occurs, return a 400 error with the message
-            return jsonify({'error': str(e)}), 400
         
     
 @data.route('/programs', methods =['GET','POST'])
-@data.route('/programs/<current_program>', methods =['GET','PUT','DELETE'])
+@data.route('/programs/<current_program>', methods =['GET'])
 @jwt_required()
 def programs(current_program=None):
     #current_user = get_jwt_identity()
@@ -327,82 +245,4 @@ def programs(current_program=None):
             return jsonify({'message': 'Program added successfully'}), 201
 
         except Exception as e:
-            return jsonify({'error': str(e)}), 400
-
-    elif request.method == 'PUT':
-        try:   
-            if current_program is None:
-                return jsonify({'error': 'Program is required'}), 400
-
-            data = request.form
-
-            # Extracting values from the JSON data
-            programe_name = data.get('program_name')
-
-            # Check if the data is valid
-            if not programe_name:
-                return jsonify({'error': 'Program Name is required'}), 400
-
-            # Check if the program exists
-            program = Program.query.filter_by(program_id=current_program).first()
-            if not program:
-                return jsonify({'error': 'Program not found'}), 404
-
-            # Check if the new program name already exists (excluding the current program)
-            existing_program = Program.query.filter(Program.program_name == programe_name, Program.program_id != current_program).first()
-            if existing_program:
-                return jsonify({'error': 'Program with this name already exists'}), 400
-
-            # Update the program name
-            program.program_name = programe_name
-
-            db.session.commit()
-
-            # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='Program',
-                record_id=current_program,
-                operation='UPDATE',
-                action_desc='Updated program'
-            )
-
-            return jsonify({'message': 'Program updated successfully'}), 200
-
-        except Exception as e:
-            # If an error occurs, return a 400 error with the message
-            return jsonify({'error': str(e)}), 400
-        
-    if request.method == 'DELETE':
-        try:
-            if current_program is None:
-                return jsonify({'error': 'College is required'}), 400
-
-            # Check if the program exists
-            program = Program.query.filter_by(program_id=current_program).first()
-        
-            if not program:
-                return jsonify({'error': 'No matching program found'}), 404
-            
-             # Delete program from the database
-            db.session.delete(program)
-            db.session.commit()
-
-            # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='Program',
-                record_id=current_program,
-                operation='DELETE',
-                action_desc='Deleted program'
-            )
-
-            return jsonify({'message': f'{current_program} program deleted successfully'}), 200
-
-        except Exception as e:
-            # If an error occurs, return a 400 error with the message
             return jsonify({'error': str(e)}), 400
