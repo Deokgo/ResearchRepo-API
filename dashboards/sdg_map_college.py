@@ -551,9 +551,8 @@ class SDG_Map_College:
 
         return fig
     
-    def create_geographical_heatmap(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        # Fetch filtered data from the database
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def create_geographical_heatmap(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
         
@@ -716,11 +715,11 @@ class SDG_Map_College:
 
         return fig
 
-    def create_sdg_research_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def create_sdg_research_chart(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         types = db_manager.get_unique_values('research_type')
         print(types)
         # Fetch filtered data from the database
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
 
         # Prepare the DataFrame
         df_temp = df.copy()
@@ -798,9 +797,9 @@ class SDG_Map_College:
 
         return fig
     
-    def create_sdg_status_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def create_sdg_status_chart(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         # Fetch filtered data from the database
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
         
@@ -877,9 +876,13 @@ class SDG_Map_College:
         return fig
 
 
-    def create_sdg_country_distribution_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def create_sdg_country_distribution_chart(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         # Fetch filtered data from the database
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        # Check if df is empty
+        if df.empty:
+            # If no data, return an empty figure or a message
+            return px.line(title="No data available for the selected parameters.")
 
         # Step 1: Split the SDGs and explode into separate rows
         df_temp = df.copy()
@@ -965,9 +968,9 @@ class SDG_Map_College:
 
 
     
-    def create_sdg_conference_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def create_sdg_conference_chart(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         print("Fetching filtered data...")
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         print("Initial DataFrame:\n", df.head())
 
         # Create a copy of the DataFrame
@@ -1052,8 +1055,8 @@ class SDG_Map_College:
         print("Chart successfully created.")
         return fig
         
-    def create_publication_type_chart(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def create_publication_type_chart(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
 
         if sdg_dropdown_value != "ALL":
             # Step 2: Split SDGs by ';' and explode into separate rows
@@ -1090,9 +1093,9 @@ class SDG_Map_College:
 
         return fig
     
-    def create_local_foreign_pie_chart(self, selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+    def create_local_foreign_pie_chart(self, selected_programs, selected_status, selected_years,sdg_dropdown_value):
         # Fetch filtered data from the database
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         if sdg_dropdown_value != "ALL":
             # Step 2: Split SDGs by ';' and explode into separate rows
             df['sdg'] = df['sdg'].str.split(';')  # Split SDGs by ';'
@@ -1125,9 +1128,9 @@ class SDG_Map_College:
 
         return fig
     
-    def get_word_cloud(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def get_word_cloud(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         # Fetch the filtered data from the db_manager
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
 
         if sdg_dropdown_value !="ALL":
             # If sdg contains strings like "SDG1; SDG2"
@@ -1170,9 +1173,9 @@ class SDG_Map_College:
 
         return fig
     
-    def get_area_word_cloud(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    def get_area_word_cloud(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
         # Fetch the filtered data from the db_manager
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
         
         # If sdg_dropdown_value is not "ALL", filter the DataFrame by the selected SDG
         if sdg_dropdown_value != "ALL":
@@ -1220,8 +1223,11 @@ class SDG_Map_College:
     
     
 
-    def get_top_research_areas_per_year(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value, top_n=10):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def get_top_research_areas_per_year(self, selected_programs, selected_status, selected_years, sdg_dropdown_value, top_n=10):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        if df.empty:
+        # If no data, return an empty figure or a message
+            return px.line(title="No data available for the selected parameters.")
         df['sdg'] = df['sdg'].str.split(';')  
         df['sdg'] = df['sdg'].apply(lambda x: [i.strip() for i in x])  
         df = df.explode('sdg')
@@ -1267,8 +1273,11 @@ class SDG_Map_College:
 
         return fig
         
-    def get_top10(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def get_top10(self, selected_programs, selected_status, selected_years, sdg_dropdown_value):
+        df = db_manager.get_filtered_data_bycollege(selected_programs, selected_status, selected_years)
+        if df.empty:
+        # If no data, return an empty figure or a message
+            return px.line(title="No data available for the selected parameters.")
         df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x]) 
         if sdg_dropdown_value != "ALL":
             df = df.explode('sdg')
@@ -1298,7 +1307,11 @@ class SDG_Map_College:
         return fig
     
     def get_top10_authors(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        df = db_manager.get_filtered_data_bycollege(selected_colleges, selected_status, selected_years)
+        
+        if df.empty:
+            # If no data, return an empty figure or a message
+            return px.line(title="No data available for the selected parameters.")
         df['sdg'] = df['sdg'].str.split(';').apply(lambda x: [i.strip() for i in x]) 
         if sdg_dropdown_value != "ALL":
             df = df.explode('sdg')
@@ -1383,11 +1396,8 @@ class SDG_Map_College:
         
         # Callback to update content based on the user role and other URL parameters
         @self.dash_app.callback(
-            [
-                #Output('user-role', 'children'),
-                Output('college-info', 'children'),
 
-            ],
+            Output('college-info', 'children'),
             Input('url', 'search')  # Capture the query string in the URL
         )
         def update_user_role_and_info(url_search):
@@ -1473,143 +1483,143 @@ class SDG_Map_College:
         
         @self.dash_app.callback(
             Output('sdg-map', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_geographical_heatmap(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            return self.create_geographical_heatmap(selected_programs, selected_status, selected_years,sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('sdg-research-type', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig1(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig1(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_research_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_sdg_research_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('sdg-status', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig2(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig2(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_status_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_sdg_status_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('sdg-conference', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig3(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig3(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_conference_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_sdg_conference_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('sdg-publication-type', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig4(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig4(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_publication_type_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_publication_type_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
 
         @self.dash_app.callback(
             Output('sdg-countries', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig5(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig5(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_sdg_country_distribution_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_sdg_country_distribution_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
 
         @self.dash_app.callback(
             Output('sdg-local-foreign-pie', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig6(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig6(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_local_foreign_pie_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.create_local_foreign_pie_chart(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('keywords-cloud', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig7(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig7(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.get_word_cloud(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('research-area-cloud', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig8(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig8(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.get_top_research_areas_per_year(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.get_top_research_areas_per_year(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('top-research-area', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig9(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig9(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.get_top10(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.get_top10(selected_programs, selected_status, selected_years, sdg_dropdown_value)
         
         @self.dash_app.callback(
             Output('top-authors', 'figure'),
-            [Input('college', 'value'), 
+            [Input('program', 'value'), 
              Input('status', 'value'), 
              Input('years', 'value'),
              Input('sdg-dropdown', 'value')]
         )
-        def update_fig8(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+        def update_fig8(selected_programs, selected_status, selected_years,sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.get_top10_authors(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            return self.get_top10_authors(selected_programs, selected_status, selected_years, sdg_dropdown_value)
