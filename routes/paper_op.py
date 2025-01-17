@@ -13,7 +13,9 @@ from models import (
     ResearchOutputArea,
     ResearchTypes,
     PublicationFormat,
-    UserEngagement
+    UserEngagement,
+    ArchiveManus,
+    ArchiveEA
 )
 from services import auth_services
 import os
@@ -307,6 +309,94 @@ def update_paper(research_id):
 
         # Track changes for action description
         changes = []
+        philippine_tz = pytz.timezone('Asia/Manila')
+        current_datetime = datetime.now(philippine_tz).replace(tzinfo=None)
+
+        # Manuscript update
+        if file:
+            if not file.content_type == 'application/pdf':
+                return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
+
+            # Archive existing manuscript if it exists
+            if existing_paper.full_manuscript:
+                # Archive the current version
+                archive_manus = ArchiveManus(
+                    timestamp=current_datetime,
+                    research_id=research_id,
+                    full_manuscript=existing_paper.full_manuscript
+                )
+                db.session.add(archive_manus)
+
+            # Save new manuscript with versioning
+            base_filename = f"{research_id}_manuscript"
+            dir_path = os.path.join(
+                UPLOAD_FOLDER,
+                existing_paper.research_type_id,
+                'manuscript',
+                str(existing_paper.school_year),
+                existing_paper.college_id,
+                existing_paper.program_id
+            )
+            os.makedirs(dir_path, exist_ok=True)
+
+            # Get the next version number
+            existing_files = [f for f in os.listdir(dir_path) if f.startswith(base_filename)]
+            next_version = 1
+            if existing_files:
+                versions = [int(f.split('v')[-1].split('.')[0]) for f in existing_files if 'v' in f]
+                if versions:
+                    next_version = max(versions) + 1
+
+            # Save the new file with version number
+            filename = secure_filename(f"{base_filename}v{next_version}.pdf")
+            file_path = os.path.normpath(os.path.join(dir_path, filename))
+            file.save(file_path)
+
+            changes.append(f"Changed full manuscript file (v{next_version})")
+            existing_paper.full_manuscript = file_path
+
+        # Extended abstract update
+        if file_ea:
+            if not file_ea.content_type == 'application/pdf':
+                return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
+
+            # Archive existing extended abstract if it exists
+            if existing_paper.extended_abstract:
+                # Archive the current version
+                archive_ea = ArchiveEA(
+                    timestamp=current_datetime,
+                    research_id=research_id,
+                    extended_abstract=existing_paper.extended_abstract
+                )
+                db.session.add(archive_ea)
+
+            # Save new extended abstract with versioning
+            base_filename = f"{research_id}_extended_abstract"
+            dir_path_ea = os.path.join(
+                UPLOAD_FOLDER,
+                existing_paper.research_type_id,
+                'extended_abstract',
+                str(existing_paper.school_year),
+                existing_paper.college_id,
+                existing_paper.program_id
+            )
+            os.makedirs(dir_path_ea, exist_ok=True)
+
+            # Get the next version number
+            existing_files = [f for f in os.listdir(dir_path_ea) if f.startswith(base_filename)]
+            next_version = 1
+            if existing_files:
+                versions = [int(f.split('v')[-1].split('.')[0]) for f in existing_files if 'v' in f]
+                if versions:
+                    next_version = max(versions) + 1
+
+            # Save the new file with version number
+            filename_ea = secure_filename(f"{base_filename}v{next_version}.pdf")
+            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
+            file_ea.save(file_path_ea)
+
+            changes.append(f"Changed extended abstract file (v{next_version})")
+            existing_paper.extended_abstract = file_path_ea
 
         # Update basic fields
         if 'abstract' in data and existing_paper.abstract != data['abstract']:
@@ -379,48 +469,6 @@ def update_paper(research_id):
                     db.session.add(new_sdg)
                 
                 db.session.commit()  # Commit changes to the database
-
-        # Manuscript update
-        if file:
-            if not file.content_type == 'application/pdf':
-                return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
-
-            filename = secure_filename(f"{research_id}_manuscript.pdf")
-            dir_path = os.path.join(
-                UPLOAD_FOLDER,
-                existing_paper.research_type_id,
-                'manuscript',
-                str(existing_paper.school_year),
-                existing_paper.college_id,
-                existing_paper.program_id
-            )
-            os.makedirs(dir_path, exist_ok=True)
-            file_path = os.path.normpath(os.path.join(dir_path, filename))
-            file.save(file_path)
-
-            changes.append("Changed full manuscript file")
-            existing_paper.full_manuscript = file_path
-
-        # Extended abstract update
-        if file_ea:
-            if not file_ea.content_type == 'application/pdf':
-                return jsonify({"error": "Invalid extended abstract file type. Only PDF files are allowed."}), 400
-
-            filename_ea = secure_filename(f"{research_id}_extended_abstract.pdf")
-            dir_path_ea = os.path.join(
-                UPLOAD_FOLDER,
-                existing_paper.research_type_id,
-                'extended_abstract',
-                str(existing_paper.school_year),
-                existing_paper.college_id,
-                existing_paper.program_id
-            )
-            os.makedirs(dir_path_ea, exist_ok=True)
-            file_path_ea = os.path.normpath(os.path.join(dir_path_ea, filename_ea))
-            file_ea.save(file_path_ea)
-
-            changes.append("Changed extended abstract file")
-            existing_paper.extended_abstract = file_path_ea
 
         db.session.commit()
 
