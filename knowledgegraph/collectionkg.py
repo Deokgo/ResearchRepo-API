@@ -7,10 +7,20 @@ from collections import defaultdict
 from flask import Flask
 from . import db_manager
 import pandas as pd
+from datetime import datetime, timedelta
 
 def collection_kg(flask_app):
+    # Get current date and calculate date 6 months ago
+    current_date = datetime.now()
+    six_months_ago = current_date - timedelta(days=180)
+    
     df = db_manager.get_all_data()
     df['year'] = pd.to_datetime(df['year'], errors='coerce')
+    df['date_uploaded'] = pd.to_datetime(df['date_uploaded'], errors='coerce')
+    
+    # Filter dataframe for last 6 months
+    df = df[df['date_uploaded'] >= six_months_ago]
+    
     G = nx.Graph()
     connected_nodes = defaultdict(list)
 
@@ -23,7 +33,7 @@ def collection_kg(flask_app):
         'ETYCB':'#e9e107'
     }
 
-    # Build the graph
+    # Build the graph with filtered data
     for index, row in df.iterrows():
         research_id = row['research_id']
         study = row['title']
@@ -34,22 +44,22 @@ def collection_kg(flask_app):
         year = row['year']
 
         # Add study node
-        G.add_node(research_id, type='study', research=research_id, title=study,college=college_id, program=program_name,
+        G.add_node(research_id, type='study', research=research_id, title=study,
+                   college=college_id, program=program_name,
                    authors=concatenated_authors, year=year)
 
-        # Iterate over each SDG and add edges
+        # Add SDG nodes and edges
         for sdg in sdg_list:
-            sdg = sdg.strip()  # Remove any leading/trailing spaces
+            sdg = sdg.strip()
             if not G.has_node(sdg):
                 G.add_node(sdg, type='sdg')
-
             connected_nodes[sdg].append(research_id)
             G.add_edge(sdg, research_id)
 
     pos = nx.kamada_kawai_layout(G)
-    scaling_factor = 10  # Adjust as needed for more spacing
-    fixed_pos = {node: (coords[0] * scaling_factor, coords[1] * scaling_factor) for node, coords in pos.items()}
-
+    scaling_factor = 10
+    fixed_pos = {node: (coords[0] * scaling_factor, coords[1] * scaling_factor) 
+                 for node, coords in pos.items()}
 
     def build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=True):
         node_x = []
@@ -59,13 +69,13 @@ def collection_kg(flask_app):
         node_color = []
         node_size = []
 
-        # Calculate the number of studies connected to each SDG
+        # Calculate connections for visible nodes only
         sdg_connections = {
-            node: len([study for study in connected_nodes[node] if study in filtered_nodes])
+            node: len([study for study in connected_nodes[node] 
+                      if study in filtered_nodes])
             for node in G.nodes() if G.nodes[node]['type'] == 'sdg'
         }
 
-        # Get min and max connection counts for scaling
         if sdg_connections:
             max_connections = max(sdg_connections.values())
             min_connections = min(sdg_connections.values())
@@ -76,18 +86,23 @@ def collection_kg(flask_app):
             node_y.append(y)
 
             if G.nodes[node]['type'] == 'sdg':
-                filtered_count = len([study for study in connected_nodes[node] if study in filtered_nodes])
+                filtered_count = len([study for study in connected_nodes[node] 
+                                   if study in filtered_nodes])
                 hover_text.append(f"{filtered_count} studies connected")
                 node_color.append('#0A438F')
-                size = 30 + (filtered_count - min_connections) / (max_connections - min_connections) * (150 - 30) if max_connections > min_connections else 60
+                size = (30 + (filtered_count - min_connections) / 
+                       (max_connections - min_connections) * (150 - 30) 
+                       if max_connections > min_connections else 60)
                 node_size.append(size * 0.75)
                 node_labels.append(node)
             else:
-                hover_text.append(f"Title: {G.nodes[node]['title']}<br>"
-                                f"College: {G.nodes[node]['college']}<br>"
-                                f"Program: {G.nodes[node]['program']}<br>"
-                                f"Authors: {G.nodes[node]['authors']}<br>"
-                                f"Year: {G.nodes[node]['year']}")
+                hover_text.append(
+                    f"Title: {G.nodes[node]['title']}<br>"
+                    f"College: {G.nodes[node]['college']}<br>"
+                    f"Program: {G.nodes[node]['program']}<br>"
+                    f"Authors: {G.nodes[node]['authors']}<br>"
+                    f"Year: {G.nodes[node]['year']}"
+                )
                 node_color.append(palette_dict.get(G.nodes[node]['college'], 'grey'))
                 node_size.append(20)
                 node_labels.append(node if show_labels else "")
@@ -129,7 +144,7 @@ def collection_kg(flask_app):
             text=node_labels,
             hovertext=hover_text,
             marker=dict(color=node_color, size=node_size),
-            textfont=dict(color='black', size=9),  # Main text style
+            textfont=dict(color='black', size=8),  # Main text style
             hoverinfo='text'
         )
 
@@ -137,13 +152,15 @@ def collection_kg(flask_app):
 
 
 
+    # Initialize with all filtered nodes
     initial_nodes = list(G.nodes())
     initial_edges = list(G.edges())
-    edge_trace, shadow_trace, node_trace = build_traces(initial_nodes, initial_edges, initial_nodes, show_labels=False)
-    # Initialize Dash app
+    traces = build_traces(initial_nodes, initial_edges, initial_nodes, show_labels=False)
+
+    # Create Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/collectionkg/')
 
-    # Layout for Dash app including filters for year and colleges
+    # Adjust the layout parameters
     dash_app.layout = html.Div(
         style={
             'width': '100vw',  # Use full viewport width
@@ -159,28 +176,34 @@ def collection_kg(flask_app):
             dcc.Graph(
                 id='knowledge-graph',
                 figure={
-                    'data': [edge_trace, shadow_trace, node_trace],
+                    'data': traces,
                     'layout': go.Layout(
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=0),  # Remove graph margins
-                        autosize=True,  # Automatically size graph to container
+                        margin=dict(b=0, l=0, r=0, t=0),  # Adjusted margins
+                        autosize=True,  # Enable autosize
+                        paper_bgcolor='white',
+                        plot_bgcolor='white',
                         xaxis=dict(
                             showgrid=False,
                             zeroline=False,
-                            range=[-3, 3],  # Fixed x-axis range
-                            fixedrange=True,  # Disable zoom on x-axis
+                            range=[-2, 2],  # Adjusted range for better fit
+                            fixedrange=True,
+                            showticklabels=False  # Hide axis labels
                         ),
                         yaxis=dict(
                             showgrid=False,
                             zeroline=False,
-                            range=[-3, 3],  # Fixed y-axis range
-                            fixedrange=True,  # Disable zoom on y-axis
+                            range=[-2, 2],  # Adjusted range for better fit
+                            fixedrange=True,
+                            showticklabels=False  # Hide axis labels
                         ),
                         transition=dict(duration=500),
-                    ),
+                    )
                 },
                 style={
+                    'height': '100%',
+                    'width': '100%',
                     'height': '100%',  # Fully occupy parent height
                     'width': '100%',  # Fully occupy parent width
                     'padding': '0',  # Remove padding
@@ -188,9 +211,10 @@ def collection_kg(flask_app):
                     'overflow': 'hidden',  # Prevent any overflow within graph
                 },
                 config={
-                    'displayModeBar': False,  # Hide the mode bar
-                    'staticPlot': True,  # Make the plot static
-                },
+                    'displayModeBar': False,
+                    'staticPlot': True,
+                    'responsive': True  # Enable responsive resizing
+                }
             )
         ],
     )
