@@ -3,7 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import db, Publication , ResearchOutput, Status, Conference, PublicationFormat
 from services.auth_services import formatting_id, log_audit_trail
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, date
 from services.tracking_services import insert_status
 from sqlalchemy import func, desc, nulls_last
 from services.mail import send_notification_email
@@ -484,3 +484,119 @@ def fetch_all_contents(table):
         return jsonify({'message': "No table provided."}), 400
 
 
+@track.route('/form/<operation>/<research_id>', methods=['POST'])
+def manage_publication(operation, research_id):
+    user_id = 'US-20240929-001'
+
+    # Validate the operation
+    if operation.lower() not in ['submit', 'accept', 'publish']:
+        return jsonify({'message': 'Invalid operation'}), 400
+
+    # Fetch the ResearchOutput
+    research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
+    if not research_output:
+        return jsonify({'message': 'ResearchOutput not found'}), 404
+
+    # Handle 'submit' operation
+    if operation.lower() == 'submit':
+        publication_exists = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+        if publication_exists:
+            return jsonify({'message': 'Publication already exists'}), 400
+
+        conference_title = request.form.get('conference_title')
+        if conference_title:
+            conference = db.session.query(Conference).filter(
+                Conference.conference_title.ilike(conference_title),
+                Conference.conference_venue.ilike(f"{request.form.get('city')}, {request.form.get('country')}"),
+                Conference.conference_date == datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
+            ).first()
+
+            if not conference:
+                cf_id = formatting_id("CF", Conference, 'conference_id')
+                conference_date = datetime.strptime(request.form.get('conference_date'), '%Y-%m-%d') if request.form.get('conference_date') else None
+
+                conference = Conference(
+                    conference_id=cf_id,
+                    conference_title=conference_title,
+                    conference_venue=f"{request.form.get('city')}, {request.form.get('country')}",
+                    conference_date=conference_date
+                )
+                
+                db.session.add(conference)
+                db.session.commit()
+                log_audit_trail(
+                    user_id=user_id,
+                    table_name='Conference',
+                    record_id=cf_id,
+                    operation='CREATE',
+                    action_desc=f"Added new conference: {conference.conference_title}"
+                )
+
+        try:
+            date_submitted = datetime.strptime(request.form.get('date_submitted'), '%Y-%m-%d')
+            if date_submitted.date() > date.today():
+                return jsonify({'message': 'Date submitted cannot be in the future'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'message': 'Invalid date format for date_submitted'}), 400
+
+        publication_id = formatting_id("PBC", Publication, 'publication_id')
+        new_publication = Publication(
+            publication_id=publication_id,
+            research_id=research_id,
+            publication_name=request.form.get('publication_name'),
+            conference_id=conference.conference_id if conference_title else None,
+            pub_format_id=request.form.get('pub_format_id'),
+            user_id=user_id,
+            date_submitted=date_submitted
+        )
+        db.session.add(new_publication)
+        db.session.commit()
+
+        log_audit_trail(
+            user_id=user_id,
+            table_name='Publication',
+            record_id=publication_id,
+            operation='CREATE',
+            action_desc=f"Added new publication: {new_publication.publication_name}"
+        )
+
+        return jsonify({'message': 'Publication submitted successfully'}), 201
+
+    # Handle 'publish' operation
+    elif operation.lower() == 'publish':
+        publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
+        if not publication:
+            return jsonify({'message': 'Publication not found'}), 404
+
+        before_date = None
+        if publication.pub_format_id == "PC":
+            conference = db.session.query(Conference).filter(Conference.conference_id == publication.conference_id).first()
+            before_date = conference.conference_date
+        else:
+            before_date = publication.date_submitted
+
+        try:
+            pub_date = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d')
+            # Check if the published date is in the future
+            if pub_date.date() > date.today():
+                return jsonify({'message': 'Date published cannot be in the future'}), 400
+            # Check if the published date is earlier than the required date
+            if pub_date.date() < before_date.date():
+                return jsonify({'message': f'Date published cannot be earlier than {before_date.date()}'}, 400)
+        except (ValueError, TypeError):
+            return jsonify({'message': 'Invalid date format for date_published'}), 400
+
+        publication.publication_name = request.form.get('publication_name')
+        publication.date_published = pub_date
+        publication.scopus = request.form.get('scopus')
+        db.session.commit()
+
+        log_audit_trail(
+            user_id=user_id,
+            table_name='Publication',
+            record_id=publication.publication_id,
+            operation='UPDATE',
+            action_desc=f"Published publication: {publication.publication_name}"
+        )
+
+        return jsonify({'message': 'Publication published successfully'}), 200
