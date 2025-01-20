@@ -67,6 +67,20 @@ def refresh_expiring_jwts(response):
         now = datetime.now(timezone.utc)
         target_timestamp = datetime.timestamp(now + timedelta(minutes=30))
         
+        # If token has expired
+        if datetime.timestamp(now) > exp_timestamp:
+            # Log the token expiration
+            from services import auth_services
+            user_id = get_jwt_identity()
+            auth_services.log_audit_trail(
+                user_id=user_id,
+                table_name='Account',
+                record_id=None,
+                operation='LOGOUT',
+                action_desc='Token expired'
+            )
+            return response
+            
         # If token is about to expire (less than 30 min remaining)
         if target_timestamp > exp_timestamp:
             access_token = create_access_token(identity=get_jwt_identity())

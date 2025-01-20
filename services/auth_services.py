@@ -87,13 +87,6 @@ def validate_password(password):
     return None
 
 def generate_tokens(user_id):
-    """Generate both access and refresh tokens for the user."""
+    """Generate access token for the user."""
     access_token = create_access_token(identity=user_id)
-    refresh_token = create_refresh_token(identity=user_id)
-    return access_token, refresh_token
-
-def set_tokens_cookies(response, refresh_token):
-    """Set refresh token as HTTP-only cookie"""
-    set_refresh_cookies(response, refresh_token)
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+    return access_token
