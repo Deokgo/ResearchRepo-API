@@ -183,7 +183,13 @@ class ProgDashApp:
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
-                    dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
+                    # Sidebar controls
+                    dbc.Col(
+                        controls,
+                        width={"size": 2, "order": 1},  # Adjust width for sidebar
+                        style={"height": "100%", "padding": "0", "overflow-y": "auto"}
+                    ),
+                    # Main dashboard content
                     dbc.Col(
                         html.Div([  # Wrapper div for horizontal scrolling
                             html.H1(self.title),
@@ -238,31 +244,35 @@ class ProgDashApp:
                                 ), style={"flex": "1"}
                             ),  
                         ], style={
-                            "height": "90%",  # Reduced content area height
+                            "height": "100%",
                             "display": "flex",
                             "flex-direction": "column",
-                            "overflow-x": "auto",  # Allow horizontal scrolling for the entire content
-                            "flex-grow": "1",  # Ensure content area grows to fill available space
-                            "margin": "0",
-                            "padding": "3px",
-                        })
-                    , style={
-                        "height": "100%",  # Ensure wrapper takes full height
-                        "display": "flex",
-                        "flex-direction": "column"
-                    }),
-                ], style={"height": "100%", "display": "flex"}),
-            ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "80vh",  # Reduced viewport height
-                "margin": "0", 
+                            "overflow-x": "hidden",  # Prevent horizontal overflow
+                            "overflow-y": "auto",  # Enable vertical scrolling
+                            "padding": "10px",
+                        }),
+                        width={"size": 10, "order": 2},  # Adjust main content width
+                        style={
+                            "height": "100%",
+                            "display": "flex",
+                            "flex-direction": "column"
+                        }
+                    ),
+                ], style={
+                    "height": "100vh",
+                    "display": "flex",
+                    "flex-wrap": "nowrap",  # Prevent wrapping to maintain layout
+                }),
+            ], fluid=True, style={
+                "height": "100vh",
+                "margin": "0",
                 "padding": "0",
-            })
+            }),
         ], style={
-            "height": "90vh",  # Reduced overall height
+            "height": "100vh",
             "margin": "0",
             "padding": "0",
-            "overflow-x": "hidden",  # No scrolling for outermost div
-            "overflow-y": "hidden",  # No vertical scrolling for outermost div
+            "overflow": "hidden",  # Prevent outer scrolling
         })
 
     def create_display_card(self, title, value):

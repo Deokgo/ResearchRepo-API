@@ -192,14 +192,20 @@ class MainDashboard:
 
 
         self.dash_app.layout = html.Div([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
-                    dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
+                    # Sidebar controls
                     dbc.Col(
-                        html.Div([  # Wrapper div for horizontal scrolling
-                            dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
+                        controls,
+                        width={"size": 2, "order": 1},  # Adjust width for sidebar
+                        style={"height": "100%", "padding": "0", "overflow-y": "auto"}
+                    ),
+                    # Main dashboard content
+                    dbc.Col(
+                        html.Div([
+                            dbc.Row(text_display, style={"flex": "1"}),  # Display text_display at the top
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-main-dash",
@@ -213,63 +219,66 @@ class MainDashboard:
                                     type="circle",
                                     children=sub_dash5
                                 ), style={"flex": "1"}
-                            ),  
+                            ),
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-sub-dash1",
                                     type="circle",
                                     children=sub_dash1
                                 ), style={"flex": "1"}
-                            ),    
+                            ),
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-sub-dash3",
                                     type="circle",
                                     children=sub_dash3
                                 ), style={"flex": "1"}
-                            ),    
+                            ),
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-sub-dash2",
                                     type="circle",
                                     children=sub_dash2
                                 ), style={"flex": "1"}
-                            ),    
+                            ),
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-sub-dash4",
                                     type="circle",
                                     children=sub_dash4
                                 ), style={"flex": "1"}
-                            ),    
+                            ),
                         ], style={
-                            "height": "90%",  # Reduced content area height
+                            "height": "100%",
                             "display": "flex",
                             "flex-direction": "column",
-                            "overflow-x": "auto",  # Allow horizontal scrolling for the entire content
-                            "flex-grow": "1",  # Ensure content area grows to fill available space
-                            "margin": "0",
-                            "padding": "3px",
-                        })
-                    , style={
-                        "height": "100%",  # Ensure wrapper takes full height
-                        "display": "flex",
-                        "flex-direction": "column"
-                    }),
-                ], style={"height": "100%", "display": "flex"}),
-            ], fluid=True, className="dbc dbc-ag-grid", style={
-                "height": "80vh",  # Reduced viewport height
-                "margin": "0", 
+                            "overflow-x": "hidden",  # Prevent horizontal overflow
+                            "overflow-y": "auto",  # Enable vertical scrolling
+                            "padding": "10px",
+                        }),
+                        width={"size": 10, "order": 2},  # Adjust main content width
+                        style={
+                            "height": "100%",
+                            "display": "flex",
+                            "flex-direction": "column"
+                        }
+                    ),
+                ], style={
+                    "height": "100vh",
+                    "display": "flex",
+                    "flex-wrap": "nowrap",  # Prevent wrapping to maintain layout
+                }),
+            ], fluid=True, style={
+                "height": "100vh",
+                "margin": "0",
                 "padding": "0",
-            })
+            }),
         ], style={
-            "height": "90vh",  # Reduced overall height
+            "height": "100vh",
             "margin": "0",
             "padding": "0",
-            "overflow-x": "hidden",  # No scrolling for outermost div
-            "overflow-y": "hidden",  # No vertical scrolling for outermost div
+            "overflow": "hidden",  # Prevent outer scrolling
         })
-
 
     def create_display_card(self, title, value):
         """
