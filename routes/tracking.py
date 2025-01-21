@@ -487,9 +487,9 @@ def fetch_all_contents(table):
 
 
 @track.route('/form/<operation>/<research_id>', methods=['POST'])
+@jwt_required()
 def manage_publication(operation, research_id):
-    user_id = 'US-20240929-001'
-
+    user_id = get_jwt_identity()
     # Validate the operation
     if operation.lower() not in ['submit', 'accept', 'publish']:
         return jsonify({'message': 'Invalid operation'}), 400
@@ -558,7 +558,6 @@ def manage_publication(operation, research_id):
         if not status:
             print("error")
         else:
-            #user_id = get_jwt_identity()
             log_audit_trail(
                 user_id=user_id,
                 table_name='Status',
@@ -581,7 +580,6 @@ def manage_publication(operation, research_id):
         if not status:
             print("error")
         else:
-            user_id = get_jwt_identity()
             log_audit_trail(
                 user_id=user_id,
                 table_name='Status',
@@ -630,7 +628,6 @@ def manage_publication(operation, research_id):
         if not status:
             print("error")
         else:
-            #user_id = get_jwt_identity()
             log_audit_trail(
                 user_id=user_id,
                 table_name='Status',
