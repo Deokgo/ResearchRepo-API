@@ -637,7 +637,11 @@ class ProgDashApp:
             xaxis_title=xaxis_title,
             yaxis_title=yaxis_title,
             template='plotly_white',
-            height=400
+            height=400,
+            xaxis=dict(
+                type='linear',  # Treat x-axis as continuous
+                tickformat="%d"  # Display years as integers
+            )
         )
 
         return fig_bar
