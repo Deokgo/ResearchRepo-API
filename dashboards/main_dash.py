@@ -618,7 +618,7 @@ class MainDashboard:
         
         return fig
     
-    def scopus_line_graph(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
+    def scopus_line_graph(self, selected_colleges, selected_status, selected_years):
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
         
         # Filter out rows where 'scopus' is 'N/A'
@@ -627,15 +627,22 @@ class MainDashboard:
         # Group data by 'scopus' and 'year'
         grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
 
-        # Create the line chart
+        # Ensure year and count are numeric
+        grouped_df['year'] = grouped_df['year'].astype(int)
+        grouped_df['Count'] = grouped_df['Count'].astype(int)
+
+        # Debug: Print the grouped data
+        print(grouped_df)
+
+        # Create the line chart with markers
         fig_line = px.line(
             grouped_df,
             x='year',
             y='Count',
             color='scopus',
-            line_group='scopus',
             color_discrete_map=self.palette_dict,
-            labels={'scopus': 'Scopus vs. Non-Scopus'}
+            labels={'scopus': 'Scopus vs. Non-Scopus'},
+            markers=True  # Ensure points are visible even if no lines
         )
 
         # Update layout for the figure
@@ -646,7 +653,9 @@ class MainDashboard:
             template='plotly_white',
             height=400,
             xaxis=dict(
-                tickformat="%d"  # Ensures years are displayed as whole numbers without commas
+                type='linear',  # Treat x-axis as continuous
+                tickformat="%d",  # Display years as integers
+                tickangle=-45  # Make labels diagonal
             )
         )
 
@@ -663,15 +672,22 @@ class MainDashboard:
         # Group data by 'journal' and 'year'
         grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
 
-        # Create the line chart
+        # Ensure year and count are numeric
+        grouped_df['year'] = grouped_df['year'].astype(int)
+        grouped_df['Count'] = grouped_df['Count'].astype(int)
+
+        # Debug: Print the grouped data
+        print(grouped_df)
+
+        # Create the line chart with markers
         fig_line = px.line(
             grouped_df,
             x='year',
             y='Count',
             color='journal',
-            line_group='journal',
             color_discrete_map=self.palette_dict,
-            labels={'journal': 'Publication Format'}
+            labels={'journal': 'Publication Format'},
+            markers=True  # Ensure points are visible even if no lines
         )
 
         # Update layout for the figure
@@ -682,7 +698,9 @@ class MainDashboard:
             template='plotly_white',
             height=400,
             xaxis=dict(
-                tickformat="%d"  # Ensures years are displayed as whole numbers without commas
+                type='linear',  # Treat x-axis as continuous
+                tickformat="%d",  # Display years as integers
+                tickangle=-45  # Make labels diagonal
             )
         )
 
@@ -732,7 +750,11 @@ class MainDashboard:
             xaxis_title=xaxis_title,
             yaxis_title=yaxis_title,
             template='plotly_white',
-            height=400
+            height=400,
+            xaxis=dict(
+                type='linear',  # Treat x-axis as continuous
+                tickformat="%d"  # Display years as integers
+            )
         )
 
         return fig_bar
