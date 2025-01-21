@@ -179,12 +179,16 @@ def create_kg_area(flask_app):
         node_connections = defaultdict(int)
 
         # Get the current SDG and area context
+        # Check filtered_nodes first for SDG context, then nodes_to_show
         current_sdg = None
         current_area = None
-        for node in nodes_to_show:
+        for node in filtered_nodes:
             if G.nodes[node]['type'] == 'sdg':
                 current_sdg = node
-            elif G.nodes[node]['type'] == 'area':
+                break
+        
+        for node in nodes_to_show:
+            if G.nodes[node]['type'] == 'area':
                 current_area = node
 
         # Helper function to check if a study matches filters
@@ -210,17 +214,16 @@ def create_kg_area(flask_app):
                     node_connections[node] = len([n for n in G.neighbors(node) 
                                                 if G.nodes[n]['type'] == 'study' and study_matches_filters(n)])
             elif G.nodes[node]['type'] == 'area':
+                # Always get intersection with current SDG since we can only reach area view through an SDG
+                area_studies = set(n for n in G.neighbors(node) 
+                                  if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
                 if current_sdg:
-                    # When in SDG view, count only studies connected to both
-                    area_studies = set(n for n in G.neighbors(node) 
-                                        if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
                     sdg_studies = set(n for n in G.neighbors(current_sdg) 
-                                        if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
+                                     if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
                     node_connections[node] = len(area_studies.intersection(sdg_studies))
                 else:
-                    # Normal area view - count all connected studies that match filters
-                    node_connections[node] = len([n for n in G.neighbors(node) 
-                                                if G.nodes[n]['type'] == 'study' and study_matches_filters(n)])
+                    # This case should never happen in practice since we always have an SDG context
+                    node_connections[node] = len(area_studies)
 
         # Filter nodes based on type and whether to show studies
         nodes_to_show = [node for node in nodes_to_show 
@@ -661,13 +664,11 @@ def create_kg_area(flask_app):
                                     if G.nodes[n]['type'] == 'study')
                     
                     if year_range:
-                        # Apply year filter
                         sdg_studies = {
                             study for study in sdg_studies
                             if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
                         }
-                    
-                    # Apply college filter if selected
+                        
                     if selected_colleges:
                         sdg_studies = {
                             study for study in sdg_studies
@@ -691,35 +692,38 @@ def create_kg_area(flask_app):
                     filtered_nodes = list(nodes_to_show)
                 
                 elif parent_sdg:  # We're in SDG view, zoom into area
-                    # Show only studies connected to both this area AND the parent SDG
-                    sdg_studies = set(n for n in G.neighbors(parent_sdg) 
+                    # Store parent_sdg for context
+                    context_sdg = parent_sdg
+                    nodes_to_show = {clicked_id}  # Only show the area node
+                    
+                    # Get studies connected to both area and SDG
+                    sdg_studies = set(n for n in G.neighbors(context_sdg) 
                                     if G.nodes[n]['type'] == 'study')
+                    area_studies = set(n for n in G.neighbors(clicked_id) 
+                                     if G.nodes[n]['type'] == 'study')
+                    
+                    common_studies = sdg_studies.intersection(area_studies)
                     
                     if year_range:
-                        # Apply year filter
-                        sdg_studies = {
-                            study for study in sdg_studies
+                        common_studies = {
+                            study for study in common_studies
                             if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
                         }
                     
-                    # Apply college filter if selected
                     if selected_colleges:
-                        sdg_studies = {
-                            study for study in sdg_studies
+                        common_studies = {
+                            study for study in common_studies
                             if G.nodes[study]['college'] in selected_colleges
                         }
-                        
-                    area_studies = set(n for n in G.neighbors(clicked_id) 
-                                     if G.nodes[n]['type'] == 'study')
-                    common_studies = sdg_studies.intersection(area_studies)
                     
-                    nodes_to_show = {clicked_id, parent_sdg}  # Include both area and SDG nodes
-                    nodes_to_show.update(common_studies)
+                    nodes_to_show.update(common_studies)  # Add studies to display
+                    filtered_nodes = list(nodes_to_show)
+                    filtered_nodes.append(context_sdg)  # Add SDG to filtered_nodes for context
+                    
                     edges_to_show = [e for e in G.edges() 
                                    if e[0] in nodes_to_show and e[1] in nodes_to_show]
                     show_studies = True
                     new_title = f'<br>Studies for Research Area: {clicked_id} (SDG: {parent_sdg})'
-                    filtered_nodes = list(nodes_to_show)
 
                 # Update all build_traces calls to include the new parameters:
                 edge_trace, node_trace = build_traces(
