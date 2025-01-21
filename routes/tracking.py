@@ -4,7 +4,7 @@ from models import db, Publication , ResearchOutput, Status, Conference, Publica
 from services.auth_services import formatting_id, log_audit_trail
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, date
-from services.tracking_services import insert_status
+from services.tracking_services import insert_status, update_status
 from sqlalchemy import func, desc, nulls_last
 from services.mail import send_notification_email
 from services.data_fetcher import get_field_attribute
@@ -554,6 +554,18 @@ def manage_publication(operation, research_id):
         db.session.add(new_publication)
         db.session.commit()
 
+        status = update_status(research_id)
+        if not status:
+            print("error")
+        else:
+            #user_id = get_jwt_identity()
+            log_audit_trail(
+                user_id=user_id,
+                table_name='Status',
+                record_id=research_id,
+                operation='UPDATE',
+                action_desc=f'Updated {research_id} status to SUBMITTED')
+
         log_audit_trail(
             user_id=user_id,
             table_name='Publication',
@@ -563,6 +575,19 @@ def manage_publication(operation, research_id):
         )
 
         return jsonify({'message': 'Publication submitted successfully'}), 201
+
+    elif operation.lower() =='accept':
+        status = update_status(research_id)
+        if not status:
+            print("error")
+        else:
+            user_id = get_jwt_identity()
+            log_audit_trail(
+                user_id=user_id,
+                table_name='Status',
+                record_id=research_id,
+                operation='UPDATE',
+                action_desc=f'Updated {research_id} status to SUBMITTED')
 
     # Handle 'publish' operation
     elif operation.lower() == 'publish':
@@ -578,13 +603,13 @@ def manage_publication(operation, research_id):
             before_date = publication.date_submitted
 
         try:
-            pub_date = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d')
+            pub_date = datetime.strptime(request.form.get('date_published'), '%Y-%m-%d').date()
             # Check if the published date is in the future
-            if pub_date.date() > date.today():
+            if pub_date > date.today():
                 return jsonify({'message': 'Date published cannot be in the future'}), 400
             # Check if the published date is earlier than the required date
-            if pub_date.date() < before_date.date():
-                return jsonify({'message': f'Date published cannot be earlier than {before_date.date()}'}, 400)
+            if pub_date < before_date:
+                return jsonify({'message': f'Date published cannot be earlier than {before_date}'}, 400)
         except (ValueError, TypeError):
             return jsonify({'message': 'Invalid date format for date_published'}), 400
 
@@ -600,5 +625,17 @@ def manage_publication(operation, research_id):
             operation='UPDATE',
             action_desc=f"Published publication: {publication.publication_name}"
         )
+
+        status = update_status(research_id)
+        if not status:
+            print("error")
+        else:
+            #user_id = get_jwt_identity()
+            log_audit_trail(
+                user_id=user_id,
+                table_name='Status',
+                record_id=research_id,
+                operation='UPDATE',
+                action_desc=f'Updated {research_id} status to PUBLISHED')
 
         return jsonify({'message': 'Publication published successfully'}), 200

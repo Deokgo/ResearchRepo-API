@@ -29,3 +29,46 @@ def insert_status( publication_id, status_value):
         return None, str(e)  # Return no status and the error message
     
 
+def update_status(research_id):
+    new_status = ""
+    # Retrieve data from request body (JSON)
+    publication = Publication.query.filter(Publication.research_id == research_id).first()
+
+    if publication is None:
+        return False
+    
+    # Retrieve the latest status
+    current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+
+    # Handle case where current_status is None
+    if current_status is None:
+        # If no status exists, set the initial status to "SUBMITTED"
+        new_status = "SUBMITTED"
+        # Call the function to insert the new status for the publication
+        changed_status, error = insert_status(publication.publication_id, new_status)
+    else:
+        # If there is a current status, handle status transitions
+        if current_status.status == "PULLOUT":
+            return None
+        elif current_status.status == "SUBMITTED":
+            new_status = "ACCEPTED"
+        elif current_status.status == "ACCEPTED":
+            new_status = "PUBLISHED"
+        elif current_status.status == "PUBLISHED":
+            return None
+
+        # Call the function to insert the new status
+        changed_status, error = insert_status(current_status.publication_id, new_status)
+
+    # If there was an error inserting the status, handle it
+    if error:
+        print(error)
+        return False
+
+    # Send email asynchronously (optional)
+    send_notification_email("NEW PUBLICATION STATUS UPDATE",
+                        f'Research paper by {research_id} has been updated to {changed_status.status}.')
+    
+
+    return True
+
