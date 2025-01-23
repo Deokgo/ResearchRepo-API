@@ -24,7 +24,7 @@ def get_research_status(research_id=None):
                     Publication.publication_id,
                     Status.status,
                     Status.timestamp,
-                    ResearchOutput.date_approved
+                    ResearchOutput.date_uploaded
                 )
                 .outerjoin(Publication, Publication.research_id == ResearchOutput.research_id)
                 .outerjoin(Status, Status.publication_id == Publication.publication_id)
@@ -43,7 +43,7 @@ def get_research_status(research_id=None):
                 {
                     'research_id':row.research_id,
                     'status': row.status if row.status else "READY",
-                    'time': row.timestamp.strftime('%B %d, %Y') if row.timestamp else row.date_approved.strftime('%B %d, %Y') 
+                    'time': row.timestamp.strftime('%B %d, %Y') if row.timestamp else row.date_uploaded.strftime('%B %d, %Y') 
                 }
                 for row in result
             ]
@@ -208,10 +208,12 @@ def publication_papers(research_id=None):
                     Publication.publication_name,
                     Publication.date_published,
                     Publication.date_submitted,
-                    Publication.scopus
+                    Publication.scopus,
+                    Status.status
                 )
                 .join(ResearchOutput, Publication.research_id == ResearchOutput.research_id)
                 .outerjoin(Conference, Conference.conference_id == Publication.conference_id)
+                .outerjoin(Status, Status.publication_id == Publication.publication_id)
                 .outerjoin(PublicationFormat, PublicationFormat.pub_format_id == Publication.pub_format_id)
                 .filter(ResearchOutput.research_id == research_id)
             )
@@ -229,7 +231,8 @@ def publication_papers(research_id=None):
                     'publication_name': row.publication_name,
                     'date_published': row.date_published.strftime('%Y-%m-%d') if row.date_published else None,
                     'date_submitted': row.date_submitted.strftime('%Y-%m-%d') if row.date_submitted else None,
-                    'scopus': row.scopus
+                    'scopus': row.scopus,
+                    'status': row.status
                 }
                 for row in result
             ]
@@ -491,8 +494,8 @@ def fetch_all_contents(table):
 def manage_publication(status, research_id):
     user_id = get_jwt_identity()
     # Validate the operation
-    operations = ['SUBMITTED', 'ACCEPTED', 'PUBLISHED']
-    if status.lower() not in operations.lower():
+    operations = ['submitted', 'accepted', 'published']
+    if status.lower() not in operations:
         return jsonify({'message': 'Invalid operation'}), 400
 
     # Fetch the ResearchOutput
@@ -501,7 +504,7 @@ def manage_publication(status, research_id):
         return jsonify({'message': 'ResearchOutput not found'}), 404
 
     # Handle 'submit' operation
-    if status.lower() == operations[0].lower():
+    if status.lower() == operations[0]:
         publication_exists = db.session.query(Publication).filter(Publication.research_id == research_id).first()
         if publication_exists:
             return jsonify({'message': 'Publication already exists'}), 400
@@ -576,7 +579,7 @@ def manage_publication(status, research_id):
 
         return jsonify({'message': 'Publication submitted successfully'}), 201
 
-    elif status.lower() == operations[1].lower():
+    elif status.lower() == operations[1]:
         status = update_status(research_id)
         if not status:
             print("error")
@@ -587,9 +590,11 @@ def manage_publication(status, research_id):
                 record_id=research_id,
                 operation='UPDATE',
                 action_desc=f'{research_id} Status Updated: {operations[0]} -> {operations[1]}')
+            
+            return jsonify({'message': 'Status updated successfully'}), 201
 
     # Handle 'publish' operation
-    elif status.lower() == operations[2].lower():
+    elif status.lower() == operations[2]:
         publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
         if not publication:
             return jsonify({'message': 'Publication not found'}), 404
