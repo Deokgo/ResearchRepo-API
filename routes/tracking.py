@@ -216,6 +216,7 @@ def publication_papers(research_id=None):
                 .outerjoin(Status, Status.publication_id == Publication.publication_id)
                 .outerjoin(PublicationFormat, PublicationFormat.pub_format_id == Publication.pub_format_id)
                 .filter(ResearchOutput.research_id == research_id)
+                .order_by(Status.timestamp.desc())  # Get the most recent status
             )
             result = query.all()
 
