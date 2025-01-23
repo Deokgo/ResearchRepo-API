@@ -486,12 +486,13 @@ def fetch_all_contents(table):
         return jsonify({'message': "No table provided."}), 400
 
 
-@track.route('/form/<operation>/<research_id>', methods=['POST'])
+@track.route('/form/<status>/<research_id>', methods=['POST'])
 @jwt_required()
-def manage_publication(operation, research_id):
+def manage_publication(status, research_id):
     user_id = get_jwt_identity()
     # Validate the operation
-    if operation.lower() not in ['submit', 'accept', 'publish']:
+    operations = ['SUBMITTED', 'ACCEPTED', 'PUBLISHED']
+    if status.lower() not in operations.lower():
         return jsonify({'message': 'Invalid operation'}), 400
 
     # Fetch the ResearchOutput
@@ -500,7 +501,7 @@ def manage_publication(operation, research_id):
         return jsonify({'message': 'ResearchOutput not found'}), 404
 
     # Handle 'submit' operation
-    if operation.lower() == 'submit':
+    if status.lower() == operations[0].lower():
         publication_exists = db.session.query(Publication).filter(Publication.research_id == research_id).first()
         if publication_exists:
             return jsonify({'message': 'Publication already exists'}), 400
@@ -563,7 +564,7 @@ def manage_publication(operation, research_id):
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
-                action_desc=f'Updated {research_id} status to SUBMITTED')
+                action_desc=f'{research_id} Status Updated: READY -> SUBMITTED')
 
         log_audit_trail(
             user_id=user_id,
@@ -575,7 +576,7 @@ def manage_publication(operation, research_id):
 
         return jsonify({'message': 'Publication submitted successfully'}), 201
 
-    elif operation.lower() =='accept':
+    elif status.lower() == operations[1].lower():
         status = update_status(research_id)
         if not status:
             print("error")
@@ -585,10 +586,10 @@ def manage_publication(operation, research_id):
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
-                action_desc=f'Updated {research_id} status to SUBMITTED')
+                action_desc=f'{research_id} Status Updated: {operations[0]} -> {operations[1]}')
 
     # Handle 'publish' operation
-    elif operation.lower() == 'publish':
+    elif status.lower() == operations[2].lower():
         publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
         if not publication:
             return jsonify({'message': 'Publication not found'}), 404
@@ -633,6 +634,6 @@ def manage_publication(operation, research_id):
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
-                action_desc=f'Updated {research_id} status to PUBLISHED')
+                action_desc=f'{research_id} Status Updated: {operations[1]} -> {operations[2]}')
 
         return jsonify({'message': 'Publication published successfully'}), 200
