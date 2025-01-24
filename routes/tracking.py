@@ -6,8 +6,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, date
 from services.tracking_services import insert_status, update_status
 from sqlalchemy import func, desc, nulls_last
+from werkzeug.utils import secure_filename
 from services.mail import send_notification_email
 from services.data_fetcher import get_field_attribute
+from routes.paper_op import UPLOAD_FOLDER
+import os
 
 track = Blueprint('track', __name__)
 
@@ -494,6 +497,7 @@ def fetch_all_contents(table):
 @jwt_required()
 def manage_publication(status, research_id):
     user_id = get_jwt_identity()
+    #user_id ="US-20241009-010"
     # Validate the operation
     operations = ['submitted', 'accepted', 'published']
     if status.lower() not in operations:
@@ -596,6 +600,7 @@ def manage_publication(status, research_id):
 
     # Handle 'publish' operation
     elif status.lower() == operations[2]:
+        research_output = db.session.query(ResearchOutput).filter(ResearchOutput.research_id == research_id).first()
         publication = db.session.query(Publication).filter(Publication.research_id == research_id).first()
         if not publication:
             return jsonify({'message': 'Publication not found'}), 404
@@ -617,10 +622,34 @@ def manage_publication(status, research_id):
                 return jsonify({'message': f'Date published cannot be earlier than {before_date}'}, 400)
         except (ValueError, TypeError):
             return jsonify({'message': 'Invalid date format for date_published'}), 400
+        
+        file = request.files.get('fs_copy')
+
+        if file:
+            if not file.content_type =='application/pdf':
+                return jsonify({"error": "Invalid manuscript file type. Only PDF files are allowed."}), 400
+            
+            dir_path = os.path.join(
+                UPLOAD_FOLDER, 
+                research_output.research_type_id,
+                "final_submitted_copy", 
+                str(research_output.school_year),
+                research_output.college_id,
+                research_output.program_id
+
+            )
+            os.makedirs(dir_path, exist_ok=True)
+
+
+            fs_copy = secure_filename(f"{research_id}_final_submitted_copy.pdf")
+            fs_copy_path = os.path.normpath(os.path.join(dir_path,fs_copy))
+            file.save(fs_copy_path)
+
 
         publication.publication_name = request.form.get('publication_name')
         publication.date_published = pub_date
         publication.scopus = request.form.get('scopus')
+        publication.publication_paper = fs_copy_path
         db.session.commit()
 
         log_audit_trail(
