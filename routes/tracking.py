@@ -623,7 +623,7 @@ def manage_publication(status, research_id):
         except (ValueError, TypeError):
             return jsonify({'message': 'Invalid date format for date_published'}), 400
         
-        file = request.files.get('fs_copy')
+        file = request.files.get('publication_paper')
 
         if file:
             if not file.content_type =='application/pdf':
