@@ -115,26 +115,34 @@ class SDG_Map:
         )
 
         controls = dbc.Col(
-            dbc.Card(
-                [
-                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
-                    sdgs, 
-                    college,
-                    status,
-                    slider,
-                    button,
-                ],
-                body=True,
-                style={
-                    "background": "#d3d8db",
-                    "height": "100vh", 
-                    "position": "sticky", 
-                    "top": 0,
-                    "padding": "20px",
-                    "border-radius": "0", 
-                },
-            )
-        )
+                    dbc.Card(
+                        [
+                            html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
+                            sdgs, 
+                            college,
+                            status,
+                            slider,
+                            button,
+                        ],
+                        body=True,
+                        style={
+                            "background": "#d3d8db",
+                            "height": "100vh", 
+                            "position": "sticky", 
+                            "top": 0,
+                            "padding": "20px",
+                            "border-radius": "0", 
+                            "overflow-y": "auto",  # Allow vertical scrolling
+                            "overflow-x": "hidden",  # Prevent horizontal scroll
+                            "box-sizing": "border-box",  # Include padding in width/height
+                        },
+                    ),
+                    width=2,  # Ensure sidebar width is fixed
+                    style={
+                        "padding": "0",  # Remove extra padding
+                        "height": "100vh",  # Ensure full height
+                    }
+                )
 
         
         tab1 = dbc.Container([
@@ -282,21 +290,13 @@ class SDG_Map:
 
         self.dash_app.layout = html.Div([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
-            dcc.Store(id="shared-data-store"),  
+            dcc.Store(id="shared-data-store"),
             dbc.Container([
                 dbc.Row([
-                    # Sidebar controls
-                    dbc.Col(
-                        controls,
-                        width=2,
-                        style={
-                            "height": "100%",
-                            "overflow-y": "auto",  # Allow scrolling for long content
-                            "padding": "10px",
-                            "border-right": "1px solid #ddd",
-                        }
-                    ),
-                    # Main content
+                    # Sidebar
+                    dbc.Col(controls, style={"overflow": "hidden"}),  # Prevent extra overflow
+
+                    # Main Content
                     dbc.Col([
                         dbc.Container([
                             html.H4("Sample", id="chosen-sdg"),
@@ -306,10 +306,10 @@ class SDG_Map:
                             )
                         ], style={"padding": "20px"}),
 
-                        # Tabs
+                        # Tabs Section
                         dcc.Tabs(
                             id="sdg-tabs",
-                            value="sdg-college-tab",  
+                            value="sdg-college-tab",
                             children=[
                                 dcc.Tab(
                                     label="Institutional SDG Impact",
@@ -337,15 +337,17 @@ class SDG_Map:
                     ], style={
                         "display": "flex",
                         "flex-direction": "column",
-                        "overflow-y": "auto",  # Enable vertical scrolling
-                        "flex-grow": "1",  # Take up available space
+                        "overflow-y": "auto",  # Allow vertical scrolling in the main content
+                        "flex-grow": "1",
                         "padding": "10px",
+                        "min-width": 0,  # Prevent content from causing overflow
                     }),
-                ], style={"height": "100%", "display": "flex"}),
+                ], style={"height": "100vh", "display": "flex"}),
             ], fluid=True, style={
                 "height": "100%",
                 "margin": "0",
                 "padding": "0",
+                "overflow": "hidden",
             })
         ], style={
             "height": "100vh", 
