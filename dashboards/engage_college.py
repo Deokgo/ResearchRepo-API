@@ -6,7 +6,7 @@ import plotly.express as px
 import pandas as pd
 from urllib.parse import parse_qs, urlparse
 from datetime import datetime, timedelta
-from . import view_manager
+from . import view_manager,db_manager
 
 def default_if_empty(selected_values, default_values):
     """
@@ -101,12 +101,13 @@ class Engage_College:
                         dbc.Label("Select Program:", style={"color": "#08397C"}),
                         dbc.Checklist(
                             id="program",
-                            options=[{'label': value, 'value': value} for value in view_manager.get_unique_values_by('program_id','college_id',self.college)],
+                            options=[{'label': value, 'value': value} for value in db_manager.get_unique_values_by('program_id','college_id',self.college)],
                             value=[],
                             inline=True,
                         ),
                     ],
                     className="mb-4",
+                    style={"display": "none", "opacity": "0.5"},
                 )
 
             controls = dbc.Col(
@@ -662,7 +663,7 @@ class Engage_College:
             self.college = params.get('college', 'Unknown College')  # Default to 'Unknown College' if no college is passed
             self.program = params.get('program', 'Unknown Program')  # Default to 'Unknown Program' if no program is passed
 
-            self.default_programs = view_manager.get_unique_values_by('program_id','college_id',self.college)
+            self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
             print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
 
             # Return the role, college, and program information
