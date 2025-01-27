@@ -212,6 +212,7 @@ def publication_papers(research_id=None):
                     Publication.date_published,
                     Publication.date_submitted,
                     Publication.scopus,
+                    Publication.publication_paper,
                     Status.status
                 )
                 .join(ResearchOutput, Publication.research_id == ResearchOutput.research_id)
@@ -235,6 +236,7 @@ def publication_papers(research_id=None):
                     'publication_name': row.publication_name,
                     'date_published': row.date_published.strftime('%Y-%m-%d') if row.date_published else None,
                     'date_submitted': row.date_submitted.strftime('%Y-%m-%d') if row.date_submitted else None,
+                    'publication_paper':row.publication_paper if row.publication_paper else None,
                     'scopus': row.scopus,
                     'status': row.status
                 }
