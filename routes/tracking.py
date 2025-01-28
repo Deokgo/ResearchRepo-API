@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy.exc import SQLAlchemyError
 from models import db, Publication , ResearchOutput, Status, Conference, PublicationFormat
 from services.auth_services import formatting_id, log_audit_trail
@@ -674,3 +674,24 @@ def manage_publication(status, research_id):
                 action_desc=f'{research_id} Status Updated: {operations[1]} -> {operations[2]}')
 
         return jsonify({'message': 'Publication published successfully'}), 200
+
+@track.route('/view_final_submitted/<publication_id>', methods=['GET'])
+def view_manuscript(publication_id):
+    try:
+        # Query the database for the full_manuscript handle using the research_id
+        publication = Publication.query.filter_by(publication_id=publication_id).first()
+
+        # Check if research_output exists and if the handle for the manuscript is available
+        if not publication or not publication.publication_paper:
+            return jsonify({"error": "Final Submitted Copy not found."}), 404
+
+        file_path = os.path.normpath(publication.publication_paper)
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found."}), 404
+
+        # Send the file for viewing and downloading
+        return send_file(file_path, as_attachment=False)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
