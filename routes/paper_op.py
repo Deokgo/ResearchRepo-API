@@ -665,6 +665,32 @@ def view_extended_abstract(research_id):
     except Exception as e:
         print(str(e))
         return jsonify({"error": str(e)}), 500
+    
+@paper.route('/view_fs_copy/<research_id>', methods=['GET'])
+def view_fs_Copy(research_id):
+    try:
+        # Query the database for the extended_abstract using the research_id
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+
+        # Check if research_output exists and if the handle for the extended abstract is available
+        if not research_output:
+            return jsonify({"error": "Research Output not found."}), 404
+        
+        publication = Publication.query.filter(Publication.research_id == research_id).first()
+        if not publication or not publication.publication_paper:
+            return jsonify({"error": "Final Submitted Copy not found."}), 404
+
+        file_path = os.path.normpath(publication.publication_paper)
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found."}), 404
+
+        # Send the file for viewing
+        return send_file(file_path, as_attachment=False)
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": str(e)}), 500
 
 @paper.route('/research_areas', methods=['GET'])
 def get_research_areas():
