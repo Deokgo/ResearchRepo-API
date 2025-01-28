@@ -29,6 +29,7 @@ class MainDashboard:
         # Get default values
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_statuses = db_manager.get_unique_values('status')
+        self.default_terms = db_manager.get_unique_values('term')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
         self.create_layout()
         self.set_callbacks()
@@ -46,10 +47,25 @@ class MainDashboard:
 
         college = html.Div(
             [
-                dbc.Label("Select College:", style={"color": "#08397C"}),
+                dbc.Label("Select College/s:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="college",
                     options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('college_id')],
+                    value=[],
+                    inline=True,
+                ),
+            ],
+            className="mb-4",
+        )
+
+        terms = sorted(db_manager.get_unique_values('term'))
+
+        term = html.Div(
+            [
+                dbc.Label("Select Term/s:", style={"color": "#08397C"}),
+                dbc.Checklist(
+                    id="terms",
+                    options=[{'label': value, 'value': value} for value in terms],
                     value=[],
                     inline=True,
                 ),
@@ -102,6 +118,7 @@ class MainDashboard:
                     html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
                     college,
                     status,
+                    term,
                     slider,
                     button,
                 ],
@@ -307,8 +324,8 @@ class MainDashboard:
         random_colors = px.colors.qualitative.Plotly[:len(unique_programs)]
         self.program_colors = {program: random_colors[i % len(random_colors)] for i, program in enumerate(unique_programs)}
     
-    def update_line_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
@@ -341,16 +358,18 @@ class MainDashboard:
 
         return fig_line
     
-    def update_pie_chart(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         if len(selected_colleges) == 1:
             college_name = selected_colleges[0]
             filtered_df = df[df['college_id'] == college_name]
             detail_counts = filtered_df.groupby('program_id').size()
             self.get_program_colors(filtered_df) 
+            title = f'Research Output Distribution for {selected_colleges[0]}'
         else:
             detail_counts = df.groupby('college_id').size()
+            title = 'Research Output Distribution by College'
         
         fig_pie = px.pie(
             names=detail_counts.index,
@@ -363,13 +382,14 @@ class MainDashboard:
         fig_pie.update_layout(
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
-            height=400
+            height=400,
+            title=title
         )
 
         return fig_pie
     
-    def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         if df.empty:
             return px.bar(title="No data available")
         
@@ -412,8 +432,8 @@ class MainDashboard:
 
         return fig
 
-    def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
 
         if df.empty:
             return px.bar(title="No data available")
@@ -466,8 +486,8 @@ class MainDashboard:
 
         return fig
     
-    def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years):  # Modified by Nicole Cabansag
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         df = df[df['scopus'] != 'N/A']
 
@@ -502,8 +522,8 @@ class MainDashboard:
 
         return fig_bar
     
-    def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
@@ -540,8 +560,8 @@ class MainDashboard:
         return fig_bar
 
 
-    def update_sdg_chart(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_sdg_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         if df.empty:
             return px.bar(title="No data available")
@@ -618,8 +638,8 @@ class MainDashboard:
         
         return fig
     
-    def scopus_line_graph(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def scopus_line_graph(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
@@ -662,8 +682,8 @@ class MainDashboard:
         return fig_line
 
 
-    def publication_format_line_plot(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def publication_format_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -706,8 +726,9 @@ class MainDashboard:
 
         return fig_line
 
-    def update_research_outputs_by_year_and_term(self, selected_colleges, selected_status, selected_years):
-        df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def update_research_outputs_by_year_and_term(self, selected_colleges, selected_status, selected_years, selected_terms):
+            
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
 
         if df.empty:
             return px.bar(title="No data available")
@@ -769,108 +790,123 @@ class MainDashboard:
         @self.dash_app.callback(
             [Output('college', 'value'),
             Output('status', 'value'),
+            Output('terms', 'value'),
             Output('years', 'value')],
             [Input('reset_button', 'n_clicks')],
             prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+            return [], [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
             [
                 Input('college', 'value'),
                 Input('status', 'value'),
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_lineplot(selected_colleges, selected_status, selected_years):
+        def update_lineplot(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_line_plot(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
 
         @self.dash_app.callback(
             Output('college_pie_chart', 'figure'),
             [
                 Input('college', 'value'),
                 Input('status', 'value'),
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_piechart(selected_colleges, selected_status, selected_years):
+        def update_piechart(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_pie_chart(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_pie_chart(selected_colleges, selected_status, selected_years, selected_terms)
 
         @self.dash_app.callback(
             Output('research_type_bar_plot', 'figure'),
             [
                 Input('college', 'value'), 
                 Input('status', 'value'), 
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_research_type_bar_plot(selected_colleges, selected_status, selected_years):
+        def update_research_type_bar_plot(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_research_type_bar_plot(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_research_type_bar_plot(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('research_status_bar_plot', 'figure'),
             [
                 Input('college', 'value'), 
                 Input('status', 'value'), 
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_research_status_bar_plot(selected_colleges, selected_status, selected_years):
+        def update_research_status_bar_plot(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_research_status_bar_plot(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_research_status_bar_plot(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_bar_plot', 'figure'),
             [Input('college', 'value'), 
              Input('status', 'value'), 
-             Input('years', 'value')]
+             Input('years', 'value'),
+             Input('terms', 'value')]
         )
-        def create_publication_bar_chart(selected_colleges, selected_status, selected_years):
+        def create_publication_bar_chart(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.create_publication_bar_chart(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('proceeding_conference_bar_plot', 'figure'),
             [
                 Input('college', 'value'), 
                 Input('status', 'value'), 
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years):
+        def update_publication_format_bar_plot(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_publication_format_bar_plot(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('sdg_bar_plot', 'figure'),
             [
                 Input('college', 'value'), 
                 Input('status', 'value'), 
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_sdg_chart(selected_colleges, selected_status, selected_years):
+        def update_sdg_chart(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_sdg_chart(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_sdg_chart(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
@@ -921,39 +957,45 @@ class MainDashboard:
             [
                 Input('college', 'value'),
                 Input('status', 'value'),
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def scopus_line_graph(selected_colleges, selected_status, selected_years):
+        def scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.scopus_line_graph(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('proceeding_conference_line_graph', 'figure'),
             [
                 Input('college', 'value'),
                 Input('status', 'value'),
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def publication_format_line_plot(selected_colleges, selected_status, selected_years):
+        def publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.publication_format_line_plot(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('term_college_bar_plot', 'figure'),
             [
                 Input('college', 'value'),
                 Input('status', 'value'),
-                Input('years', 'value')
+                Input('years', 'value'),
+                Input('terms', 'value')
             ]
         )
-        def update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years):
+        def update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return self.update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years)
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years, selected_terms)
