@@ -43,6 +43,19 @@ class CollegeDashApp:
     def set_layout(self):
         """Common layout shared across all dashboards."""
 
+        section = html.Div(
+            [
+                dcc.Dropdown(
+                    id="term",
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('term')],
+                    value=None,  # Ensure the placeholder appears
+                    placeholder="Select a section...",
+                    style={"width": "100%"},
+                ),
+            ],
+            className="mb-4",
+        )
+
         college = html.Div(
             [
                 dbc.Label("Select College:", style={"color": "#08397C"}),
@@ -123,25 +136,25 @@ class CollegeDashApp:
             className="d-grid gap-2",
         )
 
-        controls = dbc.Card(
-            [
-                html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
-                college,
-                program,
-                status,
-                term,
-                slider,
-                button,
-            ],
-            body=True,
+        controls = dbc.Col(
+            dbc.Card(
+                [
+                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
+                    html.Div(
+                        [section, college, program, status, term, slider, button], 
+                        style={"font-size": "0.85rem", "padding": "5px"}  # Reduce font size and padding
+                    ),
+                ],
+                body=True,
                 style={
                     "background": "#d3d8db",
                     "height": "100vh",  # Full-height sidebar
                     "position": "sticky",  # Sticky position instead of fixed
                     "top": 0,
-                    "padding": "20px",
+                    "padding": "10px",  # Reduce padding for a more compact layout
                     "border-radius": "0",  # Remove rounded corners
                 },
+            )
         )
 
         text_display = dbc.Container([

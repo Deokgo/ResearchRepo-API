@@ -45,6 +45,19 @@ class MainDashboard:
         Create the layout of the dashboard.
         """
 
+        section = html.Div(
+            [
+                dcc.Dropdown(
+                    id="term",
+                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('term')],
+                    value=None,  # Ensure the placeholder appears
+                    placeholder="Select a section...",
+                    style={"width": "100%"},
+                ),
+            ],
+            className="mb-4",
+        )
+
         college = html.Div(
             [
                 dbc.Label("Select College/s:", style={"color": "#08397C"}),
@@ -116,11 +129,10 @@ class MainDashboard:
             dbc.Card(
                 [
                     html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
-                    college,
-                    status,
-                    term,
-                    slider,
-                    button,
+                    html.Div(
+                        [section, college, status, term, slider, button], 
+                        style={"font-size": "0.85rem", "padding": "5px"}  # Reduce font size and padding
+                    ),
                 ],
                 body=True,
                 style={
@@ -128,7 +140,7 @@ class MainDashboard:
                     "height": "100vh",  # Full-height sidebar
                     "position": "sticky",  # Sticky position instead of fixed
                     "top": 0,
-                    "padding": "20px",
+                    "padding": "10px",  # Reduce padding for a more compact layout
                     "border-radius": "0",  # Remove rounded corners
                 },
             )
