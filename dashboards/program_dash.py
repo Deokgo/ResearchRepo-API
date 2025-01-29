@@ -1009,7 +1009,6 @@ class ProgDashApp:
         @self.dash_app.callback(
             [
                 Output('program-info', 'children'),
-                Output('text-display-container', 'children'),
                 Output('program', 'value'),  
             ],
             Input('url', 'search')  # Capture the query string in the URL
@@ -1018,7 +1017,6 @@ class ProgDashApp:
             if not url_search:
                 return (
                     html.H3('Welcome Guest! Please log in.'),
-                    html.H3('College: Unknown'),
                     [],
                 )
             
@@ -1039,26 +1037,6 @@ class ProgDashApp:
             # Return updated components
             return (
                 html.H3(f'Program Department: {self.program}', style={'textAlign': 'center', 'marginTop': '10px'}),
-                dbc.Container([
-                    dbc.Row([
-                        dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('program_id', self.program))))),
-                        dbc.Col(
-                            self.create_display_card("Ready for Publication", str(len(db_manager.filter_data('status', 'READY', 'program_id', self.program)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'program_id', self.program)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'program_id', self.program)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'program_id', self.program)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'program_id', self.program)))),
-                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
-                    ])  # Your display card rows here
-                ]),
                 value
             )
         
@@ -1070,23 +1048,62 @@ class ProgDashApp:
             updated_data = db_manager.get_all_data()
             return updated_data.to_dict('records')
         
-        """
         @self.dash_app.callback(
-            Output('nonscopus_scopus_line_graph', 'figure'),
-            [
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
+            Output('text-display-container', 'children'),
+            Input("data-refresh-interval", "n_intervals"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
         )
-        def scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms):
+        def refresh_text_display(n_intervals, selected_programs, selected_status, selected_years, selected_terms):
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms)
-        """
+
+            print(f'selected_programs: {selected_programs}\nselected_status: {selected_status}\nselected_years: {selected_years}\nselected_terms: {selected_terms}')
+
+            # Apply filters
+            filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
+
+            # Convert DataFrame to list of dictionaries
+            filtered_data = filtered_data.to_dict(orient='records')
+            print(f'filtered_data: {filtered_data}')
+
+            return dbc.Container([
+                dbc.Row([
+                    dbc.Col(
+                        self.create_display_card("Total Research Papers", str(len(filtered_data))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Ready for Publication", str(len([d for d in filtered_data if d['status'] == 'READY']))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Submitted Papers", str(len([d for d in filtered_data if d['status'] == 'SUBMITTED']))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Accepted Papers", str(len([d for d in filtered_data if d['status'] == 'ACCEPTED']))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Published Papers", str(len([d for d in filtered_data if d['status'] == 'PUBLISHED']))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    ),
+                    dbc.Col(
+                        self.create_display_card("Pulled-out Papers", str(len([d for d in filtered_data if d['status'] == 'PULLOUT']))),
+                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
+                    )
+                ])
+            ])
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_graph', 'figure'),
@@ -1108,24 +1125,6 @@ class ProgDashApp:
                 return self.scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms)
             else:
                 return self.scopus_pie_chart(selected_programs, selected_status, selected_years, selected_terms)
-
-        """
-        @self.dash_app.callback(
-            Output('proceeding_conference_line_graph', 'figure'),
-            [
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def publication_format_line_plot(selected_programs, selected_status, selected_years, selected_terms):
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.publication_format_line_plot(selected_programs, selected_status, selected_years, selected_terms)
-        """
 
         @self.dash_app.callback(
             Output('proceeding_conference_graph', 'figure'),

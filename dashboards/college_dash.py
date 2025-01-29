@@ -1005,16 +1005,19 @@ class CollegeDashApp:
         # Callback to update content based on the user role and other URL parameters
         @self.dash_app.callback(
             [
-                #Output('user-role', 'children'),
                 Output('college-info', 'children'),
-                #Output('program-info', 'children'),
                 Output('text-display-container', 'children')
             ],
-            Input('url', 'search')  # Capture the query string in the URL
+            Input('url', 'search'),  # Capture the query string in the URL
+            Input("data-refresh-interval", "n_intervals"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
         )
-        def update_user_role_and_info(url_search):
+        def update_user_role_and_info(url_search, n_intervals, selected_programs, selected_status, selected_years, selected_terms):
             if url_search is None or url_search == '':
-                return html.H3('Welcome Guest! Please log in.'), html.H3('College: Unknown'), html.H3('Program: Unknown')
+                return html.H3('Welcome Guest! Please log in.'), html.H3('College: Unknown')
             
             # Parse the URL parameters directly from the search
             params = dict((key, value) for key, value in (param.split('=') for param in url_search[1:].split('&')))
@@ -1023,36 +1026,47 @@ class CollegeDashApp:
             self.college = params.get('college', 'Unknown College')  # Default to 'Unknown College' if no college is passed
             self.program = params.get('program', 'Unknown Program')  # Default to 'Unknown Program' if no program is passed
 
-            self.default_programs = db_manager.get_unique_values_by('program_id','college_id',self.college)
+            self.default_programs = db_manager.get_unique_values_by('program_id', 'college_id', self.college)
             print(f'self.default_programs: {self.default_programs}\ncollege: {self.college}')
 
-            # Return the role, college, and program information
-            return html.H3(
-                    f'College Department: {self.college}', 
-                    style={
-                        'textAlign': 'center',
-                        'marginTop': '10px'
-                    }
-                ), dbc.Container([
-                    dbc.Row([
-                        dbc.Col(self.create_display_card("Total Research Papers", str(len(db_manager.filter_data('college_id', self.college))))),
-                        dbc.Col(
-                            self.create_display_card("Ready for Publication", str(len(db_manager.filter_data('status', 'READY', 'college_id', self.college)))),
+            # Apply default selections if necessary
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            # Apply filters
+            filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
+
+            # Convert DataFrame to list of dictionaries
+            filtered_data = filtered_data.to_dict(orient='records')
+
+            text_display_content = dbc.Container([
+                dbc.Row([
+                    dbc.Col(self.create_display_card("Total Research Papers", str(len(filtered_data))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', 'college_id', self.college)))),
+                    dbc.Col(self.create_display_card("Ready for Publication", str(len([d for d in filtered_data if d['status'] == 'READY']))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', 'college_id', self.college)))),
+                    dbc.Col(self.create_display_card("Submitted Papers", str(len([d for d in filtered_data if d['status'] == 'SUBMITTED']))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', 'college_id', self.college)))),
+                    dbc.Col(self.create_display_card("Accepted Papers", str(len([d for d in filtered_data if d['status'] == 'ACCEPTED']))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
-                        dbc.Col(
-                            self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', 'college_id', self.college)))),
+                    dbc.Col(self.create_display_card("Published Papers", str(len([d for d in filtered_data if d['status'] == 'PUBLISHED']))),
+                            style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}),
+                    dbc.Col(self.create_display_card("Pulled-out Papers", str(len([d for d in filtered_data if d['status'] == 'PULLOUT']))),
                             style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"})
-                    ])
                 ])
+            ])
+
+            return html.H3(
+                f'College Department: {self.college}', 
+                style={'textAlign': 'center', 'marginTop': '10px'}
+            ), text_display_content
         
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
@@ -1061,25 +1075,7 @@ class CollegeDashApp:
         def refresh_shared_data_store(n_intervals):
             updated_data = db_manager.get_all_data()
             return updated_data.to_dict('records')
-        
-        """
-        @self.dash_app.callback(
-            Output('nonscopus_scopus_line_graph', 'figure'),
-            [
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms):
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms)
-        """
-
+       
         @self.dash_app.callback(
             Output('nonscopus_scopus_graph', 'figure'),
             [
@@ -1100,24 +1096,6 @@ class CollegeDashApp:
                 return self.scopus_line_graph(selected_programs, selected_status, selected_years, selected_terms)
             else:
                 return self.scopus_pie_chart(selected_programs, selected_status, selected_years, selected_terms)
-        
-        """
-        @self.dash_app.callback(
-            Output('proceeding_conference_line_graph', 'figure'),
-            [
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def publication_format_line_plot(selected_programs, selected_status, selected_years, selected_terms):
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.publication_format_line_plot(selected_programs, selected_status, selected_years, selected_terms)
-        """
         
         @self.dash_app.callback(
             Output('proceeding_conference_graph', 'figure'),

@@ -1083,24 +1083,6 @@ class MainDashboard:
                     )
                 ])
             ])
-
-        """
-        @self.dash_app.callback(
-            Output('nonscopus_scopus_line_graph', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms)
-        """
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_graph', 'figure'),
@@ -1122,24 +1104,6 @@ class MainDashboard:
                 return self.scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms)
             else:
                 return self.scopus_pie_chart(selected_colleges, selected_status, selected_years, selected_terms)
-
-        """
-        @self.dash_app.callback(
-            Output('proceeding_conference_line_graph', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
-        """
         
         @self.dash_app.callback(
             Output('proceeding_conference_graph', 'figure'),

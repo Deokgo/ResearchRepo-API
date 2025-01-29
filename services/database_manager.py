@@ -316,6 +316,19 @@ class DatabaseManager:
         else:
             raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
         
+    def get_filtered_data_bycollege_text_display(self, selected_programs, selected_status, selected_years, selected_terms):
+        if self.df is not None:
+            filtered_df = self.df[
+                (self.df['program_id'].isin(selected_programs)) & 
+                (self.df['status'].isin(selected_status)) & 
+                (self.df['term'].isin(selected_terms)) & 
+                (self.df['year'].between(selected_years[0], selected_years[1]))
+            ]
+            #print("Filtered by program:",filtered_df)
+            return filtered_df
+        else:
+            raise ValueError("Data not loaded. Please call 'get_all_data()' first.")
+        
     def get_filtered_data_bycollege_with_term(self, selected_program, selected_status, selected_years, selected_terms):
         if self.df is not None:
             filtered_df = self.df[
