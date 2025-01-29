@@ -562,9 +562,9 @@ class MainDashboard:
 
     def update_sdg_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
         df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
+
         if df.empty:
-            return px.bar(title="No data available")
+            return px.scatter(title="No data available")
 
         df_copy = df.copy()
 
@@ -574,68 +574,70 @@ class MainDashboard:
             df_copy['sdg'] = df_copy['sdg'].str.strip()
             df_copy = df_copy.drop(columns=['level_1'])
             sdg_count = df_copy.groupby(['sdg', 'program_id']).size().reset_index(name='Count')
-            pivot_df = sdg_count.pivot(index='sdg', columns='program_id', values='Count').reindex(self.all_sdgs).fillna(0)
-            pivot_df['Total'] = pivot_df.sum(axis=1)
-            pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
-            pivot_df = pivot_df.reindex(self.all_sdgs)
+            title = f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
 
-            sorted_programs = sorted(pivot_df.columns)  # Sort programs alphabetically
-            pivot_df = pivot_df[sorted_programs]  # Reorder the columns in pivot_df by the sorted program list
-            title = f'Programs in {selected_colleges[0]} Targeting Each SDG'
-
-            if pivot_df.empty:
-                print("Pivot DataFrame is empty after processing")
-                return px.bar(title="No data available")
+            if sdg_count.empty:
+                print("Data is empty after processing")
+                return px.scatter(title="No data available")
 
             fig = go.Figure()
 
-            for program in sorted_programs:
-                fig.add_trace(go.Bar(
-                    y=pivot_df.index,
-                    x=pivot_df[program],
-                    name=program,
-                    orientation='h',
-                    marker_color=self.program_colors[program]
+            for program in sdg_count['program_id'].unique():
+                program_data = sdg_count[sdg_count['program_id'] == program]
+                fig.add_trace(go.Scatter(
+                    x=program_data['sdg'],
+                    y=program_data['program_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=program_data['Count'],
+                        color=self.program_colors.get(program, 'grey'),
+                        sizemode='area',
+                        sizeref=2. * max(sdg_count['Count']) / (100**2),  # Bubble size scaling
+                        sizemin=4
+                    ),
+                    name=program
                 ))
         else:
             df_copy = df_copy.set_index('college_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
             df_copy['sdg'] = df_copy['sdg'].str.strip()
             df_copy = df_copy.drop(columns=['level_1'])
             sdg_count = df_copy.groupby(['sdg', 'college_id']).size().reset_index(name='Count')
-            pivot_df = sdg_count.pivot(index='sdg', columns='college_id', values='Count').reindex(self.all_sdgs).fillna(0)
-            pivot_df['Total'] = pivot_df.sum(axis=1)
-            pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
-            pivot_df = pivot_df.reindex(self.all_sdgs)
+            title = 'Distribution of SDG-Targeted Research Across Colleges'
 
-            title = 'Colleges Targeting Each SDG'
-
-            if pivot_df.empty:
-                print("Pivot DataFrame is empty after processing")
-                return px.bar(title="No data available")
+            if sdg_count.empty:
+                print("Data is empty after processing")
+                return px.scatter(title="No data available")
 
             fig = go.Figure()
 
-            for college in pivot_df.columns:
-                fig.add_trace(go.Bar(
-                    y=pivot_df.index,
-                    x=pivot_df[college],
-                    name=college,
-                    orientation='h',
-                    marker_color=self.palette_dict.get(college, 'grey')
+            for college in sdg_count['college_id'].unique():
+                college_data = sdg_count[sdg_count['college_id'] == college]
+                fig.add_trace(go.Scatter(
+                    x=college_data['sdg'],
+                    y=college_data['college_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=college_data['Count'],
+                        color=self.palette_dict.get(college, 'grey'),
+                        sizemode='area',
+                        sizeref=2. * max(sdg_count['Count']) / (100**2),  # Bubble size scaling
+                        sizemin=4
+                    ),
+                    name=college
                 ))
 
         fig.update_layout(
-            barmode='stack',
-            xaxis_title='Number of Research Outputs',
-            yaxis_title='SDG Targeted',
+            xaxis_title='SDG Targeted',
+            yaxis_title='Programs or Colleges',
             title=title,
-            yaxis=dict(
-                autorange='reversed',
+            xaxis=dict(
                 tickvals=self.all_sdgs,
                 ticktext=self.all_sdgs
-            )
+            ),
+            yaxis=dict(autorange="reversed"),
+            showlegend=True
         )
-        
+
         return fig
     
     def scopus_line_graph(self, selected_colleges, selected_status, selected_years, selected_terms):

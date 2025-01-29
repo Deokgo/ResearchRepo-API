@@ -496,7 +496,7 @@ class CollegeDashApp:
         df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         if df.empty:
-            return px.bar(title="No data available")
+            return px.scatter(title="No data available")
 
         df_copy = df.copy()
 
@@ -505,18 +505,11 @@ class CollegeDashApp:
         df_copy['sdg'] = df_copy['sdg'].str.strip()
         df_copy = df_copy.drop(columns=['level_1'])
         sdg_count = df_copy.groupby(['sdg', 'program_id']).size().reset_index(name='Count')
-        pivot_df = sdg_count.pivot(index='sdg', columns='program_id', values='Count').reindex(self.all_sdgs).fillna(0)
-        pivot_df['Total'] = pivot_df.sum(axis=1)
-        pivot_df = pivot_df.sort_values(by='Total', ascending=False).drop(columns='Total')
-        pivot_df = pivot_df.reindex(self.all_sdgs)
+        title = f'Distribution of SDG-Targeted Research Across Programs'
 
-        sorted_programs = sorted(pivot_df.columns)  # Sort programs alphabetically
-        pivot_df = pivot_df[sorted_programs]  # Reorder the columns in pivot_df by the sorted program list
-        title = f'Program/s Targeting Each SDG'
-
-        if pivot_df.empty:
+        if sdg_count.empty:
             print("Pivot DataFrame is empty after processing")
-            return px.bar(title="No data available")
+            return px.scatter(title="No data available")
 
         fig = go.Figure()
 
@@ -524,28 +517,36 @@ class CollegeDashApp:
         self.get_program_colors(df)
         color_discrete_map = self.program_colors
 
-        for program in sorted_programs:
-            fig.add_trace(go.Bar(
-                y=pivot_df.index,
-                x=pivot_df[program],
-                name=program,
-                orientation='h',
-                marker_color=color_discrete_map[program]
+        for program in sdg_count['program_id'].unique():
+            program_data = sdg_count[sdg_count['program_id'] == program]
+            fig.add_trace(go.Scatter(
+                x=program_data['sdg'],
+                y=program_data['program_id'],
+                mode='markers',
+                marker=dict(
+                    size=program_data['Count'],
+                    color=color_discrete_map.get(program, 'grey'),
+                    sizemode='area',
+                    sizeref=2. * max(sdg_count['Count']) / (100**2),  # Bubble size scaling
+                    sizemin=4
+                ),
+                name=program
             ))
 
         fig.update_layout(
-            barmode='stack',
-            xaxis_title='Number of Research Outputs',
-            yaxis_title='SDG Targeted',
+            xaxis_title='SDG Targeted',
+            yaxis_title='Programs',
             title=title,
-            yaxis=dict(
-                autorange='reversed',
+            xaxis=dict(
                 tickvals=self.all_sdgs,
                 ticktext=self.all_sdgs
-            )
+            ),
+            yaxis=dict(autorange="reversed"),
+            showlegend=True
         )
         
         return fig
+
 
     def create_publication_bar_chart(self, selected_programs, selected_status, selected_years, selected_terms):
         df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
