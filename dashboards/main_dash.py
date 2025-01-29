@@ -155,34 +155,6 @@ class MainDashboard:
 
         text_display = dbc.Container([
             dbc.Row([
-                dbc.Container([
-                    dbc.Row([
-                        dbc.Col(
-                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Intended for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    )
-                    ])
-                ])
             ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
         ], style={"padding": "2rem"}, id="text-display-container")
 
@@ -207,34 +179,26 @@ class MainDashboard:
                         id='nonscopus_scopus_tabs', 
                         value='line', 
                         children=[
-                            dcc.Tab(label='Scopus and Non-Scopus Over Time', value='line', style={"font-size": "12px"}),
+                            dcc.Tab(label='Scopus & Non-Scopus Over Time', value='line', style={"font-size": "10px"}),
                             dcc.Tab(label='Scopus vs. Non-Scopus', value='pie', style={"font-size": "12px"})
                         ], 
                         style={"font-size": "14px"}  # Adjust overall font size of tabs
                     ),
                     dcc.Loading(
-                        id="loading-nonscopus-scopus",
+                        id="loading-nonscopus-scopus1",
                         type="circle",
                         children=dcc.Graph(id='nonscopus_scopus_graph')
                     )
                 ], width=6, style={"height": "auto", "overflow": "hidden"}),
-
-                dbc.Col([
-                    dcc.Tabs(
-                        id='proceeding_conference_tabs',
-                        value='line',  # Default view is the line chart
-                        children=[
-                            dcc.Tab(label='Journal and Proceeding Over Time', value='line', style={"font-size": "12px"}),
-                            dcc.Tab(label='Journal vs. Proceeding', value='pie', style={"font-size": "12px"})
-                        ],
-                        style={"font-size": "14px"}  # Adjust overall font size of tabs
-                    ),
+                dbc.Col(
                     dcc.Loading(
-                        id="loading-proceeding-conference",
+                        id="loading-nonscopus-scopus2",
                         type="circle",
-                        children=dcc.Graph(id='proceeding_conference_graph')
-                    )
-                ], width=6, style={"height": "auto", "overflow": "hidden"})
+                        children=dcc.Graph(id='nonscopus_scopus_bar_plot')
+                    ),
+                    width=6,
+                    style={"height": "auto", "overflow": "hidden"}
+                )
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
@@ -247,18 +211,34 @@ class MainDashboard:
 
         sub_dash4 = dbc.Container([
             dbc.Row([
-                dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+                dbc.Col([
+                    dcc.Tabs(
+                        id='proceeding_conference_tabs',
+                        value='line',  # Default view is the line chart
+                        children=[
+                            dcc.Tab(label='Publication Formats Over Time', value='line', style={"font-size": "10px"}),
+                            dcc.Tab(label='Journal vs. Proceeding', value='pie', style={"font-size": "12px"})
+                        ],
+                        style={"font-size": "14px"}  # Adjust overall font size of tabs
+                    ),
+                    dcc.Loading(
+                        id="loading-proceeding-conference1",
+                        type="circle",
+                        children=dcc.Graph(id='proceeding_conference_graph')
+                    )
+                ], width=6, style={"height": "auto", "overflow": "hidden"}),
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-proceeding-conference2",
+                        type="circle",
+                        children=dcc.Graph(id='proceeding_conference_bar_plot')
+                    ),
+                    width=6,
+                    style={"height": "auto", "overflow": "hidden"}
+                )
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
         
-        sub_dash5 = dbc.Container([
-            dbc.Row([
-                dbc.Col(dcc.Graph(id='term_college_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
-            ], style={"margin": "10px"})
-        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-
-
         self.dash_app.layout = html.Div([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
@@ -283,13 +263,6 @@ class MainDashboard:
                             ),
                             dbc.Row(
                                 dcc.Loading(
-                                    id="loading-sub-dash5",
-                                    type="circle",
-                                    children=sub_dash5
-                                ), style={"flex": "1"}
-                            ),
-                            dbc.Row(
-                                dcc.Loading(
                                     id="loading-sub-dash1",
                                     type="circle",
                                     children=sub_dash1
@@ -307,11 +280,8 @@ class MainDashboard:
                                 style={"flex": "1"}
                             ),
                             dbc.Row(
-                                dcc.Loading(
-                                    id="loading-sub-dash4",
-                                    type="circle",
-                                    children=sub_dash4
-                                ), style={"flex": "1"}
+                                children=sub_dash4,
+                                style={"flex": "1"}
                             ),
                         ], style={
                             "height": "100%",
@@ -347,23 +317,25 @@ class MainDashboard:
 
     def create_display_card(self, title, value):
         """
-        Create a display card for showing metrics.
+        Create a responsive display card for showing metrics.
         """
         return html.Div([
             html.Div([
-                html.H5(title, style={'textAlign': 'center'}),
-                html.H2(value, style={'textAlign': 'center'})
+                html.H5(title, style={'textAlign': 'center', 'fontSize': '1rem'}),  # Smaller title
+                html.H3(value, style={'textAlign': 'center', 'fontSize': '1.5rem'})  # Adjusted font size
             ], style={
-                "border": "2px solid #0A438F",    # Border color
-                "borderRadius": "10px",           # Rounded corners
-                "padding": "10px",                # Padding inside the card
-                "width": "170px",                 # Fixed width
-                "height": "150px",                # Fixed height
+                "border": "2px solid #0A438F",
+                "borderRadius": "10px",
+                "padding": "8px",
+                "width": "140px",  # Smaller fixed size
+                "height": "120px",
                 "display": "flex",
                 "flexDirection": "column",
                 "justifyContent": "center",
                 "alignItems": "center",
-                "margin": "0"
+                "margin": "0",
+                "minWidth": "120px",  # Ensures minimum size for responsiveness
+                "maxWidth": "180px",  # Prevents excessive stretching
             })
         ])
     
@@ -701,9 +673,6 @@ class MainDashboard:
         grouped_df['year'] = grouped_df['year'].astype(int)
         grouped_df['Count'] = grouped_df['Count'].astype(int)
 
-        # Debug: Print the grouped data
-        print(grouped_df)
-
         # Create the line chart with markers
         fig_line = px.line(
             grouped_df,
@@ -712,21 +681,33 @@ class MainDashboard:
             color='scopus',
             color_discrete_map=self.palette_dict,
             labels={'scopus': 'Scopus vs. Non-Scopus'},
-            markers=True  # Ensure points are visible even if no lines
+            markers=True
         )
 
-        # Update layout for the figure
+        # Update layout for smaller text and responsive UI
+        fig_line.update_traces(
+            line=dict(width=1.5),  # Thinner lines
+            marker=dict(size=5)  # Smaller marker points
+        )
+
         fig_line.update_layout(
-            title='Scopus vs. Non-Scopus Publications Over Time',
+            title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),  # Smaller title
             xaxis_title='Academic Year',
             yaxis_title='Number of Research Outputs',
             template='plotly_white',
-            height=400,
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
             xaxis=dict(
-                type='linear',  # Treat x-axis as continuous
-                tickformat="%d",  # Display years as integers
-                tickangle=-45  # Make labels diagonal
-            )
+                type='linear',  
+                tickangle=-45,  # Angled labels for better fit
+                automargin=True,  # Prevent label overflow
+                tickfont=dict(size=10)  # Smaller x-axis text
+            ),
+            yaxis=dict(
+                automargin=True,  
+                tickfont=dict(size=10)  # Smaller y-axis text
+            ),
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_line
@@ -740,9 +721,6 @@ class MainDashboard:
         # Group data by 'scopus' and sum the counts
         grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
 
-        # Debug: Print the grouped data
-        print(grouped_df)
-
         # Create the pie chart
         fig_pie = px.pie(
             grouped_df,
@@ -753,16 +731,22 @@ class MainDashboard:
             labels={'scopus': 'Scopus vs. Non-Scopus'}
         )
 
-        # Update layout for the figure
+        # Update layout for a smaller and more responsive design
+        fig_pie.update_traces(
+            textfont=dict(size=9),  # Smaller text inside the pie
+            insidetextfont=dict(size=9),  # Smaller text inside the pie
+            marker=dict(line=dict(width=0.5))  # Thinner slice borders
+        )
+
         fig_pie.update_layout(
-            title='Scopus vs. Non-Scopus Research Distribution',
+            title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=400
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_pie
-
-
 
     def publication_format_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
         df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
@@ -778,9 +762,6 @@ class MainDashboard:
         grouped_df['year'] = grouped_df['year'].astype(int)
         grouped_df['Count'] = grouped_df['Count'].astype(int)
 
-        # Debug: Print the grouped data
-        print(grouped_df)
-
         # Create the line chart with markers
         fig_line = px.line(
             grouped_df,
@@ -789,21 +770,33 @@ class MainDashboard:
             color='journal',
             color_discrete_map=self.palette_dict,
             labels={'journal': 'Publication Format'},
-            markers=True  # Ensure points are visible even if no lines
+            markers=True
         )
 
-        # Update layout for the figure
+        # Update layout for smaller text and responsive UI
+        fig_line.update_traces(
+            line=dict(width=1.5),  # Thinner lines
+            marker=dict(size=5)  # Smaller marker points
+        )
+
         fig_line.update_layout(
-            title='Publication Formats Over Time',
+            title=dict(text='Publication Formats Over Time', font=dict(size=12)),  # Smaller title
             xaxis_title='Academic Year',
             yaxis_title='Number of Research Outputs',
             template='plotly_white',
-            height=400,
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
             xaxis=dict(
-                type='linear',  # Treat x-axis as continuous
-                tickformat="%d",  # Display years as integers
-                tickangle=-45  # Make labels diagonal
-            )
+                type='linear',  
+                tickangle=-45,  # Angled labels for better fit
+                automargin=True,  # Prevent label overflow
+                tickfont=dict(size=10)  # Smaller x-axis text
+            ),
+            yaxis=dict(
+                automargin=True,  
+                tickfont=dict(size=10)  # Smaller y-axis text
+            ),
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_line
@@ -818,9 +811,6 @@ class MainDashboard:
         # Group data by 'journal' and sum the counts
         grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
 
-        # Debug: Print the grouped data
-        print(grouped_df)
-
         # Create the pie chart
         fig_pie = px.pie(
             grouped_df,
@@ -831,69 +821,22 @@ class MainDashboard:
             labels={'journal': 'Publication Format'}
         )
 
-        # Update layout for the figure
+        # Update layout for a smaller and more responsive design
+        fig_pie.update_traces(
+            textfont=dict(size=9),  # Smaller text inside the pie
+            insidetextfont=dict(size=9),  # Smaller text inside the pie
+            marker=dict(line=dict(width=0.5))  # Thinner slice borders
+        )
+
         fig_pie.update_layout(
-            title='Publication Format Distribution',
+            title=dict(text='Publication Format Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=400
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_pie
-
-    def update_research_outputs_by_year_and_term(self, selected_colleges, selected_status, selected_years, selected_terms):
-            
-        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-
-        if df.empty:
-            return px.bar(title="No data available")
-
-        if len(selected_colleges) == 1:
-            # Group by year, program_id, and term for a single college
-            self.get_program_colors(df) 
-            grouped_df = df.groupby(['year', 'program_id', 'term']).size().reset_index(name='Count')
-            x_axis = 'year'
-            color_axis = 'program_id'
-            xaxis_title = 'Year'
-            yaxis_title = 'Number of Research Outputs'
-            title = f'Number of Research Outputs by Programs in {selected_colleges[0]} and Year for Each Academic Term' 
-            color_label = 'Program'
-        else:
-            # Group by year, college_id, and term for multiple colleges
-            grouped_df = df.groupby(['year', 'college_id', 'term']).size().reset_index(name='Count')
-            x_axis = 'year'
-            color_axis = 'college_id'
-            xaxis_title = 'Year'
-            yaxis_title = 'Number of Research Outputs'
-            title = 'Number of Research Outputs by College and Year for Each Academic Term'
-            color_label = 'College'
-
-        # Create the bar chart with stacking enabled and facets for each term
-        fig_bar = px.bar(
-            grouped_df,
-            x=x_axis,
-            y='Count',
-            color=color_axis,
-            barmode='stack',  # Stack bars for the same year
-            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors,
-            facet_col='term',  # Facet by term (1, 2, 3)
-            labels={x_axis: xaxis_title, 'Count': yaxis_title, color_axis: color_label}
-        )
-
-        # Update the layout of the chart
-        fig_bar.update_layout(
-            title=title,
-            xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title,
-            template='plotly_white',
-            height=400,
-            xaxis=dict(
-                type='linear',  # Treat x-axis as continuous
-                tickformat="%d"  # Display years as integers
-            )
-        )
-
-        return fig_bar
-
 
     def set_callbacks(self):
         """
@@ -1059,30 +1002,36 @@ class MainDashboard:
                 dbc.Row([
                     dbc.Col(
                         self.create_display_card("Total Research Papers", str(len(filtered_data))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,  # Responsive breakpoints
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
                         self.create_display_card("Ready for Publication", str(len([d for d in filtered_data if d['status'] == 'READY']))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
                         self.create_display_card("Submitted Papers", str(len([d for d in filtered_data if d['status'] == 'SUBMITTED']))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
                         self.create_display_card("Accepted Papers", str(len([d for d in filtered_data if d['status'] == 'ACCEPTED']))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
                         self.create_display_card("Published Papers", str(len([d for d in filtered_data if d['status'] == 'PUBLISHED']))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
                         self.create_display_card("Pulled-out Papers", str(len([d for d in filtered_data if d['status'] == 'PULLOUT']))),
+                        xs=6, sm=4, md=3, lg=2, xl=2,
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     )
-                ])
-            ])
+                ], justify="center")  # Centers content on smaller screens
+            ], fluid=True)
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_graph', 'figure'),
@@ -1125,19 +1074,3 @@ class MainDashboard:
                 return self.publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
             else:
                 return self.publication_format_pie_chart(selected_colleges, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('term_college_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.update_research_outputs_by_year_and_term(selected_colleges, selected_status, selected_years, selected_terms)
