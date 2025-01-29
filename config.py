@@ -1,7 +1,24 @@
 # app configuration (database settings)
 
 import os
-from datetime import datetime,timedelta,timezone
+import platform
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+def detect_pg_bin():
+    if platform.system() == 'Windows':
+        # Look for PostgreSQL in Program Files
+        pg_base = r'C:\Program Files\PostgreSQL'
+        if os.path.exists(pg_base):
+            # Get the latest version installed
+            versions = [d for d in os.listdir(pg_base) if os.path.isdir(os.path.join(pg_base, d))]
+            if versions:
+                latest_version = sorted(versions)[-1]
+                return os.path.join(pg_base, latest_version, 'bin')
+    else:
+        # For Linux/Mac, assume PostgreSQL is in PATH
+        return '/usr/bin'  # Default Linux/Mac location
+    return None
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', "b'\x06F\x83X\xe1\x94\xd6\x1f\x89bU\xf5\xbfd\xa4\xda\xb2T\xf7\x0b{\xc0\xaf\xc2'")
@@ -27,3 +44,15 @@ class Config:
     MAIL_USERNAME = "info@dev.institutional-repository.mcl-ccis.net"
     MAIL_PASSWORD = ";b_DcJ;SRU$n"  # Replace with the actual email account password
     DEFAULT_SENDER = "info@dev.institutional-repository.mcl-ccis.net"
+
+    # Add these new configurations
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    BACKUP_ROOT = os.path.join(BASE_DIR, 'backups')
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+
+    # Create directories if they don't exist
+    os.makedirs(BACKUP_ROOT, exist_ok=True)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    # Set PG_BIN using the detection function
+    PG_BIN = detect_pg_bin()

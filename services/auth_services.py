@@ -90,3 +90,20 @@ def generate_tokens(user_id):
     """Generate access token for the user."""
     access_token = create_access_token(identity=user_id)
     return access_token
+
+def admin_required(f):
+    @wraps(f)
+    @jwt_required()
+    def decorated_function(*args, **kwargs):
+        # Get the current user's identity (user_id)
+        current_user_id = get_jwt_identity()
+        
+        # Query the user's role from the database
+        user = Account.query.filter_by(user_id=current_user_id).first()
+        
+        # Check if user exists and has admin role (role_id = "01")
+        if not user or user.role_id != "01":
+            return jsonify({"error": "Admin privileges required"}), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function

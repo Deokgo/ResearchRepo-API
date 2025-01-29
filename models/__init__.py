@@ -31,6 +31,7 @@ from .archive_manus import ArchiveManus
 from .archive_ea import ArchiveEA
 from .arch_user_profile import ArchUserProfile
 from .arch_visitor import ArchVisitor
+from .backup import Backup
 
 def check_db(db_name, user, password, host='localhost', port='5432'):
     cursor = None  # Initialize cursor outside try block
