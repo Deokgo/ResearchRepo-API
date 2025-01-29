@@ -193,12 +193,44 @@ class MainDashboard:
                 ], style={"margin": "10px"})
             ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
-        sub_dash2 = dbc.Container([ 
-                dbc.Row([
-                    dbc.Col(dcc.Graph(id='proceeding_conference_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
-                ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+        sub_dash2 = dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    dcc.Tabs(
+                        id='nonscopus_scopus_tabs', 
+                        value='line', 
+                        children=[
+                            dcc.Tab(label='Scopus and Non-Scopus Over Time', value='line', style={"font-size": "12px"}),
+                            dcc.Tab(label='Scopus vs. Non-Scopus', value='pie', style={"font-size": "12px"})
+                        ], 
+                        style={"font-size": "14px"}  # Adjust overall font size of tabs
+                    ),
+                    dcc.Loading(
+                        id="loading-nonscopus-scopus",
+                        type="circle",
+                        children=dcc.Graph(id='nonscopus_scopus_graph')
+                    )
+                ], width=6, style={"height": "auto", "overflow": "hidden"}),
+
+                dbc.Col([
+                    dcc.Tabs(
+                        id='proceeding_conference_tabs',
+                        value='line',  # Default view is the line chart
+                        children=[
+                            dcc.Tab(label='Journal and Proceeding Over Time', value='line', style={"font-size": "12px"}),
+                            dcc.Tab(label='Journal vs. Proceeding', value='pie', style={"font-size": "12px"})
+                        ],
+                        style={"font-size": "14px"}  # Adjust overall font size of tabs
+                    ),
+                    dcc.Loading(
+                        id="loading-proceeding-conference",
+                        type="circle",
+                        children=dcc.Graph(id='proceeding_conference_graph')
+                    )
+                ], width=6, style={"height": "auto", "overflow": "hidden"})
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+
 
         sub_dash3 = dbc.Container([
             dbc.Row([
@@ -207,11 +239,11 @@ class MainDashboard:
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
         sub_dash4 = dbc.Container([
-                dbc.Row([
-                    dbc.Col(dcc.Graph(id='nonscopus_scopus_line_graph'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
-                ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='nonscopus_scopus_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
+                dbc.Col(dcc.Graph(id='proceeding_conference_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
         
         sub_dash5 = dbc.Container([
             dbc.Row([
@@ -264,11 +296,8 @@ class MainDashboard:
                                 ), style={"flex": "1"}
                             ),
                             dbc.Row(
-                                dcc.Loading(
-                                    id="loading-sub-dash2",
-                                    type="circle",
-                                    children=sub_dash2
-                                ), style={"flex": "1"}
+                                children=sub_dash2,
+                                style={"flex": "1"}
                             ),
                             dbc.Row(
                                 dcc.Loading(
@@ -694,6 +723,38 @@ class MainDashboard:
         )
 
         return fig_line
+    
+    def scopus_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        
+        # Filter out rows where 'scopus' is 'N/A'
+        df = df[df['scopus'] != 'N/A']
+
+        # Group data by 'scopus' and sum the counts
+        grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
+
+        # Debug: Print the grouped data
+        print(grouped_df)
+
+        # Create the pie chart
+        fig_pie = px.pie(
+            grouped_df,
+            names='scopus',
+            values='Count',
+            color='scopus',
+            color_discrete_map=self.palette_dict,
+            labels={'scopus': 'Scopus vs. Non-Scopus'}
+        )
+
+        # Update layout for the figure
+        fig_pie.update_layout(
+            title='Scopus vs. Non-Scopus Research Distribution',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_pie
+
 
 
     def publication_format_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
@@ -739,6 +800,38 @@ class MainDashboard:
         )
 
         return fig_line
+    
+    def publication_format_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
+        df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        
+        # Filter out rows with 'unpublished' journals and 'PULLOUT' status
+        df = df[df['journal'] != 'unpublished']
+        df = df[df['status'] != 'PULLOUT']
+
+        # Group data by 'journal' and sum the counts
+        grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
+
+        # Debug: Print the grouped data
+        print(grouped_df)
+
+        # Create the pie chart
+        fig_pie = px.pie(
+            grouped_df,
+            names='journal',
+            values='Count',
+            color='journal',
+            color_discrete_map=self.palette_dict,
+            labels={'journal': 'Publication Format'}
+        )
+
+        # Update layout for the figure
+        fig_pie.update_layout(
+            title='Publication Format Distribution',
+            template='plotly_white',
+            height=400
+        )
+
+        return fig_pie
 
     def update_research_outputs_by_year_and_term(self, selected_colleges, selected_status, selected_years, selected_terms):
             
@@ -966,6 +1059,7 @@ class MainDashboard:
                 ])
         #"""
 
+        """
         @self.dash_app.callback(
             Output('nonscopus_scopus_line_graph', 'figure'),
             [
@@ -981,7 +1075,30 @@ class MainDashboard:
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
             return self.scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms)
+        """
         
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_graph', 'figure'),
+            [
+                Input('nonscopus_scopus_tabs', 'value'),
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_scopus_graph(tab, selected_colleges, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            if tab == 'line':
+                return self.scopus_line_graph(selected_colleges, selected_status, selected_years, selected_terms)
+            else:
+                return self.scopus_pie_chart(selected_colleges, selected_status, selected_years, selected_terms)
+
+        """
         @self.dash_app.callback(
             Output('proceeding_conference_line_graph', 'figure'),
             [
@@ -997,6 +1114,28 @@ class MainDashboard:
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
             return self.publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
+        """
+        
+        @self.dash_app.callback(
+            Output('proceeding_conference_graph', 'figure'),
+            [
+                Input('proceeding_conference_tabs', 'value'),
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_proceeding_conference_graph(tab, selected_colleges, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            if tab == 'line':
+                return self.publication_format_line_plot(selected_colleges, selected_status, selected_years, selected_terms)
+            else:
+                return self.publication_format_pie_chart(selected_colleges, selected_status, selected_years, selected_terms)
         
         @self.dash_app.callback(
             Output('term_college_bar_plot', 'figure'),
