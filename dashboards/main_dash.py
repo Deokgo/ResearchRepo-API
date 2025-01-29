@@ -16,6 +16,13 @@ def default_if_empty(selected_values, default_values):
     """
     return selected_values if selected_values else default_values
 
+# Ensure college_id, status, year, and term are lists
+def safe_list(value):
+    if isinstance(value, str):
+        return value.split(',')  # Adjust based on your data format
+    return value if isinstance(value, list) else [value]
+
+
 class MainDashboard:
     def __init__(self, flask_app):
         """
@@ -1023,41 +1030,59 @@ class MainDashboard:
             updated_data = db_manager.get_all_data()
             return updated_data.to_dict('records')
         
-        #"""
         @self.dash_app.callback(
             Output('text-display-container', 'children'),
-            Input("data-refresh-interval", "n_intervals")
+            Input("data-refresh-interval", "n_intervals"),
+            Input('college', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
         )
-        def refresh_text_display(n_intervals):
+        def refresh_text_display(n_intervals, selected_colleges, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            # Apply filters
+            filtered_data = db_manager.get_filtered_data_text_display(
+                selected_colleges=selected_colleges, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
+
+            # Convert DataFrame to list of dictionaries
+            filtered_data = filtered_data.to_dict(orient='records')
+
             return dbc.Container([
-                    dbc.Row([
-                        dbc.Col(
-                        self.create_display_card("Total Research Papers", str(len(db_manager.get_all_data()))),
+                dbc.Row([
+                    dbc.Col(
+                        self.create_display_card("Total Research Papers", str(len(filtered_data))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
-                        self.create_display_card("Ready for Publication", str(len(db_manager.filter_data('status', 'READY', invert=False)))),
+                        self.create_display_card("Ready for Publication", str(len([d for d in filtered_data if d['status'] == 'READY']))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
-                        self.create_display_card("Submitted Papers", str(len(db_manager.filter_data('status', 'SUBMITTED', invert=False)))),
+                        self.create_display_card("Submitted Papers", str(len([d for d in filtered_data if d['status'] == 'SUBMITTED']))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
-                        self.create_display_card("Accepted Papers", str(len(db_manager.filter_data('status', 'ACCEPTED', invert=False)))),
+                        self.create_display_card("Accepted Papers", str(len([d for d in filtered_data if d['status'] == 'ACCEPTED']))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
-                        self.create_display_card("Published Papers", str(len(db_manager.filter_data('status', 'PUBLISHED', invert=False)))),
+                        self.create_display_card("Published Papers", str(len([d for d in filtered_data if d['status'] == 'PUBLISHED']))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     ),
                     dbc.Col(
-                        self.create_display_card("Pulled-out Papers", str(len(db_manager.filter_data('status', 'PULLOUT', invert=False)))),
+                        self.create_display_card("Pulled-out Papers", str(len([d for d in filtered_data if d['status'] == 'PULLOUT']))),
                         style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
                     )
-                    ])
                 ])
-        #"""
+            ])
 
         """
         @self.dash_app.callback(
