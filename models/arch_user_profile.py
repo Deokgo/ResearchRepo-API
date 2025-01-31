@@ -1,8 +1,7 @@
-from . import db
-from .program import Program
-from .college import College
+from models import db
+from models.base import BaseModel
 
-class ArchUserProfile(db.Model):
+class ArchUserProfile(BaseModel):
     __tablename__ = 'arch_user_profile'
     researcher_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
     college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))

@@ -1,11 +1,12 @@
-from . import db
+from models import db
+from models.base import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import relationship
 from .user_profile import UserProfile
 
-class Account(db.Model):
+class Account(BaseModel):
     __tablename__ = 'account'
-    user_id = db.Column(db.String(15), primary_key=True)
+    user_id = db.Column(db.String(15), primary_key=True, unique=True)
     email = db.Column(db.String(80))
     user_pw = db.Column(db.String(256))
     acc_status = db.Column(db.String(20), server_default=text("'ACTIVATED'"))
@@ -14,3 +15,6 @@ class Account(db.Model):
 
     # Define a relationship to UserProfile
     user_profile = relationship('UserProfile', backref='account', uselist=False, primaryjoin="Account.user_id == UserProfile.researcher_id")
+
+    def __repr__(self):
+        return f"<Account {self.user_id}>"

@@ -1,8 +1,9 @@
-from . import db
+from models import db
+from models.base import BaseModel
 
-class Publication(db.Model):
+class Publication(BaseModel):
     __tablename__ = 'publications'
-    publication_id = db.Column(db.String(16), primary_key=True)
+    publication_id = db.Column(db.String(16), primary_key=True, unique=True)
     research_id = db.Column(db.String(15), db.ForeignKey('research_outputs.research_id'))
     publication_name = db.Column(db.String(100))
     conference_id = db.Column(db.String(15), db.ForeignKey('conference.conference_id'))

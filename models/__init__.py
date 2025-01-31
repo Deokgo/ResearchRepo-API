@@ -5,6 +5,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 db = SQLAlchemy()
 
+from .base import BaseModel
 from .account import Account
 from .audit_trail import AuditTrail
 from .college import College

@@ -1,8 +1,7 @@
-from . import db
-import datetime
-from services import auth_services
+from models import db
+from models.base import BaseModel
 
-class AuditTrail(db.Model):
+class AuditTrail(BaseModel):
     __tablename__ = 'audit_trail'
     audit_id = db.Column(db.String(18), primary_key=True)
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))

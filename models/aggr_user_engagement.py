@@ -1,6 +1,7 @@
-from . import db
+from models import db
+from models.base import BaseModel
 
-class AggrUserEngagement(db.Model):
+class AggrUserEngagement(BaseModel):
     __tablename__ = 'aggr_user_engagement'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     research_id = db.Column(db.String(15), db.ForeignKey('research_outputs.research_id'))

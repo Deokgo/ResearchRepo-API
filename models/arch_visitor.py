@@ -1,6 +1,7 @@
-from . import db
+from models import db
+from models.base import BaseModel
 
-class ArchVisitor(db.Model):
+class ArchVisitor(BaseModel):
     __tablename__ = 'arch_visitor'
     visitor_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
     institution = db.Column(db.String(200))

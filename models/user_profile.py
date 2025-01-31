@@ -1,10 +1,9 @@
-from . import db
-from .program import Program
-from .college import College
+from models import db
+from models.base  import BaseModel
 
-class UserProfile(db.Model):
+class UserProfile(BaseModel):
     __tablename__ = 'user_profile'
-    researcher_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True)
+    researcher_id = db.Column(db.String(15), db.ForeignKey('account.user_id'), primary_key=True,unique=True)
     college_id = db.Column(db.String(6), db.ForeignKey('college.college_id'))
     program_id = db.Column(db.String(5), db.ForeignKey('program.program_id'))
     first_name = db.Column(db.String(30))
