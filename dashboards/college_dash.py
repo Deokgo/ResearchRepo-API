@@ -1,4 +1,5 @@
 from dash import Dash, html, dcc, dash_table
+import dash
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
@@ -267,7 +268,71 @@ class CollegeDashApp:
                             html.Div(id='college-info'),
                             html.Div(id='program-info'),
                             # Content of the Dash App
-                            dbc.Row(text_display, style={"flex": "1"}),
+                            #dbc.Row(text_display, style={"flex": "1"}),
+                            # Buttons in a single row
+                            dbc.Row([
+                                dbc.Col(dbc.Button("Research Output(s)", id="open-total-modal", color="primary", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                                dbc.Col(dbc.Button("Ready for Publication", id="open-ready-modal", color="info", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                                dbc.Col(dbc.Button("Submitted Paper(s)", id="open-submitted-modal", color="warning", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                                dbc.Col(dbc.Button("Accepted Paper(s)", id="open-accepted-modal", color="success", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                                dbc.Col(dbc.Button("Published Paper(s)", id="open-published-modal", color="danger", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                                dbc.Col(dbc.Button("Pulled-out Paper(s)", id="open-pullout-modal", color="secondary", size="lg", n_clicks=0, style={
+                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
+                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
+                                }), width="auto"),
+                            ], className="mb-2", justify="center"),  # Centering buttons in a single row
+                            
+                            # Modals for each button
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Research Output(s)")),
+                                dbc.ModalBody(id="total-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-total-modal", className="ms-auto", n_clicks=0)),
+                            ], id="total-modal", scrollable=True, is_open=False, size="xl"),
+                            
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Ready for Publication")),
+                                dbc.ModalBody(id="ready-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-ready-modal", className="ms-auto", n_clicks=0)),
+                            ], id="ready-modal", scrollable=True, is_open=False, size="xl"),
+                            
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Submitted Paper(s)")),
+                                dbc.ModalBody(id="submitted-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-submitted-modal", className="ms-auto", n_clicks=0)),
+                            ], id="submitted-modal", scrollable=True, is_open=False, size="xl"),
+                            
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Accepted Paper(s)")),
+                                dbc.ModalBody(id="accepted-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-accepted-modal", className="ms-auto", n_clicks=0)),
+                            ], id="accepted-modal", scrollable=True, is_open=False, size="xl"),
+                            
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Published Paper(s)")),
+                                dbc.ModalBody(id="published-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-published-modal", className="ms-auto", n_clicks=0)),
+                            ], id="published-modal", scrollable=True, is_open=False, size="xl"),
+                            
+                            dbc.Modal([
+                                dbc.ModalHeader(dbc.ModalTitle("Pulled-out Paper(s)")),
+                                dbc.ModalBody(id="pullout-modal-content"),
+                                dbc.ModalFooter(dbc.Button("Close", id="close-pullout-modal", className="ms-auto", n_clicks=0)),
+                            ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
                             dbc.Row(
                                 dcc.Loading(
                                     id="loading-main-dash",
@@ -974,7 +1039,12 @@ class CollegeDashApp:
         @self.dash_app.callback(
             [
                 Output('college-info', 'children'),
-                Output('text-display-container', 'children')
+                Output('open-total-modal', 'children'),
+                Output('open-ready-modal', 'children'),
+                Output('open-submitted-modal', 'children'),
+                Output('open-accepted-modal', 'children'),
+                Output('open-published-modal', 'children'),
+                Output('open-pullout-modal', 'children'),
             ],
             Input('url', 'search'),  # Capture the query string in the URL
             Input("data-refresh-interval", "n_intervals"),
@@ -1014,45 +1084,15 @@ class CollegeDashApp:
             # Convert DataFrame to list of dictionaries
             filtered_data = filtered_data.to_dict(orient='records')
 
-            text_display_content = dbc.Container([
-                dbc.Row([
-                    dbc.Col(
-                        self.create_display_card("Total Research Papers", str(len(filtered_data))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,  # Responsive breakpoints
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Ready for Publication", str(len([d for d in filtered_data if d['status'] == 'READY']))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Submitted Papers", str(len([d for d in filtered_data if d['status'] == 'SUBMITTED']))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Accepted Papers", str(len([d for d in filtered_data if d['status'] == 'ACCEPTED']))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Published Papers", str(len([d for d in filtered_data if d['status'] == 'PUBLISHED']))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Pulled-out Papers", str(len([d for d in filtered_data if d['status'] == 'PULLOUT']))),
-                        xs=6, sm=4, md=3, lg=2, xl=2,
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    )
-                ], justify="center")  # Centers content on smaller screens
-            ], fluid=True)
-
             return html.H5(
                 f'College Department: {self.college}', 
                 style={'textAlign': 'center', 'marginTop': '5px'}
-            ), text_display_content
+            ),  f'{len(filtered_data)} Research Output(s)', \
+                f'{len([d for d in filtered_data if d["status"] == "READY"])} Ready for Publication', \
+                f'{len([d for d in filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \
+                f'{len([d for d in filtered_data if d["status"] == "ACCEPTED"])} Accepted Paper(s)', \
+                f'{len([d for d in filtered_data if d["status"] == "PUBLISHED"])} Published Paper(s)', \
+                f'{len([d for d in filtered_data if d["status"] == "PULLOUT"])} Pulled-out Paper(s)'
         
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
@@ -1103,3 +1143,426 @@ class CollegeDashApp:
                 return self.publication_format_line_plot(selected_programs, selected_status, selected_years, selected_terms)
             else:
                 return self.publication_format_pie_chart(selected_programs, selected_status, selected_years, selected_terms)
+            
+        # for total modal
+        @self.dash_app.callback(
+            Output("total-modal", "is_open"),
+            Output("total-modal-content", "children"),
+            Input("open-total-modal", "n_clicks"),
+            Input("close-total-modal", "n_clicks"),
+            State("total-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-total-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+                # Ensure filtered_data is a valid DataFrame or empty list
+                if filtered_data is None or len(filtered_data) == 0:
+                    return True, "No data records."
+                elif isinstance(filtered_data, pd.DataFrame):
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                # Convert to DataFrame and filter selected columns
+                if filtered_data:
+                    filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())]
+                    filtered_df = filtered_df.rename(columns=selected_columns)  # Rename columns
+                else:
+                    filtered_df = pd.DataFrame(columns=list(selected_columns.values()))  # Empty DataFrame with renamed columns
+
+                # Convert DataFrame to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-total-modal":
+                return False, ""
+            
+            return is_open, ""
+        
+        # for ready modal
+        @self.dash_app.callback(
+            Output("ready-modal", "is_open"),
+            Output("ready-modal-content", "children"),
+            Input("open-ready-modal", "n_clicks"),
+            Input("close-ready-modal", "n_clicks"),
+            State("ready-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-ready-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+                # Ensure filtered_data is a list of dictionaries
+                if filtered_data is None:
+                    filtered_data = []
+                elif isinstance(filtered_data, pd.DataFrame):  
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Filter only "ready" papers
+                filtered_data = [d for d in filtered_data if d.get("status") == "READY"]
+                if filtered_data == []:
+                    return True, "No data records."
+
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+
+                # Rename columns
+                filtered_df = filtered_df.rename(columns=selected_columns)
+
+                # Convert to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-ready-modal":
+                return False, ""
+            
+            return is_open, ""
+        
+        # for submitted modal
+        @self.dash_app.callback(
+            Output("submitted-modal", "is_open"),
+            Output("submitted-modal-content", "children"),
+            Input("open-submitted-modal", "n_clicks"),
+            Input("close-submitted-modal", "n_clicks"),
+            State("submitted-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-submitted-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+                # Ensure filtered_data is a list of dictionaries
+                if filtered_data is None:
+                    filtered_data = []
+                elif isinstance(filtered_data, pd.DataFrame):  
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Filter only "submitted" papers
+                filtered_data = [d for d in filtered_data if d.get("status") == "SUBMITTED"]
+                if filtered_data == []:
+                    return True, "No data records."
+                
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+
+                # Rename columns
+                filtered_df = filtered_df.rename(columns=selected_columns)
+
+                # Convert to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-submitted-modal":
+                return False, ""
+            
+            return is_open, ""
+        
+        # for accepted modal
+        @self.dash_app.callback(
+            Output("accepted-modal", "is_open"),
+            Output("accepted-modal-content", "children"),
+            Input("open-accepted-modal", "n_clicks"),
+            Input("close-accepted-modal", "n_clicks"),
+            State("accepted-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-accepted-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+                # Ensure filtered_data is a list of dictionaries
+                if filtered_data is None:
+                    filtered_data = []
+                elif isinstance(filtered_data, pd.DataFrame):  
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Filter only "accepted" papers
+                filtered_data = [d for d in filtered_data if d.get("status") == "ACCEPTED"]
+                if filtered_data == []:
+                    return True, "No data records."
+
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+
+                # Rename columns
+                filtered_df = filtered_df.rename(columns=selected_columns)
+
+                # Convert to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-accepted-modal":
+                return False, ""
+            
+            return is_open, ""
+        
+        # for published modal
+        @self.dash_app.callback(
+            Output("published-modal", "is_open"),
+            Output("published-modal-content", "children"),
+            Input("open-published-modal", "n_clicks"),
+            Input("close-published-modal", "n_clicks"),
+            State("published-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-published-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+                # Ensure filtered_data is a list of dictionaries
+                if filtered_data is None:
+                    filtered_data = []
+                elif isinstance(filtered_data, pd.DataFrame):  
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Filter only "PUBLISHED" papers
+                filtered_data = [d for d in filtered_data if d.get("status") == "PUBLISHED"]
+                if filtered_data == []:
+                    return True, "No data records."
+
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+
+                # Rename columns
+                filtered_df = filtered_df.rename(columns=selected_columns)
+
+                # Convert to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-published-modal":
+                return False, ""
+            
+            return is_open, ""
+        
+        # for pullout modal
+        @self.dash_app.callback(
+            Output("pullout-modal", "is_open"),
+            Output("pullout-modal-content", "children"),
+            Input("open-pullout-modal", "n_clicks"),
+            Input("close-pullout-modal", "n_clicks"),
+            State("pullout-modal", "is_open"),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value')
+        )
+        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
+
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return is_open, ""
+            
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            
+            if trigger_id == "open-pullout-modal":
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                selected_status = default_if_empty(selected_status, self.default_statuses)
+                selected_years = selected_years if selected_years else self.default_years
+                selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+                # Apply filters
+                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                    selected_programs=selected_programs, 
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+                print(f'filtered_data: {filtered_data}')
+                # Ensure filtered_data is a list of dictionaries
+                if filtered_data is None:
+                    filtered_data = []
+                elif isinstance(filtered_data, pd.DataFrame):  
+                    filtered_data = filtered_data.to_dict(orient="records")
+
+                # Filter only "PULLOUT" papers
+                filtered_data = [d for d in filtered_data if d.get("status") == "PULLOUT"]
+                if filtered_data == []:
+                    return True, "No data records."
+
+                # Choose specific columns to display
+                selected_columns = {
+                    "research_id": "Research ID",
+                    "title": "Research Title",
+                    "concatenated_keywords": "Keywords",
+                    "concatenated_authors": "Author(s)",
+                    "sdg": "SDG",
+                    "college_id": "College",
+                    "program_name": "Program",
+                    "research_type": "Research Type"
+                }
+                
+                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+
+                # Rename columns
+                filtered_df = filtered_df.rename(columns=selected_columns)
+
+                # Convert to dbc.Table
+                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+                return True, table
+            elif trigger_id == "close-pullout-modal":
+                return False, ""
+            
+            return is_open, ""
