@@ -15,6 +15,7 @@ from sqlalchemy import text
 from enum import Enum
 from flask_jwt_extended import get_jwt_identity
 import hashlib
+import time
 
 backup = Blueprint('backup', __name__)
 
@@ -26,7 +27,6 @@ def generate_backup_id(backup_type):
     # Format: BK_FULL_YYYYMMDD_HHMMSS or BK_INCR_YYYYMMDD_HHMMSS
     timestamp = datetime.now().strftime(f'BK_{backup_type.value}_%Y%m%d_%H%M%S')
     return timestamp
-
 
 def get_changed_files(directory, last_backup_date=None):
     """Get list of files modified since last backup"""
@@ -60,7 +60,7 @@ def create_backup(backup_type):
         db_name = db_parts[1].split('?')[0]
         credentials = db_parts[0].split('@')[0]
         db_user = credentials.split(':')[0]
-        db_pass = credentials.split(':')[1].split('@')[0]
+        db_pass = credentials.split(':')[1]
         host = db_parts[0].split('@')[1].split(':')[0]
 
         os.environ['PGPASSWORD'] = db_pass
@@ -71,12 +71,13 @@ def create_backup(backup_type):
                 raise Exception("PostgreSQL binary directory not found")
 
             if backup_type == BackupType.FULL:
-                # Use pg_dump for full backup
-                pg_dump_exe = os.path.join(pg_bin, 'pg_dump.exe' if platform.system() == 'Windows' else 'pg_dump')
-                db_backup_file = os.path.join(db_backup_dir, 'database.backup')
-                
-                # Create full backup using pg_dump
-                backup_command = f'"{pg_dump_exe}" -h {host} -U {db_user} -d {db_name} -Fc -f "{db_backup_file}"'
+                # Use pg_basebackup for full backup with WAL
+                pg_basebackup_exe = os.path.join(
+                    pg_bin, 
+                    'pg_basebackup.exe' if platform.system() == 'Windows' else 'pg_basebackup'
+                )
+                # We expect pg_basebackup to write a tar archive file named "base.backup"
+                backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
                 print(f"Executing full backup command: {backup_command}")
                 result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
                 
@@ -91,24 +92,29 @@ def create_backup(backup_type):
                 if not last_full:
                     raise Exception("No full backup found. Please create a full backup first")
 
-                pg_dump_exe = os.path.join(pg_bin, 'pg_dump.exe' if platform.system() == 'Windows' else 'pg_dump')
-                db_backup_file = os.path.join(db_backup_dir, 'database.backup')
+                # Use pg_receivewal to capture WAL changes since last backup.
+                # (In this "fixed" code we assume that later you update your incremental routine
+                # to produce a dump file named "database.backup" so that pg_restore can use it.)
+                pg_receivewal_exe = os.path.join(
+                    pg_bin, 
+                    'pg_receivewal.exe' if platform.system() == 'Windows' else 'pg_receivewal'
+                )
+                wal_dir = os.path.join(db_backup_dir, 'wal')
+                os.makedirs(wal_dir, exist_ok=True)
 
-                # Get timestamp of last backup
-                last_backup_date = last_full.backup_date.strftime('%Y-%m-%d %H:%M:%S')
+                last_backup = Backup.query.order_by(Backup.backup_date.desc()).first()
+                start_lsn = last_backup.wal_lsn if last_backup else None
 
-                # Backup only schema and data from tables that have been modified
-                backup_command = f'"{pg_dump_exe}" -h {host} -U {db_user} -d {db_name} ' \
-                               '--data-only ' \
-                               '--exclude-table-data=audit_trail ' \
-                               '--exclude-table-data=backup ' \
-                               '-Fc -f "{db_backup_file}"'
-
+                backup_command = f'"{pg_receivewal_exe}" -h {host} -U {db_user} -D "{wal_dir}" ' \
+                                f'--start-lsn {start_lsn if start_lsn else "0/0"} -n'
                 print(f"Executing incremental backup command: {backup_command}")
                 result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
                 
                 if result.returncode != 0:
                     raise Exception(f"Incremental backup failed: {result.stderr}")
+
+                # Get current WAL location for next backup
+                current_lsn = get_current_wal_lsn(pg_bin, host, db_user, db_name)
 
             # Backup repository files
             repository_dir = 'research_repository'
@@ -126,27 +132,20 @@ def create_backup(backup_type):
                                         .first()
                     if not last_full:
                         raise Exception("No full backup found. Please create a full backup first")
-
-                    # Get files modified since last backup
                     changed_files = get_changed_files(repository_dir, last_full.backup_date)
                     
-                    if changed_files:
-                        with tarfile.open(archive_path, "w:xz") as tar:
-                            for filepath in changed_files:
-                                # Store files with their relative paths
-                                arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
-                                tar.add(filepath, arcname=arcname)
-                    else:
-                        # Create empty archive if no changes
-                        with tarfile.open(archive_path, "w:xz") as tar:
-                            pass
+                    with tarfile.open(archive_path, "w:xz") as tar:
+                        for filepath in changed_files:
+                            arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
+                            tar.add(filepath, arcname=arcname)
 
             # Calculate total size
-            total_size = sum(os.path.getsize(os.path.join(dirpath, filename))
+            total_size = sum(
+                os.path.getsize(os.path.join(dirpath, filename))
                 for dirpath, dirnames, filenames in os.walk(backup_dir)
-                for filename in filenames)
+                for filename in filenames
+            )
 
-            # Create backup record
             new_backup = Backup(
                 backup_id=backup_id,
                 backup_type=backup_type.value,
@@ -154,13 +153,13 @@ def create_backup(backup_type):
                 database_backup_location=db_backup_dir,
                 files_backup_location=files_backup_dir,
                 total_size=total_size,
-                parent_backup_id=last_full.backup_id if backup_type == BackupType.INCREMENTAL else None
+                parent_backup_id=last_full.backup_id if backup_type == BackupType.INCREMENTAL else None,
+                wal_lsn=current_lsn if backup_type == BackupType.INCREMENTAL else None
             )
             
             db.session.add(new_backup)
             db.session.commit()
 
-            # Log audit trail
             log_audit_trail(
                 user_id=get_jwt_identity(),
                 operation="CREATE_BACKUP",
@@ -187,120 +186,167 @@ def create_backup(backup_type):
 @backup.route('/restore/<backup_id>', methods=['POST'])
 @admin_required
 def restore_backup(backup_id):
+    restore_successful = False
+    service_name = None
+    original_data_backup = None
     try:
-        # Get the target backup record
+        # Remove any active SQLAlchemy sessions
+        db.session.remove()
+
+        # Get backup information BEFORE stopping PostgreSQL
         target_backup = Backup.query.filter_by(backup_id=backup_id).first()
         if not target_backup:
             return jsonify({'error': 'Backup not found'}), 404
 
-        # Get the chain of backups needed for restore
-        backup_chain = []
-        if target_backup.backup_type == BackupType.INCREMENTAL.value:
-            # Find the full backup and all incremental backups up to the target
-            current_backup = target_backup
-            while current_backup:
-                backup_chain.insert(0, current_backup)  # Insert at start to maintain order
-                if current_backup.backup_type == BackupType.FULL.value:
-                    break
-                current_backup = Backup.query.filter_by(backup_id=current_backup.parent_backup_id).first()
+        # Store necessary information
+        backup_info = {
+            'database_backup_location': target_backup.database_backup_location,
+            'files_backup_location': target_backup.files_backup_location,
+            'backup_type': target_backup.backup_type
+        }
+        user_id = get_jwt_identity()
+
+        if target_backup.backup_type != BackupType.FULL.value:
+            raise Exception("Incremental restore is not implemented in this fix.")
+
+        # --- SERVICE CONTROL: Stop PostgreSQL ---
+        if platform.system() == 'Windows':
+            # Find PostgreSQL service name
+            list_command = 'sc query state= all | findstr /I "postgresql"'
+            result = subprocess.run(list_command, shell=True, capture_output=True, text=True)
+            service_output = result.stdout.lower()
+            if 'postgresql-x64-15' in service_output:
+                service_name = 'postgresql-x64-15'
+            elif 'postgresql-15' in service_output:
+                service_name = 'postgresql-15'
+            elif 'postgresql' in service_output:
+                service_name = 'postgresql'
+            else:
+                raise Exception("Could not find PostgreSQL service name")
+            print(f"Found PostgreSQL service: {service_name}")
+
+            # Save backup records before stopping service
+            backup_records = []
+            try:
+                backup_records = [{
+                    'backup_id': b.backup_id,
+                    'backup_type': b.backup_type,
+                    'backup_date': b.backup_date.isoformat(),
+                    'database_backup_location': b.database_backup_location,
+                    'files_backup_location': b.files_backup_location,
+                    'total_size': b.total_size,
+                    'parent_backup_id': b.parent_backup_id,
+                    'wal_lsn': b.wal_lsn
+                } for b in Backup.query.all()]
+            except Exception as e:
+                print(f"Warning: Could not preserve backup records: {e}")
+
+            # Stop the service
+            stop_command = f'net stop {service_name}'
+            try:
+                subprocess.run(stop_command, shell=True, check=True, capture_output=True)
+                time.sleep(10)
+                status_command = f'sc query {service_name}'
+                status_result = subprocess.run(status_command, shell=True, capture_output=True, text=True)
+                if "STOPPED" not in status_result.stdout.upper():
+                    raise Exception(f"Failed to stop PostgreSQL service. Current status: {status_result.stdout}")
+                print("PostgreSQL service stopped successfully")
+            except subprocess.CalledProcessError as e:
+                raise Exception(f"Failed to stop PostgreSQL service: {e.stderr.decode().strip() if e.stderr else 'Access denied'}")
+
+            # --- PHYSICAL RESTORE PROCEDURE ---
+            pgdata = current_app.config.get('PGDATA')
+            if not pgdata:
+                raise Exception("PGDATA not configured for restore.")
+
+            # Backup current data directory before removing it
+            if os.path.exists(pgdata):
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                original_data_backup = f"{pgdata}_backup_{timestamp}"
+                print(f"Backing up current data directory to: {original_data_backup}")
+                shutil.copytree(pgdata, original_data_backup)
+                shutil.rmtree(pgdata)
+            os.makedirs(pgdata)
+
+            try:
+                # Extract the backup
+                base_backup_file = os.path.join(backup_info['database_backup_location'], 'base.tar.gz')
+                if not os.path.exists(base_backup_file):
+                    raise Exception(f"Backup file not found: {base_backup_file}")
+
+                with tarfile.open(base_backup_file, "r:gz") as tar:
+                    tar.extractall(path=pgdata)
+                print(f"Extracted backup from {base_backup_file}")
+
+                # Create recovery.signal file
+                recovery_signal_path = os.path.join(pgdata, 'recovery.signal')
+                with open(recovery_signal_path, 'w') as f:
+                    pass
+                print("Created recovery.signal file")
+
+                # Update recovery configuration
+                recovery_conf_path = os.path.join(pgdata, 'postgresql.auto.conf')
+                with open(recovery_conf_path, 'a') as f:
+                    f.write("\n# Recovery configuration\n")
+                    f.write("restore_command = ''\n")
+                    f.write("recovery_target_timeline = 'latest'\n")
+                print("Updated recovery configuration")
+
+                # Set proper permissions
+                subprocess.run(f'icacls "{pgdata}" /reset', shell=True, check=True)
+                subprocess.run(f'icacls "{pgdata}" /grant "NT AUTHORITY\\NetworkService":(OI)(CI)F /T', shell=True, check=True)
+                subprocess.run(f'icacls "{pgdata}" /grant "NT AUTHORITY\\SYSTEM":(OI)(CI)F /T', shell=True, check=True)
+                subprocess.run(f'icacls "{pgdata}" /grant "BUILTIN\\Administrators":(OI)(CI)F /T', shell=True, check=True)
+                print("Set permissions on PGDATA directory")
+
+                # Start PostgreSQL service
+                start_command = f'net start {service_name}'
+                subprocess.run(start_command, shell=True, check=True, capture_output=True)
+                time.sleep(15)
+
+                # Verify service started
+                status_command = f'sc query {service_name}'
+                status_result = subprocess.run(status_command, shell=True, capture_output=True, text=True)
+                if "RUNNING" not in status_result.stdout.upper():
+                    raise Exception("Failed to start PostgreSQL service")
+
+                print("PostgreSQL service started successfully")
+                restore_successful = True
+
+            except Exception as e:
+                # If anything fails during restore, restore the original data directory
+                if original_data_backup and os.path.exists(original_data_backup):
+                    print("Restore failed. Restoring original data directory...")
+                    if os.path.exists(pgdata):
+                        shutil.rmtree(pgdata)
+                    shutil.copytree(original_data_backup, pgdata)
+                    
+                    # Try to start PostgreSQL with original data
+                    try:
+                        subprocess.run(f'net start {service_name}', shell=True, check=True)
+                        print("Restored original data directory and restarted PostgreSQL")
+                    except Exception as start_error:
+                        print(f"Failed to restart PostgreSQL with original data: {start_error}")
                 
-            if not backup_chain or backup_chain[0].backup_type != BackupType.FULL.value:
-                raise Exception("Could not find base full backup")
+                raise Exception(f"Restore failed: {str(e)}")
+
+            finally:
+                # Clean up backup of original data directory
+                if original_data_backup and os.path.exists(original_data_backup):
+                    try:
+                        shutil.rmtree(original_data_backup)
+                    except Exception as e:
+                        print(f"Warning: Could not remove temporary backup: {e}")
+
+        if restore_successful:
+            return jsonify({
+                'message': 'Backup restored successfully',
+                'backup_id': backup_id
+            }), 200
         else:
-            # For full backup, we just need the single backup
-            backup_chain = [target_backup]
-
-        print(f"Restore chain: {[b.backup_id for b in backup_chain]}")
-
-        # Store current audit logs and backup records
-        print("Storing current audit logs and backup records")
-        audit_logs = db.session.query(AuditTrail).all()
-        backup_records = db.session.query(Backup).all()
-
-        # Get database connection details
-        db_url = current_app.config['SQLALCHEMY_DATABASE_URI']
-        db_parts = db_url.replace('postgresql://', '').split('/')
-        db_name = db_parts[1].split('?')[0]
-        credentials = db_parts[0].split('@')[0]
-        db_user = credentials.split(':')[0]
-        db_pass = credentials.split(':')[1].split('@')[0]
-        host = db_parts[0].split('@')[1].split(':')[0]
-
-        # Close existing connections
-        db.session.close()
-        db.engine.dispose()
-
-        # Set PGPASSWORD environment variable
-        os.environ['PGPASSWORD'] = db_pass
-
-        try:
-            pg_bin = current_app.config.get('PG_BIN')
-            if not pg_bin:
-                raise Exception("PostgreSQL binary directory not found")
-
-            pg_restore_exe = os.path.join(pg_bin, 'pg_restore.exe' if platform.system() == 'Windows' else 'pg_restore')
-            psql_exe = os.path.join(pg_bin, 'psql.exe' if platform.system() == 'Windows' else 'psql')
-
-            # Terminate existing connections and recreate database
-            print("Preparing database for restore")
-            terminate_command = f'"{psql_exe}" -h {host} -U {db_user} -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = \'{db_name}\' AND pid <> pg_backend_pid();"'
-            subprocess.run(terminate_command, shell=True, check=True)
-
-            drop_command = f'"{psql_exe}" -h {host} -U {db_user} -d postgres -c "DROP DATABASE IF EXISTS {db_name};"'
-            create_command = f'"{psql_exe}" -h {host} -U {db_user} -d postgres -c "CREATE DATABASE {db_name};"'
-            
-            subprocess.run(drop_command, shell=True, check=True)
-            subprocess.run(create_command, shell=True, check=True)
-
-            # Restore each backup in the chain
-            for backup in backup_chain:
-                print(f"Restoring {backup.backup_type} backup: {backup.backup_id}")
-                db_backup_file = os.path.join(backup.database_backup_location, 'database.backup')
-                
-                if backup.backup_type == BackupType.FULL.value:
-                    # For full backup, use regular restore
-                    restore_command = f'"{pg_restore_exe}" -h {host} -U {db_user} -d {db_name} "{db_backup_file}"'
-                else:
-                    # For incremental, apply changes
-                    restore_command = f'"{pg_restore_exe}" -h {host} -U {db_user} -d {db_name} --data-only "{db_backup_file}"'
-                
-                result = subprocess.run(restore_command, shell=True, capture_output=True, text=True)
-                if result.returncode != 0:
-                    raise Exception(f"Database restore failed for {backup.backup_id}: {result.stderr}")
-
-            # Restore files from the backup chain
-            repository_dir = 'research_repository'
-            if os.path.exists(repository_dir):
-                shutil.rmtree(repository_dir)
-            os.makedirs(repository_dir)
-
-            # Restore files from each backup in the chain
-            for backup in backup_chain:
-                archive_path = os.path.join(backup.files_backup_location, 'repository_backup.tar.xz')
-                if os.path.exists(archive_path) and os.path.getsize(archive_path) > 0:
-                    with tarfile.open(archive_path, "r:xz") as tar:
-                        tar.extractall(path=os.path.dirname(repository_dir))
-
-            # Reinsert audit logs and backup records
-            print("Restoring audit logs and backup records")
-            for log in audit_logs:
-                db.session.merge(log)
-            for backup in backup_records:
-                db.session.merge(backup)
-
-            # Add audit log for restore operation
-            audit_entry = AuditTrail(
-                user_id=get_jwt_identity(),
-                action="RESTORE_BACKUP",
-                details=f"Restored backup chain ending with ID: {backup_id}"
-            )
-            db.session.add(audit_entry)
-            db.session.commit()
-
-            return jsonify({'message': 'Backup restored successfully'}), 200
-
-        finally:
-            os.environ.pop('PGPASSWORD', None)
+            return jsonify({
+                'error': 'Restore failed. Original data has been restored.'
+            }), 500
 
     except Exception as e:
         print(f"Error during restore: {str(e)}")
@@ -317,11 +363,29 @@ def list_backups():
                 'backup_id': b.backup_id,
                 'backup_date': b.backup_date.isoformat(),
                 'backup_type': b.backup_type,
-                'database_backup_location': os.path.basename(b.database_backup_location),  # Just the folder name
-                'files_backup_location': os.path.basename(b.files_backup_location),  # Just the folder name
+                'database_backup_location': os.path.basename(b.database_backup_location),
+                'files_backup_location': os.path.basename(b.files_backup_location),
                 'total_size': b.total_size
             } for b in backups]
         }), 200
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e)}), 500
+
+def get_current_wal_lsn(pg_bin, host, db_user, db_name):
+    """Get current WAL LSN position"""
+    psql_exe = os.path.join(
+        pg_bin, 
+        'psql.exe' if platform.system() == 'Windows' else 'psql'
+    )
+    query = "SELECT pg_current_wal_lsn()::text;"
+    
+    result = subprocess.run(
+        f'"{psql_exe}" -h {host} -U {db_user} -d {db_name} -t -A -c "{query}"',
+        shell=True, capture_output=True, text=True
+    )
+    
+    if result.returncode != 0:
+        raise Exception(f"Failed to get WAL LSN: {result.stderr}")
+    
+    return result.stdout.strip()

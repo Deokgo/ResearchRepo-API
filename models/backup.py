@@ -10,6 +10,7 @@ class Backup(BaseModel):
     files_backup_location = db.Column(db.String(255), nullable=False)
     total_size = db.Column(db.BigInteger)
     parent_backup_id = db.Column(db.String(50), db.ForeignKey('backup.backup_id'), nullable=True)
+    wal_lsn = db.Column(db.String(50), nullable=True)
 
 
 

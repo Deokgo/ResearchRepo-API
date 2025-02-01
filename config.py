@@ -58,7 +58,11 @@ class Config:
 
     # Set PG_BIN using the detection function
     PG_BIN = detect_pg_bin()
+    PGDATA = 'C:/Program Files/PostgreSQL/15/data'  # Adjust this path to match your PostgreSQL data directory
 
 # Initialize the engine and session factory based on the config
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
+
+
+    
