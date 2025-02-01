@@ -3,6 +3,8 @@
 import os
 import platform
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 
 def detect_pg_bin():
@@ -56,3 +58,7 @@ class Config:
 
     # Set PG_BIN using the detection function
     PG_BIN = detect_pg_bin()
+
+# Initialize the engine and session factory based on the config
+engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
+Session = sessionmaker(bind=engine)
