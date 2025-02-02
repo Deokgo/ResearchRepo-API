@@ -16,6 +16,7 @@ from enum import Enum
 from flask_jwt_extended import get_jwt_identity
 import hashlib
 import time
+from sqlalchemy import create_engine
 
 backup = Blueprint('backup', __name__)
 
@@ -68,7 +69,9 @@ def create_backup(backup_type):
         try:
             pg_bin = current_app.config.get('PG_BIN')
             if not pg_bin:
-                raise Exception("PostgreSQL binary directory not found")
+                # Default PostgreSQL binary location on Windows
+                pg_bin = r'C:\Program Files\PostgreSQL\15\bin'
+            print(f"Using PostgreSQL binaries from: {pg_bin}")
 
             if backup_type == BackupType.FULL:
                 # Use pg_basebackup for full backup with WAL
@@ -92,52 +95,64 @@ def create_backup(backup_type):
                 if not last_full:
                     raise Exception("No full backup found. Please create a full backup first")
 
-                # Use pg_receivewal to capture WAL changes since last backup.
-                # (In this "fixed" code we assume that later you update your incremental routine
-                # to produce a dump file named "database.backup" so that pg_restore can use it.)
+                # Create WAL archive directory
+                wal_dir = os.path.join(db_backup_dir, 'wal')
+                os.makedirs(wal_dir, exist_ok=True)
+
+                # Get current WAL location
+                current_lsn = get_current_wal_lsn(pg_bin, host, db_user, db_name)
+                print(f"Current WAL LSN: {current_lsn}")
+
+                # Get last backup's LSN
+                last_lsn = last_full.wal_lsn or '0/0'
+                print(f"Last backup LSN: {last_lsn}")
+
+                # Use pg_receivewal to get WAL files
                 pg_receivewal_exe = os.path.join(
                     pg_bin, 
                     'pg_receivewal.exe' if platform.system() == 'Windows' else 'pg_receivewal'
                 )
-                wal_dir = os.path.join(db_backup_dir, 'wal')
-                os.makedirs(wal_dir, exist_ok=True)
 
-                last_backup = Backup.query.order_by(Backup.backup_date.desc()).first()
-                start_lsn = last_backup.wal_lsn if last_backup else None
+                # Archive WAL files since last backup
+                archive_command = f'"{pg_receivewal_exe}" -h {host} -U {db_user} ' \
+                                f'--directory="{wal_dir}" ' \
+                                f'--start-lsn={last_lsn} ' \
+                                f'--stop-lsn={current_lsn} ' \
+                                f'--verbose'
 
-                backup_command = f'"{pg_receivewal_exe}" -h {host} -U {db_user} -D "{wal_dir}" ' \
-                                f'--start-lsn {start_lsn if start_lsn else "0/0"} -n'
-                print(f"Executing incremental backup command: {backup_command}")
-                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
+                print(f"Executing incremental backup command: {archive_command}")
+                result = subprocess.run(archive_command, shell=True, capture_output=True, text=True)
                 
                 if result.returncode != 0:
                     raise Exception(f"Incremental backup failed: {result.stderr}")
 
-                # Get current WAL location for next backup
-                current_lsn = get_current_wal_lsn(pg_bin, host, db_user, db_name)
+                # Compress the WAL files
+                wal_archive = os.path.join(db_backup_dir, 'wal_archive.tar.gz')
+                with tarfile.open(wal_archive, "w:gz") as tar:
+                    tar.add(wal_dir, arcname=os.path.basename(wal_dir))
 
-            # Backup repository files
-            repository_dir = 'research_repository'
-            archive_path = os.path.join(files_backup_dir, 'repository_backup.tar.xz')
-            
-            if os.path.exists(repository_dir):
-                if backup_type == BackupType.FULL:
-                    # Full backup of all files
-                    with tarfile.open(archive_path, "w:xz") as tar:
-                        tar.add(repository_dir, arcname=os.path.basename(repository_dir))
-                else:
+                # Create backup.info file with metadata
+                backup_info_path = os.path.join(db_backup_dir, 'backup.info')
+                with open(backup_info_path, 'w') as f:
+                    f.write(f"backup_id={backup_id}\n")
+                    f.write(f"backup_type={backup_type.value}\n")
+                    f.write(f"parent_backup_id={last_full.backup_id}\n")
+                    f.write(f"start_wal_location={last_lsn}\n")
+                    f.write(f"end_wal_location={current_lsn}\n")
+                    f.write(f"backup_date={datetime.now().isoformat()}\n")
+
+                # Also backup changed repository files
+                repository_dir = 'research_repository'
+                archive_path = os.path.join(files_backup_dir, 'repository_backup.tar.xz')
+                
+                if os.path.exists(repository_dir):
                     # Incremental backup of changed files only
-                    last_full = Backup.query.filter_by(backup_type=BackupType.FULL.value)\
-                                        .order_by(Backup.backup_date.desc())\
-                                        .first()
-                    if not last_full:
-                        raise Exception("No full backup found. Please create a full backup first")
                     changed_files = get_changed_files(repository_dir, last_full.backup_date)
-                    
-                    with tarfile.open(archive_path, "w:xz") as tar:
-                        for filepath in changed_files:
-                            arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
-                            tar.add(filepath, arcname=arcname)
+                    if changed_files:  # Only create archive if there are changes
+                        with tarfile.open(archive_path, "w:xz") as tar:
+                            for filepath in changed_files:
+                                arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
+                                tar.add(filepath, arcname=arcname)
 
             # Calculate total size
             total_size = sum(
@@ -192,6 +207,7 @@ def restore_backup(backup_id):
     try:
         # Remove any active SQLAlchemy sessions
         db.session.remove()
+        db.engine.dispose()
 
         # Get backup information BEFORE stopping PostgreSQL
         target_backup = Backup.query.filter_by(backup_id=backup_id).first()
@@ -259,6 +275,9 @@ def restore_backup(backup_id):
             if not pgdata:
                 raise Exception("PGDATA not configured for restore.")
 
+            # Convert path to proper Windows format
+            pgdata = pgdata.replace('/', '\\')
+            
             # Backup current data directory before removing it
             if os.path.exists(pgdata):
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -269,49 +288,202 @@ def restore_backup(backup_id):
             os.makedirs(pgdata)
 
             try:
-                # Extract the backup
-                base_backup_file = os.path.join(backup_info['database_backup_location'], 'base.tar.gz')
-                if not os.path.exists(base_backup_file):
-                    raise Exception(f"Backup file not found: {base_backup_file}")
+                # Create a logs directory in an accessible location
+                logs_dir = os.path.join(os.getcwd(), 'postgresql_logs')
+                if not os.path.exists(logs_dir):
+                    os.makedirs(logs_dir)
+                print(f"Created logs directory: {logs_dir}")
 
-                with tarfile.open(base_backup_file, "r:gz") as tar:
-                    tar.extractall(path=pgdata)
-                print(f"Extracted backup from {base_backup_file}")
+                # Update postgresql.conf with absolute path for logs
+                postgresql_conf = os.path.join(pgdata, 'postgresql.conf')
+                # Convert path to proper format for PostgreSQL
+                postgres_log_path = logs_dir.replace('\\', '/')
+                
+                log_config = (
+                    "\n# Enhanced logging configuration\n"
+                    "log_destination = 'stderr'\n"
+                    "logging_collector = on\n"
+                    f"log_directory = '{postgres_log_path}'\n"
+                    "log_filename = 'postgresql.log'\n"  # Single log file
+                    "log_rotation_age = 0\n"  # Disable automatic rotation
+                    "log_truncate_on_rotation = off\n"
+                    "log_min_messages = debug1\n"
+                    "log_min_error_statement = debug1\n"
+                    "log_min_duration_statement = 0\n"
+                    "log_connections = on\n"
+                    "log_disconnections = on\n"
+                    "log_duration = on\n"
+                    "log_line_prefix = '%m [%p] %q%u@%d '\n"
+                )
 
-                # Create recovery.signal file
-                recovery_signal_path = os.path.join(pgdata, 'recovery.signal')
-                with open(recovery_signal_path, 'w') as f:
-                    pass
-                print("Created recovery.signal file")
+                # Try a different restore approach
+                try:
+                    # Get PostgreSQL binary directory from config
+                    pg_bin = current_app.config.get('PG_BIN')
+                    if not pg_bin:
+                        # Default PostgreSQL binary location on Windows
+                        pg_bin = r'C:\Program Files\PostgreSQL\15\bin'
+                    print(f"Using PostgreSQL binaries from: {pg_bin}")
 
-                # Update recovery configuration
-                recovery_conf_path = os.path.join(pgdata, 'postgresql.auto.conf')
-                with open(recovery_conf_path, 'a') as f:
-                    f.write("\n# Recovery configuration\n")
-                    f.write("restore_command = ''\n")
-                    f.write("recovery_target_timeline = 'latest'\n")
-                print("Updated recovery configuration")
+                    # First, stop PostgreSQL and clean data directory
+                    if os.path.exists(pgdata):
+                        shutil.rmtree(pgdata)
+                    os.makedirs(pgdata)
 
-                # Set proper permissions
-                subprocess.run(f'icacls "{pgdata}" /reset', shell=True, check=True)
-                subprocess.run(f'icacls "{pgdata}" /grant "NT AUTHORITY\\NetworkService":(OI)(CI)F /T', shell=True, check=True)
-                subprocess.run(f'icacls "{pgdata}" /grant "NT AUTHORITY\\SYSTEM":(OI)(CI)F /T', shell=True, check=True)
-                subprocess.run(f'icacls "{pgdata}" /grant "BUILTIN\\Administrators":(OI)(CI)F /T', shell=True, check=True)
-                print("Set permissions on PGDATA directory")
+                    # Extract backup
+                    base_backup_file = os.path.join(backup_info['database_backup_location'], 'base.tar.gz')
+                    if not os.path.exists(base_backup_file):
+                        raise Exception(f"Backup file not found: {base_backup_file}")
 
-                # Start PostgreSQL service
-                start_command = f'net start {service_name}'
-                subprocess.run(start_command, shell=True, check=True, capture_output=True)
-                time.sleep(15)
+                    print("Extracting backup...")
+                    with tarfile.open(base_backup_file, "r:gz") as tar:
+                        tar.extractall(path=pgdata)
 
-                # Verify service started
-                status_command = f'sc query {service_name}'
-                status_result = subprocess.run(status_command, shell=True, capture_output=True, text=True)
-                if "RUNNING" not in status_result.stdout.upper():
-                    raise Exception("Failed to start PostgreSQL service")
+                    # Run pg_resetwal to reset the WAL
+                    pg_resetwal_exe = os.path.join(
+                        pg_bin, 
+                        'pg_resetwal.exe' if platform.system() == 'Windows' else 'pg_resetwal'
+                    )
+                    reset_command = f'"{pg_resetwal_exe}" -f "{pgdata}"'
+                    print(f"Running pg_resetwal: {reset_command}")
+                    result = subprocess.run(reset_command, shell=True, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        print(f"pg_resetwal error: {result.stderr}")
+                        raise Exception("Failed to reset WAL")
+                    print(f"pg_resetwal output: {result.stdout}")
 
-                print("PostgreSQL service started successfully")
-                restore_successful = True
+                    # Create minimal postgresql.conf
+                    with open(postgresql_conf, 'w') as f:
+                        f.write(log_config)
+                        f.write("\n# Basic configuration\n")
+                        f.write("listen_addresses = '*'\n")
+                        f.write("port = 5432\n")
+                        f.write("max_connections = 100\n")
+                        f.write("shared_buffers = 128MB\n")
+                        f.write("dynamic_shared_memory_type = windows\n")
+                        f.write("max_wal_size = 1GB\n")
+                        f.write("min_wal_size = 80MB\n")
+                        f.write("wal_level = replica\n")
+                        f.write("archive_mode = off\n")
+
+                    # Remove any existing recovery files
+                    recovery_files = ['recovery.signal', 'backup_label', 'postgresql.auto.conf']
+                    for file in recovery_files:
+                        file_path = os.path.join(pgdata, file)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"Removed {file}")
+
+                    # Ensure pg_wal directory exists
+                    pg_wal_dir = os.path.join(pgdata, 'pg_wal')
+                    if not os.path.exists(pg_wal_dir):
+                        os.makedirs(pg_wal_dir)
+                    print("Created pg_wal directory")
+
+                    # Set permissions
+                    for root, dirs, files in os.walk(pgdata):
+                        for d in dirs:
+                            os.chmod(os.path.join(root, d), 0o700)
+                        for f in files:
+                            os.chmod(os.path.join(root, f), 0o600)
+
+
+                    # Try to start PostgreSQL
+                    start_command = f'net start postgresql-x64-15'
+                    result = subprocess.run(start_command, shell=True, capture_output=True, text=True)
+                    print(f"Start command output: {result.stdout}")
+                    
+                    # Increase initial wait time after service start
+                    time.sleep(15)  # Increased from 10 to 15 seconds
+
+                    # Test connection and return response
+                    try:
+                        # Create a new connection to test with retries
+                        max_retries = 5  # Increased from 3 to 5
+                        retry_delay = 10  # Increased from 5 to 10 seconds
+                        
+                        connection_success = False
+                        for attempt in range(max_retries):
+                            try:
+                                # Test connection
+                                test_engine = create_engine(
+                                    current_app.config['SQLALCHEMY_DATABASE_URI'],
+                                    pool_pre_ping=True,  # Add connection validation
+                                    pool_timeout=30  # Increase timeout
+                                )
+                                with test_engine.connect() as conn:
+                                    # Run a simple query to verify connection
+                                    conn.execute(text("SELECT 1"))
+                                test_engine.dispose()
+                                
+                                # If we get here, connection is successful
+                                connection_success = True
+                                print(f"Database connection successful on attempt {attempt + 1}")
+                                
+                                # Wait longer before attempting to log
+                                time.sleep(5)
+                                
+                                # Add specific retries for audit trail logging
+                                audit_max_retries = 3
+                                audit_retry_delay = 5
+                                audit_success = False
+                                
+                                for audit_attempt in range(audit_max_retries):
+                                    try:
+                                        # Create fresh database session for audit logging
+                                        db.session.remove()
+                                        db.session.close()
+                                        db.engine.dispose()
+                                        
+                                        # Try to log audit trail
+                                        log_audit_trail(
+                                            user_id=user_id,
+                                            operation="RESTORE_BACKUP",
+                                            action_desc=f"Restored backup with ID: {backup_id}",
+                                            table_name="backup",
+                                            record_id=backup_id
+                                        )
+                                        print("Audit trail logged successfully")
+                                        audit_success = True
+                                        break
+                                    except Exception as audit_error:
+                                        print(f"Audit logging attempt {audit_attempt + 1}/{audit_max_retries} failed: {str(audit_error)}")
+                                        if audit_attempt < audit_max_retries - 1:
+                                            time.sleep(audit_retry_delay)
+                                            continue
+                                
+                                if not audit_success:
+                                    print("Warning: All audit logging attempts failed")
+                                
+                                break
+
+                            except Exception as e:
+                                print(f"Connection attempt {attempt + 1}/{max_retries} failed: {str(e)}")
+                                if attempt < max_retries - 1:
+                                    time.sleep(retry_delay)
+                                    continue
+                                else:
+                                    raise Exception("Failed to establish database connection after maximum retries")
+
+                        if connection_success:
+                            return jsonify({
+                                'message': 'Backup restored successfully',
+                                'backup_id': backup_id,
+                                'audit_log': 'Warning: Audit log may have failed' if not connection_success else 'Success'
+                            }), 200
+                        else:
+                            return jsonify({
+                                'error': 'Restore completed but database connection failed'
+                            }), 500
+
+                    except Exception as e:
+                        return jsonify({
+                            'error': 'Restore completed but database connection failed'
+                        }), 500
+
+                except Exception as e:
+                    print(f"Error during restore: {str(e)}")
+                    return jsonify({'error': str(e)}), 500
 
             except Exception as e:
                 # If anything fails during restore, restore the original data directory
@@ -323,7 +495,7 @@ def restore_backup(backup_id):
                     
                     # Try to start PostgreSQL with original data
                     try:
-                        subprocess.run(f'net start {service_name}', shell=True, check=True)
+                        subprocess.run('net start postgresql-x64-15', shell=True, check=True)
                         print("Restored original data directory and restarted PostgreSQL")
                     except Exception as start_error:
                         print(f"Failed to restart PostgreSQL with original data: {start_error}")
@@ -337,16 +509,6 @@ def restore_backup(backup_id):
                         shutil.rmtree(original_data_backup)
                     except Exception as e:
                         print(f"Warning: Could not remove temporary backup: {e}")
-
-        if restore_successful:
-            return jsonify({
-                'message': 'Backup restored successfully',
-                'backup_id': backup_id
-            }), 200
-        else:
-            return jsonify({
-                'error': 'Restore failed. Original data has been restored.'
-            }), 500
 
     except Exception as e:
         print(f"Error during restore: {str(e)}")
