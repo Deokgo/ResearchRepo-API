@@ -46,18 +46,20 @@ def create_backup(backup_type):
     try:
         backup_type = BackupType(backup_type.upper())
         
-        # If it's an incremental backup, check for full backup in current timeline
+        # If it's an incremental backup, find the latest backup in current timeline
+        parent_backup_id = None
         if backup_type == BackupType.INCREMENTAL:
             current_timeline = get_current_timeline()
-            has_full_backup = Backup.query.filter_by(
-                backup_type=BackupType.FULL.value,
+            latest_backup = Backup.query.filter_by(
                 timeline_id=current_timeline
-            ).first() is not None
+            ).order_by(Backup.backup_date.desc()).first()
             
-            if not has_full_backup:
+            if not latest_backup:
                 return jsonify({
                     'error': 'Cannot create incremental backup: No full backup exists in the current timeline. Please create a full backup first.'
                 }), 400
+            
+            parent_backup_id = latest_backup.backup_id
 
         backup_id = generate_backup_id(backup_type)
         
@@ -217,7 +219,7 @@ def create_backup(backup_type):
                 with open(backup_info_path, 'w') as f:
                     f.write(f"backup_id={backup_id}\n")
                     f.write(f"backup_type={backup_type.value}\n")
-                    f.write(f"parent_backup_id={last_backup.backup_id}\n")
+                    f.write(f"parent_backup_id={parent_backup_id}\n")
                     f.write(f"start_wal_location={last_lsn}\n")
                     f.write(f"end_wal_location={current_lsn}\n")
                     f.write(f"backup_date={datetime.now().isoformat()}\n")
@@ -230,22 +232,18 @@ def create_backup(backup_type):
                 for filename in filenames
             )
 
-            # Get current timeline ID
-            timeline_id = get_current_timeline()
-            
-            new_backup = Backup(
+            # Create backup record
+            backup = Backup(
                 backup_id=backup_id,
                 backup_type=backup_type.value,
                 backup_date=datetime.now(),
+                timeline_id=get_current_timeline(),
                 database_backup_location=db_backup_dir,
                 files_backup_location=files_backup_dir,
                 total_size=total_size,
-                parent_backup_id=last_backup.backup_id if backup_type == BackupType.INCREMENTAL else None,
-                wal_lsn=current_lsn if backup_type == BackupType.INCREMENTAL else None,
-                timeline_id=timeline_id  # Add timeline ID
+                parent_backup_id=parent_backup_id  # Add parent backup reference
             )
-            
-            db.session.add(new_backup)
+            db.session.add(backup)
             db.session.commit()
 
             log_audit_trail(
@@ -624,33 +622,32 @@ def restore_backup(backup_id):
         else:
             print(f"Starting incremental restore process for backup: {backup_id}")
             
-            # Get all backups in the chain with matching timeline
-            target_timeline = target_backup.timeline_id
-            backups_to_restore = Backup.query.filter(
-                Backup.backup_date <= target_backup.backup_date,
-                Backup.timeline_id == target_timeline
-            ).order_by(Backup.backup_date.asc()).all()
+            # Get all backups in the chain by following parent_backup_id
+            backups_to_restore = []
+            current_backup = target_backup
+            while current_backup:
+                backups_to_restore.insert(0, current_backup)  # Add to start of list
+                if current_backup.parent_backup_id:
+                    current_backup = Backup.query.filter_by(
+                        backup_id=current_backup.parent_backup_id
+                    ).first()
+                else:
+                    break
 
-            # Verify timeline consistency
-            if not all(b.timeline_id == target_timeline for b in backups_to_restore):
-                raise Exception("Backup chain contains inconsistent timelines")
-
-            # Verify we have a valid chain of backups
-            full_backup = next((b for b in backups_to_restore if b.backup_type == BackupType.FULL.value), None)
-            if not full_backup:
+            # Verify we have a valid chain starting with a full backup
+            if not backups_to_restore or backups_to_restore[0].backup_type != BackupType.FULL.value:
                 raise Exception("No base full backup found in the backup chain")
 
-            print(f"Found base full backup: {full_backup.backup_id}")
-            restore_successful = False
+            print(f"Found base full backup: {backups_to_restore[0].backup_id}")
             
             try:
                 # First restore the full backup using the existing working method
                 print("Restoring base full backup...")
-                base_backup_file = os.path.join(full_backup.database_backup_location, 'base.tar.gz')
-                pg_wal_backup = os.path.join(full_backup.database_backup_location, 'pg_wal.tar.gz')
+                base_backup_file = os.path.join(backups_to_restore[0].database_backup_location, 'base.tar.gz')
+                pg_wal_backup = os.path.join(backups_to_restore[0].database_backup_location, 'pg_wal.tar.gz')
                 
                 if not os.path.exists(base_backup_file) or not os.path.exists(pg_wal_backup):
-                    raise Exception(f"Required backup files not found in {full_backup.database_backup_location}")
+                    raise Exception(f"Required backup files not found in {backups_to_restore[0].database_backup_location}")
 
                 # Stop PostgreSQL service
                 print("Stopping PostgreSQL service...")
