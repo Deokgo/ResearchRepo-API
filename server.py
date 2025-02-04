@@ -169,7 +169,8 @@ def create_dash_apps(app):
         else:
             print("Dash apps cannot be created as no data is present in the ResearchOutput table.")
 
+create_dash_apps(app)
 
 if __name__ == "__main__":
-    create_dash_apps(app)
+    
     app.run(debug=True)
