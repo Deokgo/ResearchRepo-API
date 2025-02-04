@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, current_app, request
+from flask import Blueprint, jsonify, current_app, request, send_file
 import os
 import shutil
 from datetime import datetime
@@ -45,6 +45,20 @@ def get_changed_files(directory, last_backup_date=None):
 def create_backup(backup_type):
     try:
         backup_type = BackupType(backup_type.upper())
+        
+        # If it's an incremental backup, check for full backup in current timeline
+        if backup_type == BackupType.INCREMENTAL:
+            current_timeline = get_current_timeline()
+            has_full_backup = Backup.query.filter_by(
+                backup_type=BackupType.FULL.value,
+                timeline_id=current_timeline
+            ).first() is not None
+            
+            if not has_full_backup:
+                return jsonify({
+                    'error': 'Cannot create incremental backup: No full backup exists in the current timeline. Please create a full backup first.'
+                }), 400
+
         backup_id = generate_backup_id(backup_type)
         
         # Create backup directories
@@ -202,6 +216,9 @@ def create_backup(backup_type):
                 for filename in filenames
             )
 
+            # Get current timeline ID
+            timeline_id = get_current_timeline()
+            
             new_backup = Backup(
                 backup_id=backup_id,
                 backup_type=backup_type.value,
@@ -210,7 +227,8 @@ def create_backup(backup_type):
                 files_backup_location=files_backup_dir,
                 total_size=total_size,
                 parent_backup_id=last_backup.backup_id if backup_type == BackupType.INCREMENTAL else None,
-                wal_lsn=current_lsn if backup_type == BackupType.INCREMENTAL else None
+                wal_lsn=current_lsn if backup_type == BackupType.INCREMENTAL else None,
+                timeline_id=timeline_id  # Add timeline ID
             )
             
             db.session.add(new_backup)
@@ -566,10 +584,16 @@ def restore_backup(backup_id):
         else:
             print(f"Starting incremental restore process for backup: {backup_id}")
             
-            # Find all backups up to the target incremental backup
+            # Get all backups in the chain with matching timeline
+            target_timeline = target_backup.timeline_id
             backups_to_restore = Backup.query.filter(
-                Backup.backup_date <= target_backup.backup_date
+                Backup.backup_date <= target_backup.backup_date,
+                Backup.timeline_id == target_timeline
             ).order_by(Backup.backup_date.asc()).all()
+
+            # Verify timeline consistency
+            if not all(b.timeline_id == target_timeline for b in backups_to_restore):
+                raise Exception("Backup chain contains inconsistent timelines")
 
             # Verify we have a valid chain of backups
             full_backup = next((b for b in backups_to_restore if b.backup_type == BackupType.FULL.value), None)
@@ -776,6 +800,7 @@ def list_backups():
                 'backup_id': b.backup_id,
                 'backup_date': b.backup_date.isoformat(),
                 'backup_type': b.backup_type,
+                'timeline_id': b.timeline_id,
                 'database_backup_location': os.path.basename(b.database_backup_location),
                 'files_backup_location': os.path.basename(b.files_backup_location),
                 'total_size': b.total_size
@@ -827,3 +852,56 @@ def get_wal_files_between(start_lsn, end_lsn, pg_bin, pgdata):
         raise Exception(f"Failed to list WAL files: {result.stderr}")
     
     return [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
+
+def get_current_timeline():
+    """Get current timeline ID from PostgreSQL"""
+    query = "SELECT timeline_id FROM pg_control_checkpoint();"
+    with db.engine.connect() as conn:
+        result = conn.execute(text(query)).scalar()
+    return result
+
+@backup.route('/current-timeline', methods=['GET'])
+@admin_required
+def get_current_timeline_route():
+    try:
+        # Get current timeline ID from PostgreSQL
+        query = "SELECT timeline_id FROM pg_control_checkpoint();"
+        with db.engine.connect() as conn:
+            result = conn.execute(text(query)).scalar()
+        
+        return jsonify({
+            'timeline_id': result
+        }), 200
+    except Exception as e:
+        print(f"Error getting current timeline: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@backup.route('/download/<backup_id>', methods=['GET'])
+@admin_required
+def download_backup(backup_id):
+    try:
+        backup = Backup.query.filter_by(backup_id=backup_id).first()
+        if not backup:
+            return jsonify({'error': 'Backup not found'}), 404
+
+        # Create a temporary file to store the backup
+        with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as temp_file:
+            with tarfile.open(temp_file.name, 'w:gz') as tar:
+                # Add database backup
+                tar.add(backup.database_backup_location, 
+                       arcname=os.path.basename(backup.database_backup_location))
+                # Add files backup if it exists
+                if os.path.exists(backup.files_backup_location):
+                    tar.add(backup.files_backup_location, 
+                           arcname=os.path.basename(backup.files_backup_location))
+
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=f'{backup_id}.tar.gz',
+            mimetype='application/gzip'
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
