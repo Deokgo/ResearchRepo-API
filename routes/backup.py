@@ -29,14 +29,14 @@ def generate_backup_id(backup_type):
     timestamp = datetime.now().strftime(f'BK_{backup_type.value}_%Y%m%d_%H%M%S')
     return timestamp
 
-def get_changed_files(directory, last_backup_date=None):
-    """Get list of files modified since last backup"""
+def get_changed_files(repository_dir, last_backup_date):
+    """Get list of files that have changed since last backup"""
     changed_files = []
-    for root, _, files in os.walk(directory):
-        for filename in files:
-            filepath = os.path.join(root, filename)
-            file_mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
-            if last_backup_date is None or file_mtime > last_backup_date:
+    for root, _, files in os.walk(repository_dir):
+        for file in files:
+            filepath = os.path.join(root, file)
+            # Check if file was modified after last backup
+            if os.path.getmtime(filepath) > last_backup_date.timestamp():
                 changed_files.append(filepath)
     return changed_files
 
@@ -100,6 +100,14 @@ def create_backup(backup_type):
                 
                 if result.returncode != 0:
                     raise Exception(f"Full backup failed: {result.stderr}")
+
+                # Backup repository files for full backup
+                repository_dir = 'research_repository'
+                if os.path.exists(repository_dir):
+                    archive_path = os.path.join(files_backup_dir, 'repository_backup.tar.xz')
+                    print(f"Creating full backup of repository files at: {archive_path}")
+                    with tarfile.open(archive_path, "w:xz", preset=9 | lzma.PRESET_EXTREME) as tar:
+                        tar.add(repository_dir, arcname=os.path.basename(repository_dir))
                 
             else:  # Incremental backup
                 # Get PostgreSQL data directory from config
@@ -187,16 +195,22 @@ def create_backup(backup_type):
                         with lzma.open(wal_archive, 'wb', preset=9 | lzma.PRESET_EXTREME) as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
-                # Also backup changed repository files
+                # Backup changed repository files for incremental backup
                 repository_dir = 'research_repository'
                 if os.path.exists(repository_dir):
-                    changed_files = get_changed_files(repository_dir, last_backup.backup_date)
-                    if changed_files:
-                        archive_path = os.path.join(files_backup_dir, 'repository_backup.xz')
-                        with tarfile.open(archive_path, "w:xz", preset=9 | lzma.PRESET_EXTREME) as tar:
-                            for filepath in changed_files:
-                                arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
-                                tar.add(filepath, arcname=arcname)
+                    last_backup = Backup.query.filter(
+                        Backup.backup_date < datetime.now()
+                    ).order_by(Backup.backup_date.desc()).first()
+                    
+                    if last_backup:
+                        changed_files = get_changed_files(repository_dir, last_backup.backup_date)
+                        if changed_files:
+                            archive_path = os.path.join(files_backup_dir, 'repository_backup.tar.xz')
+                            print(f"Creating incremental backup of repository files at: {archive_path}")
+                            with tarfile.open(archive_path, "w:xz", preset=9 | lzma.PRESET_EXTREME) as tar:
+                                for filepath in changed_files:
+                                    arcname = os.path.relpath(filepath, start=os.path.dirname(repository_dir))
+                                    tar.add(filepath, arcname=arcname)
 
                 # Create backup.info file with metadata
                 backup_info_path = os.path.join(db_backup_dir, 'backup.info')
@@ -537,6 +551,31 @@ def restore_backup(backup_id):
                                         raise Exception("Failed to establish database connection after maximum retries")
 
                             if connection_success:
+                                # Restore repository files
+                                repository_dir = 'research_repository'
+                                files_backup = os.path.join(target_backup.files_backup_location, 'repository_backup.tar.xz')
+                                
+                                print(f"Checking for repository backup at: {files_backup}")
+                                if os.path.exists(files_backup):
+                                    print("Found repository backup file, starting restore...")
+                                    
+                                    # Backup current repository if it exists
+                                    if os.path.exists(repository_dir):
+                                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                        repo_backup_dir = f"{repository_dir}_backup_{timestamp}"
+                                        print(f"Creating backup of current repository at: {repo_backup_dir}")
+                                        shutil.copytree(repository_dir, repo_backup_dir)
+                                        shutil.rmtree(repository_dir)
+                                    
+                                    # Create repository directory if it doesn't exist
+                                    os.makedirs(repository_dir, exist_ok=True)
+                                    
+                                    # Extract repository files
+                                    print("Extracting repository files...")
+                                    with tarfile.open(files_backup, "r:xz") as tar:
+                                        tar.extractall(path=os.path.dirname(repository_dir))
+                                    print("Repository files restored successfully")
+
                                 return jsonify({
                                     'message': 'Backup restored successfully',
                                     'backup_id': backup_id,
@@ -574,12 +613,13 @@ def restore_backup(backup_id):
                     raise Exception(f"Restore failed: {str(e)}")
 
                 finally:
-                    # Clean up backup of original data directory
-                    if original_data_backup and os.path.exists(original_data_backup):
+                    # Clean up repository backup
+                    if 'repo_backup_dir' in locals() and os.path.exists(repo_backup_dir):
                         try:
-                            shutil.rmtree(original_data_backup)
+                            shutil.rmtree(repo_backup_dir)
+                            print("Cleaned up temporary repository backup")
                         except Exception as e:
-                            print(f"Warning: Could not remove temporary backup: {e}")
+                            print(f"Warning: Could not remove temporary repository backup: {e}")
 
         else:
             print(f"Starting incremental restore process for backup: {backup_id}")
@@ -756,6 +796,52 @@ def restore_backup(backup_id):
                             raise
 
                 if restore_successful:
+                    # Restore incremental repository files
+                    repository_dir = 'research_repository'
+                    files_backup = os.path.join(target_backup.files_backup_location, 'repository_backup.tar.xz')
+                    
+                    if os.path.exists(files_backup):
+                        print(f"Found incremental repository backup at: {files_backup}")
+                        
+                        # Backup current repository
+                        if os.path.exists(repository_dir):
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            repo_backup_dir = f"{repository_dir}_backup_{timestamp}"
+                            print(f"Creating backup of current repository at: {repo_backup_dir}")
+                            shutil.copytree(repository_dir, repo_backup_dir)
+                        
+                        try:
+                            # Extract changed files
+                            print("Extracting changed repository files...")
+                            with tarfile.open(files_backup, "r:xz") as tar:
+                                for member in tar.getmembers():
+                                    target_path = os.path.join(repository_dir, member.name)
+                                    # Create parent directories if they don't exist
+                                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                    # Extract file
+                                    with tar.extractfile(member) as source, open(target_path, 'wb') as target:
+                                        shutil.copyfileobj(source, target)
+                            print("Repository files restored successfully")
+                        
+                        except Exception as e:
+                            print(f"Error restoring repository files: {str(e)}")
+                            # Restore original repository if backup exists
+                            if os.path.exists(repo_backup_dir):
+                                print("Restore failed. Restoring original repository...")
+                                if os.path.exists(repository_dir):
+                                    shutil.rmtree(repository_dir)
+                                shutil.copytree(repo_backup_dir, repository_dir)
+                            raise
+                        
+                        finally:
+                            # Clean up repository backup
+                            if 'repo_backup_dir' in locals() and os.path.exists(repo_backup_dir):
+                                try:
+                                    shutil.rmtree(repo_backup_dir)
+                                    print("Cleaned up temporary repository backup")
+                                except Exception as e:
+                                    print(f"Warning: Could not remove temporary repository backup: {e}")
+
                     return jsonify({
                         'message': 'Backup restored successfully',
                         'backup_id': backup_id
@@ -778,12 +864,13 @@ def restore_backup(backup_id):
                         print(f"Failed to restore original data: {restore_error}")
                 return jsonify({'error': str(e)}), 500
             finally:
-                # Clean up backup of original data directory
-                if 'original_data_backup' in locals() and original_data_backup and os.path.exists(original_data_backup):
+                # Clean up repository backup
+                if 'repo_backup_dir' in locals() and os.path.exists(repo_backup_dir):
                     try:
-                        shutil.rmtree(original_data_backup)
+                        shutil.rmtree(repo_backup_dir)
+                        print("Cleaned up temporary repository backup")
                     except Exception as e:
-                        print(f"Warning: Could not remove temporary backup: {e}")
+                        print(f"Warning: Could not remove temporary repository backup: {e}")
 
     except Exception as e:
         print(f"Error during restore: {str(e)}")
