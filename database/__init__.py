@@ -1,4 +1,4 @@
-from config import Session
+
 
 """
 Sample usage:

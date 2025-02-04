@@ -10,6 +10,8 @@ from . import view_manager
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week
+import numpy as np
 
 def default_if_empty(selected_values, default_values):
     """
@@ -71,6 +73,7 @@ class Engage_Dash:
                 ),
             ],
             className="mb-4",
+            style={"display": "none", "opacity": "0.5"},
         )
 
         slider = html.Div(
@@ -88,6 +91,7 @@ class Engage_Dash:
                 ),
             ],
             className="mb-4",
+            style={"display": "none", "opacity": "0.5"},
         )
 
         button = html.Div(
@@ -100,7 +104,19 @@ class Engage_Dash:
         controls = dbc.Col(
             dbc.Card(
                 [
-                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
+                    html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
+                    dbc.Label("Select Date Range:", style={"color": "#08397C"}),
+                            dcc.Dropdown(
+                                id='date-range-dropdown',
+                                options=[
+                                    {'label': 'Last 7 Days', 'value': '7D'},
+                                    {'label': 'Last 2 Weeks', 'value': '14D'},
+                                    {'label': 'Last Month', 'value': '1M'},
+                                    {'label': 'Last 6 Months', 'value': '6M'}
+                                ],
+                                value='7D',
+                                placeholder='Select a date range'
+                            ),
                     college,
                     status,
                     slider,
@@ -179,18 +195,7 @@ class Engage_Dash:
                     dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                     dbc.Col(
                         html.Div([  # Wrapper div for horizontal scrolling
-                            dbc.Label("Select Date Range:", style={"color": "#08397C"}),
-                            dcc.Dropdown(
-                                id='date-range-dropdown',
-                                options=[
-                                    {'label': 'Last 7 Days', 'value': '7D'},
-                                    {'label': 'Last 2 Weeks', 'value': '14D'},
-                                    {'label': 'Last Month', 'value': '1M'},
-                                    {'label': 'Last 6 Months', 'value': '6M'}
-                                ],
-                                value='7D',
-                                placeholder='Select a date range'
-                            ),
+                            
                             dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
                             dbc.Row(
                                 dcc.Loading(
@@ -269,33 +274,46 @@ class Engage_Dash:
         random_colors = px.colors.qualitative.Plotly[:len(unique_programs)]
         self.program_colors = {program: random_colors[i % len(random_colors)] for i, program in enumerate(unique_programs)}
     
-    def update_line_plot(self, selected_colleges, selected_status, selected_years, start_date, end_date):
-        # Get filtered data
-        df = view_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
-
-        if df.empty:
-            print("Debug: Filtered DataFrame is empty.")
-            return go.Figure()
-
-        # Convert 'date' column to datetime
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        if df['date'].isnull().any():
-            print("Debug: Some dates could not be converted.")
+   
+    def update_line_plot(self, selected_colleges, start_date, end_date):
+        # Ensure selected_colleges is a standard Python list or array
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]  # Ensure single college is in a list
         
-        # Group by 'date' and calculate the sum
-        df = df.groupby('date').agg({'total_views': 'sum',
-                                    'total_unique_views': 'sum',
-                                    'total_downloads': 'sum'}).reset_index()
+        # Fetch data using get_engagement_over_time
+        # Assuming get_engagement_over_time returns a list of tuples [(date, total_views, total_unique_views, total_downloads), ...]
+        engagement_data = get_engagement_over_time(start_date, end_date, selected_colleges)
+
+        if not engagement_data:
+            print("Debug: Engagement data is empty.")
+            return px.line(title='Views and Downloads Over Time').update_layout(
+                annotations=[{
+                    'text': "No data available to chart for the selected colleges and date range.",
+                    'xref': 'paper', 'yref': 'paper',
+                    'x': 0.5, 'y': 0.5,
+                    'showarrow': False,
+                    'font': {'size': 16, 'color': 'red'}
+                }]
+            )
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(engagement_data, columns=['engagement_date', 'total_views', 'total_unique_views', 'total_downloads'])
+
+
+        # Ensure 'engagement_date' is in datetime format
+        df['engagement_date'] = pd.to_datetime(df['engagement_date'], errors='coerce')
+        if df['engagement_date'].isnull().any():
+            print("Debug: Some engagement dates could not be converted.")
 
         # Generate a full date range for reindexing
         full_date_range = pd.date_range(start=start_date, end=end_date, freq='D')
-        df = df.set_index('date').reindex(full_date_range).reset_index()
+        df = df.set_index('engagement_date').reindex(full_date_range).reset_index()
         df.columns = ['date', 'total_views', 'total_unique_views', 'total_downloads']
 
         # Fill missing values with 0
         df = df.fillna(0)
-
-        print("Debug: Data after reindexing and filling missing values:", df.head())
 
         # Transform data for Plotly
         df_melted = df.melt(id_vars=['date'], 
@@ -314,188 +332,275 @@ class Engage_Dash:
 
         return fig
     
-    def top_10_research_ids(self, selected_colleges, selected_status, selected_years, start_date, end_date):
-        # Get filtered data
-        df = view_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+    def top_10_research_views(self, selected_colleges, selected_status, selected_years, start_date, end_date, view_type='total_unique_views'):
+        # Ensure selected_colleges is a standard Python list or array
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]  # Ensure single college is in a list
+
+        # Check if selected_colleges is empty
+        if not selected_colleges:
+            raise ValueError("No colleges selected.")
         
+        # Call get_top_10_research_ids_by_views to get the top 10 research IDs by views
+        top_views_data = get_top_10_research_ids_by_views(start_date, end_date, selected_colleges, view_type)
+        
+        # Check if the data is empty
+        if not top_views_data:
+            print("Debug: No data available to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Convert the result to a DataFrame
+        df = pd.DataFrame(top_views_data)
+
+        # Check if the DataFrame has the expected columns
+        if 'research_id' not in df.columns or 'total_value' not in df.columns or 'previous_value' not in df.columns or 'change_status' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'research_id', 'total_value', 'previous_value', and 'change_status'.")
+
+        # Ensure the DataFrame is not empty
         if df.empty:
-            print("Debug: Filtered DataFrame is empty.")
-            return go.Figure()
+            print("Debug: No valid data in the DataFrame to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Sort DataFrame by total views in descending order
+        df = df.sort_values(by='total_value', ascending=False)
+        print(df)
         
-        # Convert 'date' column to datetime
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        
-        if df['date'].isnull().any():
-            print("Debug: Some dates could not be converted.")
-        
-        # Filter date range
-        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-        
-        # Aggregate views by Research ID
-        research_views = df.groupby('research_id')['total_unique_views'].sum().reset_index()
-        
-        # Get top 10 Research IDs by view count, sorting in descending order
-        top_10_research_ids = research_views.sort_values(by='total_unique_views', ascending=True).head(10)
-        
-        print("Debug: Top 10 Research IDs by view count:", top_10_research_ids)
-        
-        # Create the vertical bar chart
-        fig = px.bar(
-            top_10_research_ids,
-            x='total_unique_views',
-            y='research_id',
-            orientation='h',  # Horizontal orientation
-            title='Top 10 Research Outputs (Unique Views)',
-            hover_data={'research_id': True},  # Show Research ID on hover
-            labels={'research_id': 'Research ID', 'total_unique_views': 'Total Views'},
-            color='total_unique_views',
-            color_continuous_scale='Viridis'
-        )
-        
-        # Adjust layout
+        # Assign ranks with ties having the same rank
+        df['Rank'] = df['total_value'].rank(method='min', ascending=False).astype(int)
+
+        # Map change_status values to corresponding arrows
+        change_arrows = df['change_status'].map({
+            'increasing': '↑', 
+            'decreasing': '↓', 
+            'no change': '−'
+        })
+
+        # Create table
+        fig = go.Figure(data=[go.Table(
+            header=dict(
+                values=["Rank", "Research ID", "Total Views", "Previous Views", "Change Status"],
+                fill_color='lightgray',
+                align='center'
+            ),
+            cells=dict(
+                values=[df['Rank'], df['research_id'], df['total_value'], df['previous_value'], change_arrows],
+                fill_color='white',
+                align='center'
+            )
+        )])
+
         fig.update_layout(
-            title_font_size=20,
-            title_x=0.5,
-            yaxis_title='Research ID',
-            xaxis_title='Total Views',
-            showlegend=False
+            title=f"Top 10 Research Outputs by {view_type.replace('_', ' ').title()}",
+            title_x=0.5
         )
-        
+
         return fig
     
     def top_10_research_downloads(self, selected_colleges, selected_status, selected_years, start_date, end_date):
-        # Get filtered data
-        df = view_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        # Ensure selected_colleges is a standard Python list or array
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]  # Ensure single college is in a list
+
+        # Check if selected_colleges is empty
+        if not selected_colleges:
+            raise ValueError("No colleges selected.")
+
+        # Call get_top_10_research_ids_by_downloads to get the top 10 research IDs by downloads
+        top_downloads_data = get_top_10_research_ids_by_downloads(start_date, end_date, selected_colleges)
         
+        # Check if the data is empty
+        if not top_downloads_data:
+            print("Debug: No data available to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Convert the result to a DataFrame
+        df = pd.DataFrame(top_downloads_data)
+
+        # Check if the DataFrame has the expected columns
+        if 'research_id' not in df.columns or 'total_downloads' not in df.columns or 'previous_total_downloads' not in df.columns or 'trend' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'research_id', 'total_downloads', 'previous_total_downloads', and 'trend'.")
+
+        # Ensure the DataFrame is not empty
         if df.empty:
-            print("Debug: Filtered DataFrame is empty.")
-            return go.Figure()
+            print("Debug: No valid data in the DataFrame to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Sort DataFrame by total downloads in descending order
+        df = df.sort_values(by='total_downloads', ascending=False)
+        print(df)
         
-        # Convert 'date' column to datetime
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        
-        if df['date'].isnull().any():
-            print("Debug: Some dates could not be converted.")
-        
-        # Filter date range
-        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-        
-        # Aggregate downloads by Research ID
-        research_downloads = df.groupby('research_id')['total_downloads'].sum().reset_index()
-        
-        # Get top 10 Research IDs by download count, sorting in descending order
-        top_10_research_downloads = research_downloads.sort_values(by='total_downloads', ascending=True).head(10)
-        
-        print("Debug: Top 10 Research IDs by download count:", top_10_research_downloads)
-        
-        # Create the vertical bar chart
-        fig = px.bar(
-            top_10_research_downloads,
-            x='total_downloads',
-            y='research_id',
-            orientation='h',  # Horizontal orientation
-            title='Top 10 Research Outputs (Downloads)',
-            hover_data={'research_id': True},  # Show Research ID on hover
-            labels={'research_id': 'Research ID', 'total_downloads': 'Total Downloads'},
-            color='total_downloads',
-            color_continuous_scale='Viridis'
-        )
-        
-        # Adjust layout
+        # Assign ranks with ties having the same rank
+        df['Rank'] = df['total_downloads'].rank(method='min', ascending=False).astype(int)
+
+        # Map trend values to corresponding arrows
+        trend_arrows = df['trend'].map({
+            'Increasing': '↑', 
+            'Decreasing': '↓', 
+            'No Change': '−'
+        })
+
+        # Create table
+        fig = go.Figure(data=[go.Table(
+            header=dict(
+                values=["Rank", "Research ID", "Total Downloads", "Previous Downloads", "Trend"],
+                fill_color='lightgray',
+                align='center'
+            ),
+            cells=dict(
+                values=[df['Rank'], df['research_id'], df['total_downloads'], df['previous_total_downloads'], trend_arrows],
+                fill_color='white',
+                align='center'
+            )
+        )])
+
         fig.update_layout(
-            title_font_size=20,
-            title_x=0.5,
-            yaxis_title='Research ID',
-            xaxis_title='Total Downloads',
-            showlegend=False
+            title="Top 10 Research Outputs by Downloads",
+            title_x=0.5
         )
-        
+
         return fig
 
-    def create_heatmap(self, selected_colleges, selected_status, selected_years, start_date, end_date):
-        # Get filtered data
-        df = view_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+
+
+    def create_area_chart(self, selected_colleges, selected_status, selected_years, start_date, end_date):
+        # Get engagement data from the database
+        engagement_data = get_engagement_by_day_of_week(start_date, end_date, selected_colleges)
+        print(engagement_data)
         
-        if df.empty:
-            print("Debug: Filtered DataFrame is empty.")
+        if not engagement_data:
+            print("Debug: Engagement data is empty.")
             return go.Figure()
         
-        # Convert 'date' column to datetime
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        # Convert to DataFrame
+        df = pd.DataFrame(engagement_data)
+        print("this is the df:", df)
         
-        if df['date'].isnull().any():
-            print("Debug: Some dates could not be converted.")
+        # Strip any leading or trailing spaces from 'day_of_week'
+        df['day_of_week'] = df['day_of_week'].str.strip()
+
+        # Ensure that 'day_of_week' is a categorical variable with the correct order
+        day_of_week_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        df['day_of_week'] = pd.Categorical(df['day_of_week'], categories=day_of_week_order, ordered=True)
+
+        # Sort the DataFrame by day of the week
+        df = df.sort_values('day_of_week')
+        print("this is after", df)
         
-        # Filter date range
-        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-        
-        # Extract day of week and time of day
-        df['day_of_week'] = df['date'].dt.day_name()
-        df['time_of_day'] = df['date'].dt.hour
-        
-        # Filter out invalid data
-        df = df.dropna(subset=['day_of_week', 'time_of_day', 'total_views'])
-        
-        # Aggregate views by day and time
-        heatmap_data = df.groupby(['day_of_week', 'time_of_day'])['total_views'].sum().reset_index()
-        
-        print("Debug: Heatmap data for visualization:", heatmap_data)
-        
-        # Create pivot table with proper keyword arguments
-        pivot_table = heatmap_data.pivot(
-            index='day_of_week',
-            columns='time_of_day',
-            values='total_views'
+        # Create the bubble chart using Plotly Express
+        fig = px.scatter(
+            df,
+            x='day_of_week',
+            y='total_downloads',  # You can replace with another column if needed
+            size='total_views',  # Bubble size based on total views
+            title='Total Downloads by Day of the Week (Bubble Chart)',
+            labels={'day_of_week': 'Day of Week', 'total_downloads': 'Total Downloads'},
+            color='day_of_week',  # Optional: Color by day of the week
+            hover_name='day_of_week',  # Hover over the day of the week
+            hover_data=['total_views', 'total_downloads']  # Hover data with views and downloads
         )
         
-        # Create the heatmap figure
-        fig = px.imshow(
-            pivot_table,
-            aspect='auto',
-            color_continuous_scale='Viridis',
-            labels={'x': 'Time of Day', 'y': 'Day of Week', 'color': 'Total Views'},
-            title='Most Active Days of the Week'
+        # Customize the layout to adjust bubble size
+        fig.update_traces(
+            marker=dict(
+                sizemode='area', 
+                opacity=0.6, 
+                sizeref=0.1  # Adjust the sizeref value to scale the size of bubbles
+            )
         )
-        
+        fig.update_layout(title='Bubble Chart of Total Downloads by Day of the Week', template='plotly_white')
+
         return fig
-    
+        
     def create_conversion_funnel(self, selected_colleges, selected_status, selected_years, start_date, end_date):
-        # Get filtered data
-        df = view_manager.get_filtered_data(selected_colleges, selected_status, selected_years)
+        # Get funnel data from the database
+        funnel_data = get_funnel_data(start_date, end_date, college_ids=selected_colleges)
 
+        if not funnel_data:
+            print("Debug: Funnel data is empty or could not be fetched.")
+            return go.Figure()
+
+        # Convert funnel data to a DataFrame for processing
+        df = pd.DataFrame(funnel_data)
+
+        # Check if data is empty
         if df.empty:
             print("Debug: Filtered DataFrame is empty.")
             return go.Figure()
 
-        # Convert 'date' column to datetime and filter by date range
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        if df['date'].isnull().any():
-            print("Debug: Some dates could not be converted.")
-        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+        # Check if necessary columns exist in the fetched data
+        if not all(col in df.columns for col in ['stage', 'total_views']):
+            print("Debug: Missing necessary columns in the data.")
+            return go.Figure()
 
-        # Aggregate the data
-        funnel_data = df.agg({'total_views': 'sum', 
-                            'total_unique_views': 'sum', 
-                            'total_downloads': 'sum'}).reset_index()
-        funnel_data.columns = ['Metric', 'Count']
+        # Aggregate the data to ensure one record per stage
+        funnel_data = df.groupby('stage', as_index=False).agg({
+            'total_views': 'sum'
+        })
 
-        # Define the order of metrics for the funnel
+        # Rename stages to match the funnel steps
+        stage_mapping = {
+            'Total Views': 'total_views',
+            'Total Unique Views': 'total_unique_views',
+            'Total Downloads': 'total_downloads'
+        }
+
+        funnel_data['Metric'] = funnel_data['stage'].map(stage_mapping)
+
+        # Filter out any unmapped stages
+        funnel_data = funnel_data.dropna(subset=['Metric'])
+
+        # Reorder the data
         funnel_data['Metric'] = pd.Categorical(funnel_data['Metric'], 
                                             categories=['total_views', 'total_unique_views', 'total_downloads'], 
                                             ordered=True)
         funnel_data = funnel_data.sort_values('Metric')
 
-        print("Debug: Funnel data for visualization:", funnel_data)
-
         # Create the horizontal funnel chart using Plotly
         fig = px.funnel(funnel_data, 
-                        x='Count', 
+                        x='total_views', 
                         y='Metric', 
                         orientation='h',  # Set the funnel to horizontal
                         title='Conversion Funnel: Views → Unique Views → Downloads',
-                        labels={'Metric': 'Stage', 'Count': 'Count'})
+                        labels={'Metric': 'Stage', 'total_views': 'Count'})
 
         return fig
+
 
     def get_date_range(self,selected_range):
         end_date = datetime.now()
@@ -534,19 +639,15 @@ class Engage_Dash:
             Output('college_line_plot', 'figure'),
             [
                 Input('college', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
                 Input('date-range-dropdown', 'value')
             ]
         )
-        def update_linechart(selected_colleges, selected_status, selected_years,selected_range):
+        def update_linechart(selected_colleges,selected_range):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
               # Default to last 7 days
             start,end = self.get_date_range(selected_range)
            
-            return self.update_line_plot(selected_colleges, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+            return self.update_line_plot(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
 
         @self.dash_app.callback(
             Output('college_pie_chart', 'figure'),
@@ -582,7 +683,7 @@ class Engage_Dash:
               # Default to last 7 days
             start,end = self.get_date_range(selected_range)
            
-            return self.create_heatmap(selected_colleges, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+            return self.create_area_chart(selected_colleges, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
 
         @self.dash_app.callback(
             Output('proceeding_conference_line_graph', 'figure'),
@@ -600,7 +701,7 @@ class Engage_Dash:
               # Default to last 7 days
             start,end = self.get_date_range(selected_range)
            
-            return self.top_10_research_ids(selected_colleges, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+            return self.top_10_research_views(selected_colleges, selected_status, selected_years,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
         
         @self.dash_app.callback(
             Output('proceeding_conference_bar_plot', 'figure'),
