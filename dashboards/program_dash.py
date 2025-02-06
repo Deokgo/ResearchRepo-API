@@ -155,7 +155,7 @@ class ProgDashApp:
                         children=dcc.Graph(
                             id='college_line_plot',
                             config={"responsive": True},
-                            style={"height": "400px"}  # Applied chart height from layout
+                            style={"height": "300px"}  # Applied chart height from layout
                         )
                     ), 
                     width=8, 
@@ -168,7 +168,7 @@ class ProgDashApp:
                         children=dcc.Graph(
                             id='college_pie_chart',
                             config={"responsive": True},
-                            style={"height": "400px"}  # Applied chart height from layout
+                            style={"height": "300px"}  # Applied chart height from layout
                         )
                     ), 
                     width=4, 
@@ -183,7 +183,11 @@ class ProgDashApp:
                     dcc.Loading(
                         id="loading-research-status",
                         type="circle",
-                        children=dcc.Graph(id='research_status_bar_plot'),
+                        children=dcc.Graph(
+                            id='research_status_bar_plot',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     ), 
                     width=6, 
                     style={"height": "auto", "overflow": "hidden"}
@@ -192,7 +196,11 @@ class ProgDashApp:
                     dcc.Loading(
                         id="loading-research-type",
                         type="circle",
-                        children=dcc.Graph(id='research_type_bar_plot'),
+                        children=dcc.Graph(
+                            id='research_type_bar_plot',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     ), 
                     width=6, 
                     style={"height": "auto", "overflow": "hidden"}
@@ -218,7 +226,7 @@ class ProgDashApp:
                         children=dcc.Graph(
                             id='nonscopus_scopus_graph',
                             config={"responsive": True},
-                            style={"height": "300px"}  # Applied chart height from layout
+                            style={"height": "200px"}  # Applied chart height from layout
                         )
                     )
                 ], width=6, style={"height": "auto", "overflow": "hidden"}),
@@ -226,7 +234,11 @@ class ProgDashApp:
                     dcc.Loading(
                         id="loading-nonscopus-scopus2",
                         type="circle",
-                        children=dcc.Graph(id='nonscopus_scopus_bar_plot')
+                        children=dcc.Graph(
+                            id='nonscopus_scopus_bar_plot',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     ),
                     width=6,
                     style={"height": "auto", "overflow": "hidden"}
@@ -241,7 +253,11 @@ class ProgDashApp:
                     dcc.Loading(
                         id="loading-sdg-bar",
                         type="circle",
-                        children=dcc.Graph(id='sdg_bar_plot'),
+                        children=dcc.Graph(
+                            id='sdg_bar_plot',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     ), 
                     width=12
                 )
@@ -266,7 +282,7 @@ class ProgDashApp:
                         children=dcc.Graph(
                             id='proceeding_conference_graph',
                             config={"responsive": True},
-                            style={"height": "300px"}  # Applied chart height from layout
+                            style={"height": "200px"}  # Applied chart height from layout
                         )
                     )
                 ], width=6, style={"height": "auto", "overflow": "hidden"}),
@@ -274,7 +290,11 @@ class ProgDashApp:
                     dcc.Loading(
                         id="loading-proceeding-conference2",
                         type="circle",
-                        children=dcc.Graph(id='proceeding_conference_bar_plot')
+                        children=dcc.Graph(
+                            id='proceeding_conference_bar_plot',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     ),
                     width=6,
                     style={"height": "auto", "overflow": "hidden"}
@@ -525,7 +545,7 @@ class ProgDashApp:
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
-            height=400
+            height=300
         )
         
         return fig_line
@@ -572,7 +592,7 @@ class ProgDashApp:
         fig_pie.update_layout(
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
-            height=400,
+            height=300,
             title=dict(text=title, font=dict(size=12)),  # Smaller title
         )
 
@@ -610,6 +630,7 @@ class ProgDashApp:
             xaxis_title=dict(text='Research Type', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             title=dict(text=title, font=dict(size=12)),  # Smaller title
+            height=300
         )
 
         return fig
@@ -653,7 +674,8 @@ class ProgDashApp:
             xaxis=dict(
                 tickvals=status_order,  # This should match the unique statuses in pivot_df index
                 ticktext=status_order    # This ensures that the order of the statuses is displayed correctly
-            )
+            ),
+            height=300
         )
 
         # Ensure the x-axis is sorted in the defined order
@@ -710,7 +732,8 @@ class ProgDashApp:
                 ticktext=self.all_sdgs
             ),
             yaxis=dict(autorange="reversed"),
-            showlegend=True
+            showlegend=True,
+            height=300
         )
         
         return fig
@@ -740,7 +763,7 @@ class ProgDashApp:
             xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=400
+            height=300
         )
 
         return fig_bar
@@ -772,7 +795,7 @@ class ProgDashApp:
             xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=400
+            height=300
         )
 
         return fig_bar
@@ -812,7 +835,7 @@ class ProgDashApp:
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=300,  # Smaller chart height
+            height=200,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
             xaxis=dict(
                 type='linear',  
@@ -858,7 +881,7 @@ class ProgDashApp:
         fig_pie.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=300,  # Smaller chart height
+            height=200,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
             legend=dict(font=dict(size=9)),  # Smaller legend text
         )
@@ -901,7 +924,7 @@ class ProgDashApp:
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=300,  # Smaller chart height
+            height=200,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
             xaxis=dict(
                 type='linear',  
@@ -948,7 +971,7 @@ class ProgDashApp:
         fig_pie.update_layout(
             title=dict(text='Publication Type Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=300,  # Smaller chart height
+            height=200,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
             legend=dict(font=dict(size=9)),  # Smaller legend text
         )
