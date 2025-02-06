@@ -44,19 +44,6 @@ class CollegeDashApp:
     def set_layout(self):
         """Common layout shared across all dashboards."""
 
-        section = html.Div(
-            [
-                dcc.Dropdown(
-                    id="term",
-                    options=[{'label': value, 'value': value} for value in db_manager.get_unique_values('term')],
-                    value=None,  # Ensure the placeholder appears
-                    placeholder="Select a section...",
-                    style={"width": "100%"},
-                ),
-            ],
-            className="mb-4",
-        )
-
         college = html.Div(
             [
                 dbc.Label("Select College:", style={"color": "#08397C"}),
@@ -142,7 +129,7 @@ class CollegeDashApp:
                 [
                     html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
                     html.Div(
-                        [section, college, program, status, term, slider, button], 
+                        [college, program, status, term, slider, button], 
                         style={"font-size": "0.85rem", "padding": "5px"}  # Reduce font size and padding
                     ),
                 ],
@@ -158,48 +145,72 @@ class CollegeDashApp:
             )
         )
 
-        text_display = dbc.Container([
-            dbc.Row([
-                
-            ], style={"margin": "0", "display": "flex", "justify-content": "space-around", "align-items": "center"})
-        ], style={"padding": "2rem"}, id="text-display-container")
-
         main_dash = dbc.Container([
-                dbc.Row([  # Row for the line and pie charts
-                    dbc.Col(dcc.Graph(id='college_line_plot'), width=8, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}),
-                    dbc.Col(dcc.Graph(id='college_pie_chart'), width=4, style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"})
-                ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
+            dbc.Row([  # Row for the line and pie charts
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-college-line",
+                        type="circle",
+                        children=dcc.Graph(id='college_line_plot'),
+                    ), 
+                    width=8, 
+                    style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}
+                ),
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-college-pie",
+                        type="circle",
+                        children=dcc.Graph(id='college_pie_chart'),
+                    ), 
+                    width=4, 
+                    style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}
+                )
+            ], style={"margin": "10px"}),
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash1 = dbc.Container([
-                dbc.Row([
-                    dbc.Col(dcc.Graph(id='research_status_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"}),
-                    dbc.Col(dcc.Graph(id='research_type_bar_plot'), width=6, style={"height": "auto", "overflow": "hidden"})
-                ], style={"margin": "10px"})
-            ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px","transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
-
-        sub_dash3 = dbc.Container([
             dbc.Row([
-                dbc.Col(dcc.Graph(id='sdg_bar_plot'), width=12)  # Increase width to 12 to occupy the full space
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-research-status",
+                        type="circle",
+                        children=dcc.Graph(id='research_status_bar_plot'),
+                    ), 
+                    width=6, 
+                    style={"height": "auto", "overflow": "hidden"}
+                ),
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-research-type",
+                        type="circle",
+                        children=dcc.Graph(id='research_type_bar_plot'),
+                    ), 
+                    width=6, 
+                    style={"height": "auto", "overflow": "hidden"}
+                )
             ], style={"margin": "10px"})
-        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})  # Adjust the scale as needed
 
         sub_dash2 = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     dcc.Tabs(
-                        id='nonscopus_scopus_tabs', 
-                        value='line', 
+                        id='nonscopus_scopus_tabs',
+                        value='line',
                         children=[
-                            dcc.Tab(label='Scopus & Non-Scopus Over Time', value='line', style={"font-size": "10px"}),
-                            dcc.Tab(label='Scopus vs. Non-Scopus', value='pie', style={"font-size": "12px"})
-                        ], 
+                            dcc.Tab(label='Line Chart', value='line', style={"font-size": "10px"}),
+                            dcc.Tab(label='Pie Chart', value='pie', style={"font-size": "12px"})
+                        ],
                         style={"font-size": "14px"}  # Adjust overall font size of tabs
                     ),
                     dcc.Loading(
                         id="loading-nonscopus-scopus1",
                         type="circle",
-                        children=dcc.Graph(id='nonscopus_scopus_graph')
+                        children=dcc.Graph(
+                            id='nonscopus_scopus_graph',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     )
                 ], width=6, style={"height": "auto", "overflow": "hidden"}),
                 dbc.Col(
@@ -214,6 +225,20 @@ class CollegeDashApp:
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
 
+
+        sub_dash3 = dbc.Container([
+            dbc.Row([
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-sdg-bar",
+                        type="circle",
+                        children=dcc.Graph(id='sdg_bar_plot'),
+                    ), 
+                    width=12
+                )
+            ], style={"margin": "10px"})
+        ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
+
         sub_dash4 = dbc.Container([
             dbc.Row([
                 dbc.Col([
@@ -221,15 +246,19 @@ class CollegeDashApp:
                         id='proceeding_conference_tabs',
                         value='line',  # Default view is the line chart
                         children=[
-                            dcc.Tab(label='Publication Formats Over Time', value='line', style={"font-size": "10px"}),
-                            dcc.Tab(label='Journal vs. Proceeding', value='pie', style={"font-size": "12px"})
+                            dcc.Tab(label='Line Chart', value='line', style={"font-size": "10px"}),
+                            dcc.Tab(label='Pie Chart', value='pie', style={"font-size": "12px"})
                         ],
                         style={"font-size": "14px"}  # Adjust overall font size of tabs
                     ),
                     dcc.Loading(
                         id="loading-proceeding-conference1",
                         type="circle",
-                        children=dcc.Graph(id='proceeding_conference_graph')
+                        children=dcc.Graph(
+                            id='proceeding_conference_graph',
+                            config={"responsive": True},
+                            style={"height": "300px"}  # Applied chart height from layout
+                        )
                     )
                 ], width=6, style={"height": "auto", "overflow": "hidden"}),
                 dbc.Col(
@@ -243,7 +272,7 @@ class CollegeDashApp:
                 )
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-        
+
         self.dash_app.layout = html.Div([
             # URL tracking
             dcc.Location(id='url', refresh=False),
@@ -268,7 +297,6 @@ class CollegeDashApp:
                             html.Div(id='college-info'),
                             html.Div(id='program-info'),
                             # Content of the Dash App
-                            #dbc.Row(text_display, style={"flex": "1"}),
                             # Buttons in a single row
                             dbc.Row([
                                 dbc.Col(dbc.Button("Research Output(s)", id="open-total-modal", color="primary", size="lg", n_clicks=0, style={
@@ -333,35 +361,15 @@ class CollegeDashApp:
                                 dbc.ModalBody(id="pullout-modal-content"),
                                 dbc.ModalFooter(dbc.Button("Close", id="close-pullout-modal", className="ms-auto", n_clicks=0)),
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
-                            dbc.Row(
-                                dcc.Loading(
-                                    id="loading-main-dash",
-                                    type="circle",
-                                    children=main_dash
-                                ), style={"flex": "2"}
-                            ),
-                            dbc.Row(
-                                dcc.Loading(
-                                    id="loading-sub-dash1",
-                                    type="circle",
-                                    children=sub_dash1
-                                ), style={"flex": "1"}
-                            ),    
-                            dbc.Row(
-                                dcc.Loading(
-                                    id="loading-sub-dash3",
-                                    type="circle",
-                                    children=sub_dash3
-                                ), style={"flex": "1"}
-                            ),    
-                            dbc.Row(
-                                children=sub_dash2,
-                                style={"flex": "1"}
-                            ),
-                            dbc.Row(
-                                children=sub_dash4,
-                                style={"flex": "1"}
-                            ),
+
+                            # Tabs
+                            dcc.Tabs(id="dashboard-tabs", value='main', children=[
+                                dcc.Tab(label="Main Dashboard", value="main", children=[main_dash]),
+                                dcc.Tab(label="Research Status", value="sub1", children=[sub_dash1]),
+                                dcc.Tab(label="Scopus and Non-Scopus", value="sub2", children=[sub_dash2]),
+                                dcc.Tab(label="SDG-Targeted Research", value="sub3", children=[sub_dash3]),
+                                dcc.Tab(label="Publication Types", value="sub4", children=[sub_dash4]),
+                            ]),
                         ], style={
                             "height": "100%",
                             "display": "flex",
@@ -695,7 +703,7 @@ class CollegeDashApp:
         grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
         x_axis = 'program_id'
         xaxis_title = 'Programs'
-        title = f'Publication Formats per Program'
+        title = f'Publication Types per Program'
 
         fig_bar = px.bar(
             grouped_df,
@@ -788,11 +796,19 @@ class CollegeDashApp:
             labels={'scopus': 'Scopus vs. Non-Scopus'}
         )
 
-        # Update layout for the figure
+        # Update layout for a smaller and more responsive design
+        fig_pie.update_traces(
+            textfont=dict(size=9),  # Smaller text inside the pie
+            insidetextfont=dict(size=9),  # Smaller text inside the pie
+            marker=dict(line=dict(width=0.5))  # Thinner slice borders
+        )
+
         fig_pie.update_layout(
-            title='Scopus vs. Non-Scopus Research Distribution',
+            title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=400
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_pie
@@ -830,7 +846,7 @@ class CollegeDashApp:
         )
 
         fig_line.update_layout(
-            title=dict(text='Publication Formats Over Time', font=dict(size=12)),  # Smaller title
+            title=dict(text='Publication Types Over Time', font=dict(size=12)),  # Smaller title
             xaxis_title='Academic Year',
             yaxis_title='Number of Research Outputs',
             template='plotly_white',
@@ -871,11 +887,19 @@ class CollegeDashApp:
             labels={'journal': 'Publication Format'}
         )
 
-        # Update layout for the figure
+        # Update layout for a smaller and more responsive design
+        fig_pie.update_traces(
+            textfont=dict(size=9),  # Smaller text inside the pie
+            insidetextfont=dict(size=9),  # Smaller text inside the pie
+            marker=dict(line=dict(width=0.5))  # Thinner slice borders
+        )
+
         fig_pie.update_layout(
-            title='Publication Format Distribution',
+            title=dict(text='Publication Format Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
-            height=400
+            height=300,  # Smaller chart height
+            margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
+            legend=dict(font=dict(size=9)),  # Smaller legend text
         )
 
         return fig_pie
@@ -1086,7 +1110,7 @@ class CollegeDashApp:
 
             return html.H5(
                 f'College Department: {self.college}', 
-                style={'textAlign': 'center', 'marginTop': '5px'}
+                style={'textAlign': 'center', 'marginTop': '0px'}
             ),  f'{len(filtered_data)} Research Output(s)', \
                 f'{len([d for d in filtered_data if d["status"] == "READY"])} Ready for Publication', \
                 f'{len([d for d in filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \
