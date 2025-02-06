@@ -351,7 +351,7 @@ class MainDashboard:
                             dcc.Tabs(id="dashboard-tabs", value='main', children=[
                                 dcc.Tab(label="Performance Overview", value="main", children=[main_dash]),
                                 dcc.Tab(label="Research Statuses and Types", value="sub1", children=[sub_dash1]),
-                                dcc.Tab(label="Scopus & Non-Scopus", value="sub2", children=[sub_dash2]),
+                                dcc.Tab(label="Scopus and Non-Scopus", value="sub2", children=[sub_dash2]),
                                 dcc.Tab(label="SDG Distribution", value="sub3", children=[sub_dash3]),
                                 dcc.Tab(label="Publication Types", value="sub4", children=[sub_dash4]),
                             ]),
