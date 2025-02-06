@@ -169,7 +169,7 @@ class Engage_College:
                         dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                         dbc.Col(
                             html.Div([  # Wrapper div for horizontal scrolling
-                                html.Div(id='college-info'),
+                                html.H5('User Engagement Dashboard', id='college-info'),
                                 dbc.Label("Select Date Range:", style={"color": "#08397C"}),
                                 dcc.Dropdown(
                                     id='date-range-dropdown',
@@ -668,9 +668,8 @@ class Engage_College:
 
             # Return the role, college, and program information
             return html.H3(
-                    f'College Department: {self.college}', 
+                    f'User Engagement Dashboard – {self.college}', 
                     style={
-                        'textAlign': 'center',
                         'marginTop': '10px'
                     }
                 ), dbc.Container([

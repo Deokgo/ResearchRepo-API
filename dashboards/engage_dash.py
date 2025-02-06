@@ -195,7 +195,7 @@ class Engage_Dash:
                     dbc.Col(controls, width=2, style={"height": "100%"}),  # Controls on the side
                     dbc.Col(
                         html.Div([  # Wrapper div for horizontal scrolling
-                            
+                            html.H5('User Engagement Dashboard'),
                             dbc.Row(text_display, style={"flex": "1"}),  # Display `text_display` at the top
                             dbc.Row(
                                 dcc.Loading(

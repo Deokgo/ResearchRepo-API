@@ -321,7 +321,7 @@ class SDG_Map_College:
                     dbc.Col(controls, width=2, style={"height": "100%"}),
                     dbc.Col([
                         dbc.Container([
-                            html.Div(id='college-info'),
+                            html.H5('SDG Impact Dashboard', id='college-info'),
                             html.H4("sample",id="chosen-sdg"),
                             html.Div("This dashboard analyzes the institution’s research alignment with the global Sustainable Development Goals (SDGs), highlighting trends, strengths, and areas for improvement. It provides an overview of research performance across SDG categories, supporting data-driven decisions to enhance sustainable development efforts.")
                         ], style={"padding":"20px"}),
@@ -1416,9 +1416,8 @@ class SDG_Map_College:
 
             # Return the role, college, and program information
             return html.H3(
-                    f'College Department: {self.college}', 
+                    f'SDG Impact Dashboard – {self.college}', 
                     style={
-                        'textAlign': 'center',
                         'marginTop': '10px'
                     }
                 )

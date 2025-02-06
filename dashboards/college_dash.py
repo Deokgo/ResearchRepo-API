@@ -151,7 +151,11 @@ class CollegeDashApp:
                     dcc.Loading(
                         id="loading-college-line",
                         type="circle",
-                        children=dcc.Graph(id='college_line_plot'),
+                        children=dcc.Graph(
+                            id='college_line_plot',
+                            config={"responsive": True},
+                            style={"height": "400px"}  # Applied chart height from layout
+                        )
                     ), 
                     width=8, 
                     style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}
@@ -160,7 +164,11 @@ class CollegeDashApp:
                     dcc.Loading(
                         id="loading-college-pie",
                         type="circle",
-                        children=dcc.Graph(id='college_pie_chart'),
+                        children=dcc.Graph(
+                            id='college_pie_chart',
+                            config={"responsive": True},
+                            style={"height": "400px"}  # Applied chart height from layout
+                        )
                     ), 
                     width=4, 
                     style={"height": "auto", "overflow": "hidden", "paddingTop": "20px"}
@@ -289,13 +297,7 @@ class CollegeDashApp:
                     # Main dashboard content
                     dbc.Col(
                         html.Div([  # Wrapper div for horizontal scrolling
-                            html.H1(self.title),
-                            html.P(self.college),
-                            html.P(self.program),
-                            html.Div(id='output-container'),
-                            html.Div(id='user-role'),
-                            html.Div(id='college-info'),
-                            html.Div(id='program-info'),
+                            html.H5('Institutional Performance Dashboard', id='college-info'),
                             # Content of the Dash App
                             # Buttons in a single row
                             dbc.Row([
@@ -363,13 +365,58 @@ class CollegeDashApp:
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
 
                             # Tabs
-                            dcc.Tabs(id="dashboard-tabs", value='main', children=[
-                                dcc.Tab(label="Performance Overview", value="main", children=[main_dash]),
-                                dcc.Tab(label="Research Statuses and Types", value="sub1", children=[sub_dash1]),
-                                dcc.Tab(label="Scopus and Non-Scopus", value="sub2", children=[sub_dash2]),
-                                dcc.Tab(label="SDG Distribution", value="sub3", children=[sub_dash3]),
-                                dcc.Tab(label="Publication Types", value="sub4", children=[sub_dash4]),
-                            ]),
+                            dcc.Tabs(
+                                id="dashboard-tabs",
+                                value='main',
+                                children=[
+                                    dcc.Tab(
+                                        label="Performance Overview",
+                                        value="main",
+                                        children=[
+                                            html.Div(main_dash, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
+                                        ],
+                                        style={"font-size": "14px"},
+                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
+                                    ),
+                                    dcc.Tab(
+                                        label="Research Statuses and Types",
+                                        value="sub1",
+                                        children=[
+                                            html.Div(sub_dash1, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
+                                        ],
+                                        style={"font-size": "14px"},
+                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
+                                    ),
+                                    dcc.Tab(
+                                        label="Scopus and Non-Scopus",
+                                        value="sub2",
+                                        children=[
+                                            html.Div(sub_dash2, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
+                                        ],
+                                        style={"font-size": "14px"},
+                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
+                                    ),
+                                    dcc.Tab(
+                                        label="SDG Distribution",
+                                        value="sub3",
+                                        children=[
+                                            html.Div(sub_dash3, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
+                                        ],
+                                        style={"font-size": "14px"},
+                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
+                                    ),
+                                    dcc.Tab(
+                                        label="Publication Types",
+                                        value="sub4",
+                                        children=[
+                                            html.Div(sub_dash4, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
+                                        ],
+                                        style={"font-size": "14px"},
+                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
+                                    ),
+                                ],
+                                style={'width': '100%', 'display': 'flex', 'justify-content': 'center', 'fontSize': '12px'}
+                            ),
                         ], style={
                             "height": "100%",
                             "display": "flex",
@@ -472,9 +519,9 @@ class CollegeDashApp:
         
         # Update the layout for aesthetics and usability
         fig_line.update_layout(
-            title=title,
-            xaxis_title='Academic Year',
-            yaxis_title='Number of Research Outputs',
+            title=dict(text=title, font=dict(size=12)),  # Smaller title
+            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
             height=400
@@ -524,7 +571,7 @@ class CollegeDashApp:
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
             height=400,
-            title=title
+            title=dict(text=title, font=dict(size=12)),  # Smaller title
         )
 
         return fig_pie
@@ -556,9 +603,9 @@ class CollegeDashApp:
 
         fig.update_layout(
             barmode='group',
-            xaxis_title='Research Type',  
-            yaxis_title='Number of Research Outputs',  
-            title=title
+            xaxis_title=dict(text='Research Type', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            title=dict(text=title, font=dict(size=12)),  # Smaller title
         )
 
         return fig
@@ -594,9 +641,9 @@ class CollegeDashApp:
 
         fig.update_layout(
             barmode='group',
-            xaxis_title='Research Status',  
-            yaxis_title='Number of Research Outputs',  
-            title=title,
+            xaxis_title=dict(text='Research Status', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            title=dict(text=title, font=dict(size=12)),  # Smaller title,
             xaxis=dict(
                 tickvals=status_order,  # This should match the unique statuses in pivot_df index
                 ticktext=status_order    # This ensures that the order of the statuses is displayed correctly
@@ -684,9 +731,9 @@ class CollegeDashApp:
         )
         
         fig_bar.update_layout(
-            title=title,
-            xaxis_title=xaxis_title,
-            yaxis_title='Number of Research Outputs',
+            title=dict(text=title, font=dict(size=12)),  # Smaller title,
+            xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             height=400
         )
@@ -716,9 +763,9 @@ class CollegeDashApp:
         )
         
         fig_bar.update_layout(
-            title=title,
-            xaxis_title=xaxis_title,
-            yaxis_title='Number of Research Outputs',
+            title=dict(text=title, font=dict(size=12)),  # Smaller title,
+            xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             height=400
         )
@@ -757,8 +804,8 @@ class CollegeDashApp:
 
         fig_line.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),  # Smaller title
-            xaxis_title='Academic Year',
-            yaxis_title='Number of Research Outputs',
+            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             height=300,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
@@ -847,8 +894,8 @@ class CollegeDashApp:
 
         fig_line.update_layout(
             title=dict(text='Publication Types Over Time', font=dict(size=12)),  # Smaller title
-            xaxis_title='Academic Year',
-            yaxis_title='Number of Research Outputs',
+            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             height=300,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
@@ -1109,8 +1156,8 @@ class CollegeDashApp:
             filtered_data = filtered_data.to_dict(orient='records')
 
             return html.H5(
-                f'College Department: {self.college}', 
-                style={'textAlign': 'center', 'marginTop': '0px'}
+                f'Institutional Performance Dashboard – {self.college}', 
+                style={'marginTop': '0px'}
             ),  f'{len(filtered_data)} Research Output(s)', \
                 f'{len([d for d in filtered_data if d["status"] == "READY"])} Ready for Publication', \
                 f'{len([d for d in filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \

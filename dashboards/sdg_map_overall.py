@@ -299,6 +299,7 @@ class SDG_Map:
                     # Main Content
                     dbc.Col([
                         dbc.Container([
+                            html.H5('SDG Impact Dashboard'),
                             html.H4("Sample", id="chosen-sdg"),
                             html.Div(
                                 "This dashboard analyzes the institution’s research alignment with the global Sustainable Development Goals (SDGs), highlighting trends, strengths, and areas for improvement. It provides an overview of research performance across SDG categories, supporting data-driven decisions to enhance sustainable development efforts.",
