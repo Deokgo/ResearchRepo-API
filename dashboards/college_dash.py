@@ -364,10 +364,10 @@ class CollegeDashApp:
 
                             # Tabs
                             dcc.Tabs(id="dashboard-tabs", value='main', children=[
-                                dcc.Tab(label="Main Dashboard", value="main", children=[main_dash]),
-                                dcc.Tab(label="Research Status", value="sub1", children=[sub_dash1]),
-                                dcc.Tab(label="Scopus and Non-Scopus", value="sub2", children=[sub_dash2]),
-                                dcc.Tab(label="SDG-Targeted Research", value="sub3", children=[sub_dash3]),
+                                dcc.Tab(label="Performance Overview", value="main", children=[main_dash]),
+                                dcc.Tab(label="Research Statuses and Types", value="sub1", children=[sub_dash1]),
+                                dcc.Tab(label="Scopus & Non-Scopus", value="sub2", children=[sub_dash2]),
+                                dcc.Tab(label="SDG Distribution", value="sub3", children=[sub_dash3]),
                                 dcc.Tab(label="Publication Types", value="sub4", children=[sub_dash4]),
                             ]),
                         ], style={
@@ -712,7 +712,7 @@ class CollegeDashApp:
             color='journal',
             barmode='group',
             color_discrete_map=self.palette_dict,
-            labels={'journal': 'Publication Format'}
+            labels={'journal': 'Publication Type'}
         )
         
         fig_bar.update_layout(
@@ -835,7 +835,7 @@ class CollegeDashApp:
             y='Count',
             color='journal',
             color_discrete_map=self.palette_dict,
-            labels={'journal': 'Publication Format'},
+            labels={'journal': 'Publication Type'},
             markers=True  # Ensure points are visible even if no lines
         )
 
@@ -884,7 +884,7 @@ class CollegeDashApp:
             values='Count',
             color='journal',
             color_discrete_map=self.palette_dict,
-            labels={'journal': 'Publication Format'}
+            labels={'journal': 'Publication Type'}
         )
 
         # Update layout for a smaller and more responsive design
@@ -895,7 +895,7 @@ class CollegeDashApp:
         )
 
         fig_pie.update_layout(
-            title=dict(text='Publication Format Distribution', font=dict(size=12)),  # Smaller title
+            title=dict(text='Publication Type Distribution', font=dict(size=12)),  # Smaller title
             template='plotly_white',
             height=300,  # Smaller chart height
             margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
