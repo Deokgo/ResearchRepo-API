@@ -10,7 +10,7 @@ from . import view_manager
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week
+from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week, get_engagement_summary
 import numpy as np
 
 def default_if_empty(selected_values, default_values):
@@ -543,7 +543,7 @@ class Engage_Dash:
                 sizeref=0.1  # Adjust the sizeref value to scale the size of bubbles
             )
         )
-        fig.update_layout(title='Bubble Chart of Total Downloads by Day of the Week', template='plotly_white')
+        fig.update_layout(title='Most Active Days of the Week', template='plotly_white')
 
         return fig
         
@@ -734,32 +734,48 @@ class Engage_Dash:
         #"""
         @self.dash_app.callback(
             Output('text-display-container', 'children'),
-            Input("data-refresh-interval", "n_intervals")
+            [
+                Input("data-refresh-interval", "n_intervals"),
+                Input('college', 'value'),
+                Input('date-range-dropdown', 'value')
+                ]
         )
-        def refresh_text_display(n_intervals):
+        def refresh_text_display(n_intervals, selected_colleges, selected_range):
+            print(f"🔄 Refresh triggered! Interval: {n_intervals}")
+            print(f"📌 Colleges selected: {selected_colleges}")
+            print(f"📌 Date Range selected: {selected_range}")
+
+            # Ensure selected_colleges is a valid Python list
+            selected_colleges = list(default_if_empty(selected_colleges, self.default_colleges))
+            
+            # Get the start and end date from the selected range
+            start, end = self.get_date_range(selected_range)
+            print(f"📅 Date range applied: {start} to {end}")
+
+            # Fetch engagement data
+            engagement_data = get_engagement_summary(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'), selected_colleges)
+            
+            # If no data is returned, set default values
+            if not engagement_data:
+                total_views = total_unique_views = total_downloads = ave_views = conversion_rate = 0
+            else:
+                total_views = sum(item["total_views"] for item in engagement_data)
+                total_unique_views = sum(item["total_unique_views"] for item in engagement_data)
+                total_downloads = sum(item["total_downloads"] for item in engagement_data)
+                
+                ave_views = round(total_views / total_unique_views, 2) if total_unique_views else 0
+                conversion_rate = round((total_downloads / total_unique_views) * 100, 2) if total_unique_views else 0
+
+            print(f"📊 Total Views: {total_views}, Unique Views: {total_unique_views}, Downloads: {total_downloads}")
+
             return dbc.Container([
-                    dbc.Row([
-                        dbc.Col(
-                        self.create_display_card("Views", str(view_manager.get_sum_value('total_views'))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Unique Views", str(view_manager.get_sum_value('total_unique_views'))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Downloads", str(view_manager.get_sum_value('total_downloads'))),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Average Views per Research Output", f"{view_manager.get_average_views_per_research_id():.2f}%"),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    ),
-                    dbc.Col(
-                        self.create_display_card("Conversion Rate", f"{view_manager.get_conversion_rate():.2f}%"),
-                        style={"display": "flex", "justify-content": "center", "align-items": "center", "padding": "0", "margin": "0"}
-                    )
-                    ])
+                dbc.Row([
+                    dbc.Col(self.create_display_card("Views", str(total_views))),
+                    dbc.Col(self.create_display_card("Unique Views", str(total_unique_views))),
+                    dbc.Col(self.create_display_card("Downloads", str(total_downloads))),
+                    dbc.Col(self.create_display_card("Average Views per Research Output", f"{ave_views:.2f}")),
+                    dbc.Col(self.create_display_card("Conversion Rate", f"{conversion_rate:.2f}%"))
                 ])
-        #"""
+            ])
+
 

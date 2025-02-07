@@ -31,11 +31,16 @@ def get_aggregated_user_engagement():
 
 
 def get_engagement_summary(start_date, end_date, college_filter=None):
-    """Fetches aggregated user engagement summary between given dates, with an optional college filter."""
-    
-    # Create a session
     session = Session()
-
+    """
+    Fetches aggregated user engagement summary between given dates, with an optional college filter.
+    
+    :param session: SQLAlchemy session object
+    :param start_date: Start date for filtering engagement data
+    :param end_date: End date for filtering engagement data
+    :param college_filter: Optional college ID filter
+    :return: List of dictionaries containing engagement summary
+    """
     try:
         # Prepare the SQL query
         query = text("""
@@ -47,20 +52,21 @@ def get_engagement_summary(start_date, end_date, college_filter=None):
                 ave_views,
                 conversion_rate_percentage
             FROM get_engagement_summary(:start_date, :end_date, :college_filter)
-        """)
+        """
+        )
 
         # Execute the query
         result = session.execute(query, {
             'start_date': start_date,
             'end_date': end_date,
-            'college_filter': college_filter
+            'college_filter': college_filter if college_filter is not None else None
         })
 
         # Process the result into a list of dictionaries
-        engagement_data = [dict(row) for row in result.mappings()]
-        return engagement_data
+        return [dict(row) for row in result.mappings()]
     finally:
         session.close()
+
 
 def get_engagement_over_time(start_date, end_date, college_filter=None):
     """Fetches user engagement metrics over time within a date range, optionally filtering by college."""
