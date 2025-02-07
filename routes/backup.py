@@ -873,6 +873,153 @@ def restore_backup(backup_id):
         print(f"Error during restore: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+    
+@backup.route('/restore-from-file', methods=['POST'])
+@admin_required
+def restore_from_file():
+    original_data_backup = None
+    try:
+        if 'backup_file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['backup_file']
+        if not file.filename.endswith('.tar.gz'):
+            return jsonify({'error': 'Invalid file format. Must be a .tar.gz file'}), 400
+
+        # Create temporary directory to extract the backup
+        with tempfile.TemporaryDirectory() as temp_dir:
+            backup_path = os.path.join(temp_dir, 'backup.tar.gz')
+            file.save(backup_path)
+
+            # Extract the backup
+            with tarfile.open(backup_path, 'r:gz') as tar:
+                tar.extractall(path=temp_dir)
+            
+            # Verify backup structure
+            database_dir = os.path.join(temp_dir, 'database')
+            if not os.path.exists(database_dir):
+                raise Exception("Invalid backup file: Missing database directory")
+
+            # Stop PostgreSQL service
+            print("Stopping PostgreSQL service...")
+            subprocess.run('net stop postgresql-x64-15', shell=True, check=True)
+            time.sleep(10)
+
+            # Backup current PGDATA
+            pgdata = current_app.config.get('PGDATA')
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            original_data_backup = f"{pgdata}_backup_{timestamp}"
+            if os.path.exists(pgdata):
+                shutil.copytree(pgdata, original_data_backup)
+                shutil.rmtree(pgdata)
+            os.makedirs(pgdata)
+
+            try:
+                # Extract base backup
+                base_backup = os.path.join(database_dir, 'base.tar.gz')
+                with tarfile.open(base_backup, 'r:gz') as tar:
+                    tar.extractall(path=pgdata)
+
+                # Extract WAL files if they exist
+                pg_wal_backup = os.path.join(database_dir, 'pg_wal.tar.gz')
+                if os.path.exists(pg_wal_backup):
+                    pg_wal_dir = os.path.join(pgdata, 'pg_wal')
+                    os.makedirs(pg_wal_dir, exist_ok=True)
+                    with tarfile.open(pg_wal_backup, 'r:gz') as tar:
+                        tar.extractall(path=pg_wal_dir)
+
+                # Create recovery.signal file
+                recovery_signal = os.path.join(pgdata, 'recovery.signal')
+                open(recovery_signal, 'w').close()
+
+                # Update postgresql.conf
+                postgresql_conf = os.path.join(pgdata, 'postgresql.conf')
+                with open(postgresql_conf, 'w') as f:
+                    f.write("listen_addresses = '*'\n")
+                    f.write("port = 5432\n")
+                    f.write("max_connections = 100\n")
+                    f.write("shared_buffers = 128MB\n")
+                    f.write("dynamic_shared_memory_type = windows\n")
+                    f.write("max_wal_size = 1GB\n")
+                    f.write("min_wal_size = 80MB\n")
+                    f.write("wal_level = replica\n")
+                    f.write("restore_command = 'copy \"%p\" \"%f\"'\n")
+                    f.write("recovery_target_timeline = 'latest'\n")
+
+                # Set proper permissions
+                for root, dirs, files in os.walk(pgdata):
+                    for d in dirs:
+                        os.chmod(os.path.join(root, d), 0o700)
+                    for f in files:
+                        os.chmod(os.path.join(root, f), 0o600)
+
+                # Start PostgreSQL service
+                print("Starting PostgreSQL service...")
+                subprocess.run('net start postgresql-x64-15', shell=True, check=True)
+                time.sleep(15)
+
+                # Test connection with retries
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        # Create a new connection to test
+                        test_engine = create_engine(
+                            current_app.config['SQLALCHEMY_DATABASE_URI'],
+                            pool_pre_ping=True,
+                            pool_timeout=30
+                        )
+                        with test_engine.connect() as conn:
+                            conn.execute(text("SELECT 1"))
+                        test_engine.dispose()
+                        print("Database connection successful")
+                        
+                        # Close existing connections
+                        db.session.remove()
+                        db.session.close()
+                        db.engine.dispose()
+                        
+                        # Wait before attempting to log
+                        time.sleep(5)
+                        
+                        # Log audit trail
+                        break
+                    except Exception as e:
+                        print(f"Connection attempt {attempt + 1} failed: {str(e)}")
+                        if attempt < max_retries - 1:
+                            time.sleep(10)
+                        else:
+                            raise Exception("Failed to establish database connection")
+
+                # Restore repository files
+                repository_dir = 'research_repository'
+                files_dir = os.path.join(temp_dir, 'files')
+                if os.path.exists(files_dir):
+                    if os.path.exists(repository_dir):
+                        shutil.rmtree(repository_dir)
+                    shutil.copytree(files_dir, repository_dir)
+
+                return jsonify({'message': 'Backup restored successfully'}), 200
+
+            except Exception as e:
+                # Restore original data on failure
+                if os.path.exists(original_data_backup):
+                    if os.path.exists(pgdata):
+                        shutil.rmtree(pgdata)
+                    shutil.copytree(original_data_backup, pgdata)
+                    subprocess.run('net start postgresql-x64-15', shell=True)
+                raise
+
+    except Exception as e:
+        print(f"Error restoring from file: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        # Clean up backup directory
+        if original_data_backup and os.path.exists(original_data_backup):
+            try:
+                shutil.rmtree(original_data_backup)
+            except Exception as e:
+                print(f"Warning: Could not remove temporary backup: {e}")
 
 @backup.route('/list', methods=['GET'])
 @admin_required
