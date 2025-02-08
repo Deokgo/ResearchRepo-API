@@ -4,9 +4,12 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import numpy as np
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
 import dash
+from database.institutional_performance_queries import get_data_for_performance_overview, get_data_for_research_type_bar_plot, get_data_for_research_status_bar_plot, get_data_for_scopus_section, get_data_for_jounal_section, get_data_for_sdg, get_data_for_modal_contents, get_data_for_text_displays
+
 
 def default_if_empty(selected_values, default_values):
     """
@@ -511,7 +514,33 @@ class ProgDashApp:
 
     
     def update_line_plot(self, selected_program, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_program, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_program, np.ndarray):
+            selected_program = selected_program.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_program, str):
+            selected_program = [selected_program]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_performance_overview
+        filtered_data_with_term = get_data_for_performance_overview(None, selected_program, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_program, selected_status, selected_years, selected_terms)
 
         if len(selected_program) == 1:
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
@@ -551,7 +580,33 @@ class ProgDashApp:
         return fig_line
 
     def update_pie_chart(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_performance_overview
+        filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
 
         if len(selected_programs) == 1:
             # Handle single program selection
@@ -599,7 +654,33 @@ class ProgDashApp:
         return fig_pie
     
     def update_research_type_bar_plot(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_research_type_bar_plot
+        filtered_data_with_term = get_data_for_research_type_bar_plot(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         if df.empty:
             return px.bar(title="No data available")
         
@@ -636,7 +717,33 @@ class ProgDashApp:
         return fig
     
     def update_research_status_bar_plot(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_research_status_bar_plot
+        filtered_data_with_term = get_data_for_research_status_bar_plot(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         """
         if df.empty:
             return px.bar(title="No data available")
@@ -683,7 +790,33 @@ class ProgDashApp:
         return fig
     
     def update_sdg_chart(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_sdg
+        filtered_data_with_term = get_data_for_sdg(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         if df.empty:
             return px.scatter(title="No data available")
@@ -739,7 +872,33 @@ class ProgDashApp:
         return fig
 
     def create_publication_bar_chart(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         df = df[df['scopus'] != 'N/A']
         self.get_program_colors(df)
@@ -769,7 +928,33 @@ class ProgDashApp:
         return fig_bar
     
     def update_publication_format_bar_plot(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
@@ -801,7 +986,33 @@ class ProgDashApp:
         return fig_bar
 
     def scopus_line_graph(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
@@ -853,7 +1064,33 @@ class ProgDashApp:
         return fig_line
     
     def scopus_pie_chart(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
@@ -889,7 +1126,33 @@ class ProgDashApp:
         return fig_pie
 
     def publication_format_line_plot(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -942,7 +1205,33 @@ class ProgDashApp:
         return fig_line
     
     def publication_format_pie_chart(self, selected_programs, selected_status, selected_years, selected_terms):
-        df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
+        # Ensure selected_program is a standard Python list or array
+        if isinstance(selected_programs, np.ndarray):
+            selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_programs, str):
+            selected_programs = [selected_programs]  # Ensure single college is in a list
+
+        if isinstance(selected_status, np.ndarray):
+            selected_status = selected_status.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_status, str):
+            selected_status = [selected_status]  # Ensure single status is in a list
+
+        if isinstance(selected_years, np.ndarray):
+            selected_years = selected_years.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_years, str):
+            selected_years = [selected_years]  # Ensure single year is in a list
+        
+        if isinstance(selected_terms, np.ndarray):
+            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_terms, str):
+            selected_terms = [selected_terms]  # Ensure single term is in a list
+
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        #df = db_manager.get_filtered_data_bycollege_with_term(selected_programs, selected_status, selected_years, selected_terms)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -1196,23 +1485,46 @@ class ProgDashApp:
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+            if isinstance(selected_programs, np.ndarray):
+                selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+            elif isinstance(selected_programs, str):
+                selected_programs = [selected_programs]  # Ensure single college is in a list
+
+            if isinstance(selected_status, np.ndarray):
+                selected_status = selected_status.tolist()  # Convert NumPy array to list
+            elif isinstance(selected_status, str):
+                selected_status = [selected_status]  # Ensure single status is in a list
+
+            if isinstance(selected_years, np.ndarray):
+                selected_years = selected_years.tolist()  # Convert NumPy array to list
+            elif isinstance(selected_years, str):
+                selected_years = [selected_years]  # Ensure single year is in a list
+            
+            if isinstance(selected_terms, np.ndarray):
+                selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+            elif isinstance(selected_terms, str):
+                selected_terms = [selected_terms]  # Ensure single term is in a list
+
             # Apply filters
-            filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+            filtered_data = get_data_for_text_displays(
+                None,
                 selected_programs=selected_programs, 
                 selected_status=selected_status,
                 selected_years=selected_years,
                 selected_terms=selected_terms
             )
 
-            # Convert DataFrame to list of dictionaries
-            filtered_data = filtered_data.to_dict(orient='records')
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-            return f'{len(filtered_data)} Research Output(s)', \
-                    f'{len([d for d in filtered_data if d["status"] == "READY"])} Ready for Publication', \
-                    f'{len([d for d in filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \
-                    f'{len([d for d in filtered_data if d["status"] == "ACCEPTED"])} Accepted Paper(s)', \
-                    f'{len([d for d in filtered_data if d["status"] == "PUBLISHED"])} Published Paper(s)', \
-                    f'{len([d for d in filtered_data if d["status"] == "PULLOUT"])} Pulled-out Paper(s)'
+            # Convert DataFrame to list of dictionaries
+            df_filtered_data = df_filtered_data.to_dict(orient='records')
+
+            return f'{len(df_filtered_data)} Research Output(s)', \
+                    f'{len([d for d in df_filtered_data if d["status"] == "READY"])} Ready for Publication', \
+                    f'{len([d for d in df_filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \
+                    f'{len([d for d in df_filtered_data if d["status"] == "ACCEPTED"])} Accepted Paper(s)', \
+                    f'{len([d for d in df_filtered_data if d["status"] == "PUBLISHED"])} Published Paper(s)', \
+                    f'{len([d for d in df_filtered_data if d["status"] == "PULLOUT"])} Pulled-out Paper(s)'
         
         @self.dash_app.callback(
             Output('nonscopus_scopus_graph', 'figure'),
@@ -1282,19 +1594,42 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
 
-                # Ensure filtered_data is a valid DataFrame or empty list
-                if filtered_data is None or len(filtered_data) == 0:
+                df_filtered_data = pd.DataFrame(filtered_data)
+
+                # Ensure df_filtered_data is a valid DataFrame or empty list
+                if df_filtered_data is None or len(df_filtered_data) == 0:
                     return True, "No data records."
-                elif isinstance(filtered_data, pd.DataFrame):
-                    filtered_data = filtered_data.to_dict(orient="records")
+                elif isinstance(df_filtered_data, pd.DataFrame):
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
 
                 # Choose specific columns to display
                 selected_columns = {
@@ -1350,25 +1685,48 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
 
-                # Ensure filtered_data is a list of dictionaries
-                if filtered_data is None:
-                    filtered_data = []
-                elif isinstance(filtered_data, pd.DataFrame):  
-                    filtered_data = filtered_data.to_dict(orient="records")
+                df_filtered_data = pd.DataFrame(filtered_data)
+
+                # Ensure df_filtered_data is a list of dictionaries
+                if df_filtered_data is None:
+                    df_filtered_data = []
+                elif isinstance(df_filtered_data, pd.DataFrame):  
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
 
                 # Filter only "ready" papers
-                filtered_data = [d for d in filtered_data if d.get("status") == "READY"]
-                if filtered_data == []:
+                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "READY"]
+                if df_filtered_data == []:
                     return True, "No data records."
-
+                
                 # Choose specific columns to display
                 selected_columns = {
                     "research_id": "Research ID",
@@ -1381,13 +1739,13 @@ class ProgDashApp:
                     "research_type": "Research Type"
                 }
                 
-                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
 
                 # Rename columns
-                filtered_df = filtered_df.rename(columns=selected_columns)
+                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
 
                 # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
 
                 return True, table
             elif trigger_id == "close-ready-modal":
@@ -1421,23 +1779,46 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
 
-                # Ensure filtered_data is a list of dictionaries
-                if filtered_data is None:
-                    filtered_data = []
-                elif isinstance(filtered_data, pd.DataFrame):  
-                    filtered_data = filtered_data.to_dict(orient="records")
+                df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "submitted" papers
-                filtered_data = [d for d in filtered_data if d.get("status") == "SUBMITTED"]
-                if filtered_data == []:
+                # Ensure df_filtered_data is a list of dictionaries
+                if df_filtered_data is None:
+                    df_filtered_data = []
+                elif isinstance(df_filtered_data, pd.DataFrame):  
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+
+                # Filter only "SUBMITTED" papers
+                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "SUBMITTED"]
+                if df_filtered_data == []:
                     return True, "No data records."
                 
                 # Choose specific columns to display
@@ -1452,13 +1833,13 @@ class ProgDashApp:
                     "research_type": "Research Type"
                 }
                 
-                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
 
                 # Rename columns
-                filtered_df = filtered_df.rename(columns=selected_columns)
+                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
 
                 # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
 
                 return True, table
             elif trigger_id == "close-submitted-modal":
@@ -1492,25 +1873,48 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
 
-                # Ensure filtered_data is a list of dictionaries
-                if filtered_data is None:
-                    filtered_data = []
-                elif isinstance(filtered_data, pd.DataFrame):  
-                    filtered_data = filtered_data.to_dict(orient="records")
+                df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "accepted" papers
-                filtered_data = [d for d in filtered_data if d.get("status") == "ACCEPTED"]
-                if filtered_data == []:
+                # Ensure df_filtered_data is a list of dictionaries
+                if df_filtered_data is None:
+                    df_filtered_data = []
+                elif isinstance(df_filtered_data, pd.DataFrame):  
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+
+                # Filter only "ACCEPTED" papers
+                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "ACCEPTED"]
+                if df_filtered_data == []:
                     return True, "No data records."
-
+                
                 # Choose specific columns to display
                 selected_columns = {
                     "research_id": "Research ID",
@@ -1523,13 +1927,13 @@ class ProgDashApp:
                     "research_type": "Research Type"
                 }
                 
-                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
 
                 # Rename columns
-                filtered_df = filtered_df.rename(columns=selected_columns)
+                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
 
                 # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
 
                 return True, table
             elif trigger_id == "close-accepted-modal":
@@ -1563,25 +1967,48 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
 
-                # Ensure filtered_data is a list of dictionaries
-                if filtered_data is None:
-                    filtered_data = []
-                elif isinstance(filtered_data, pd.DataFrame):  
-                    filtered_data = filtered_data.to_dict(orient="records")
+                df_filtered_data = pd.DataFrame(filtered_data)
+
+                # Ensure df_filtered_data is a list of dictionaries
+                if df_filtered_data is None:
+                    df_filtered_data = []
+                elif isinstance(df_filtered_data, pd.DataFrame):  
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
 
                 # Filter only "PUBLISHED" papers
-                filtered_data = [d for d in filtered_data if d.get("status") == "PUBLISHED"]
-                if filtered_data == []:
+                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PUBLISHED"]
+                if df_filtered_data == []:
                     return True, "No data records."
-
+                
                 # Choose specific columns to display
                 selected_columns = {
                     "research_id": "Research ID",
@@ -1594,13 +2021,13 @@ class ProgDashApp:
                     "research_type": "Research Type"
                 }
                 
-                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
 
                 # Rename columns
-                filtered_df = filtered_df.rename(columns=selected_columns)
+                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
 
                 # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
 
                 return True, table
             elif trigger_id == "close-published-modal":
@@ -1634,25 +2061,48 @@ class ProgDashApp:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
+                if isinstance(selected_programs, np.ndarray):
+                    selected_programs = selected_programs.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_programs, str):
+                    selected_programs = [selected_programs]  # Ensure single college is in a list
+
+                if isinstance(selected_status, np.ndarray):
+                    selected_status = selected_status.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_status, str):
+                    selected_status = [selected_status]  # Ensure single status is in a list
+
+                if isinstance(selected_years, np.ndarray):
+                    selected_years = selected_years.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_years, str):
+                    selected_years = [selected_years]  # Ensure single year is in a list
+                
+                if isinstance(selected_terms, np.ndarray):
+                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
+                elif isinstance(selected_terms, str):
+                    selected_terms = [selected_terms]  # Ensure single term is in a list
+
                 # Apply filters
-                filtered_data = db_manager.get_filtered_data_bycollege_text_display(
+                filtered_data = get_data_for_modal_contents(
+                    None,
                     selected_programs=selected_programs, 
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 )
-                print(f'filtered_data: {filtered_data}')
-                # Ensure filtered_data is a list of dictionaries
-                if filtered_data is None:
-                    filtered_data = []
-                elif isinstance(filtered_data, pd.DataFrame):  
-                    filtered_data = filtered_data.to_dict(orient="records")
+
+                df_filtered_data = pd.DataFrame(filtered_data)
+
+                # Ensure df_filtered_data is a list of dictionaries
+                if df_filtered_data is None:
+                    df_filtered_data = []
+                elif isinstance(df_filtered_data, pd.DataFrame):  
+                    df_filtered_data = df_filtered_data.to_dict(orient="records")
 
                 # Filter only "PULLOUT" papers
-                filtered_data = [d for d in filtered_data if d.get("status") == "PULLOUT"]
-                if filtered_data == []:
+                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PULLOUT"]
+                if df_filtered_data == []:
                     return True, "No data records."
-
+                
                 # Choose specific columns to display
                 selected_columns = {
                     "research_id": "Research ID",
@@ -1665,13 +2115,13 @@ class ProgDashApp:
                     "research_type": "Research Type"
                 }
                 
-                filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())] if filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
 
                 # Rename columns
-                filtered_df = filtered_df.rename(columns=selected_columns)
+                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
 
                 # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
 
                 return True, table
             elif trigger_id == "close-pullout-modal":

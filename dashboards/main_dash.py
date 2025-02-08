@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from database.institutional_performance_queries import get_filtered_data_with_term
+from database.institutional_performance_queries import get_data_for_performance_overview, get_data_for_research_type_bar_plot, get_data_for_research_status_bar_plot, get_data_for_scopus_section, get_data_for_jounal_section, get_data_for_sdg, get_data_for_modal_contents, get_data_for_text_displays
 
 def default_if_empty(selected_values, default_values):
     """
@@ -487,8 +487,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_performance_overview
+        filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -521,7 +521,7 @@ class MainDashboard:
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
             height=400,
-            showlegend=False  
+            showlegend=True  
         )
         return fig_line
     
@@ -548,8 +548,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_performance_overview
+        filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -607,8 +607,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_research_type_bar_plot
+        filtered_data_with_term = get_data_for_research_type_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -682,7 +682,7 @@ class MainDashboard:
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
         # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        filtered_data_with_term = get_data_for_research_status_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -764,8 +764,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -829,8 +829,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -896,8 +896,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_sdg
+        filtered_data_with_term = get_data_for_sdg(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -1005,8 +1005,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -1086,8 +1086,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_scopus_section
+        filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -1151,8 +1151,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -1233,8 +1233,8 @@ class MainDashboard:
         elif isinstance(selected_terms, str):
             selected_terms = [selected_terms]  # Ensure single term is in a list
 
-        # Fetch data using get_filtered_data_with_term
-        filtered_data_with_term = get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
+        # Fetch data using get_data_for_jounal_section
+        filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -1494,7 +1494,7 @@ class MainDashboard:
                 selected_terms = [selected_terms]  # Ensure single term is in a list
 
             # Apply filters
-            filtered_data = get_filtered_data_with_term(
+            filtered_data = get_data_for_text_displays(
                 selected_colleges=selected_colleges, 
                 selected_status=selected_status,
                 selected_years=selected_years,
@@ -1560,7 +1560,7 @@ class MainDashboard:
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
                 # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
@@ -1650,7 +1650,7 @@ class MainDashboard:
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
                 # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
@@ -1743,7 +1743,7 @@ class MainDashboard:
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
                 # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
@@ -1836,7 +1836,7 @@ class MainDashboard:
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
                 # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
@@ -1929,7 +1929,7 @@ class MainDashboard:
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
                 # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
@@ -2021,8 +2021,8 @@ class MainDashboard:
                 elif isinstance(selected_terms, str):
                     selected_terms = [selected_terms]  # Ensure single term is in a list
 
-                # Apply filters
-                filtered_data = get_filtered_data_with_term(
+                # Apply filters 
+                filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
                     selected_years=selected_years,
