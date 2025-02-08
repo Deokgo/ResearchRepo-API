@@ -477,22 +477,17 @@ class CollegeDashApp:
             })
         ])
 
-    def get_program_colors(self, df, color_column='program_id'):
-        """
-        Generate a color mapping for the unique values in the specified column of the DataFrame.
+    def get_program_colors(self, df):
+        unique_programs = df['program_id'].unique()
+        if not hasattr(self, "program_colors"):
+            self.program_colors = {}  # Initialize if not exists
 
-        Args:
-            df (pd.DataFrame): The DataFrame containing data.
-            color_column (str): The column for which unique values will be colored (default is 'program_id').
+        available_colors = px.colors.qualitative.Set1  # Choose a color palette
 
-        Updates:
-            self.program_colors: A dictionary mapping unique values in the color_column to colors.
-        """
-        unique_values = df[color_column].unique()
-        random_colors = px.colors.qualitative.Plotly[:len(unique_values)]
-        self.program_colors = {value: random_colors[i % len(random_colors)] for i, value in enumerate(unique_values)}
-
-    
+        for i, program in enumerate(unique_programs):
+            if program not in self.program_colors:
+                self.program_colors[program] = available_colors[i % len(available_colors)]
+                
     def update_line_plot(self, selected_program, selected_status, selected_years, selected_terms):
         # Ensure selected_program is a standard Python list or array
         if isinstance(selected_program, np.ndarray):

@@ -461,9 +461,15 @@ class MainDashboard:
     
     def get_program_colors(self, df):
         unique_programs = df['program_id'].unique()
-        random_colors = px.colors.qualitative.Plotly[:len(unique_programs)]
-        self.program_colors = {program: random_colors[i % len(random_colors)] for i, program in enumerate(unique_programs)}
-    
+        if not hasattr(self, "program_colors"):
+            self.program_colors = {}  # Initialize if not exists
+
+        available_colors = px.colors.qualitative.Set1  # Choose a color palette
+
+        for i, program in enumerate(unique_programs):
+            if program not in self.program_colors:
+                self.program_colors[program] = available_colors[i % len(available_colors)]
+
     def update_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
         #"""
         # Ensure selected_colleges is a standard Python list or array
@@ -505,13 +511,14 @@ class MainDashboard:
             grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'college_id'
             title = 'Number of Research Outputs per College'
+        
         fig_line = px.line(
             grouped_df, 
             x='year', 
             y='TitleCount', 
             color=color_column, 
             markers=True,
-            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors
+            color_discrete_map=self.program_colors if len(selected_colleges) == 1 else self.palette_dict
         )
         
         fig_line.update_layout(
@@ -571,7 +578,7 @@ class MainDashboard:
             names=detail_counts.index,
             values=detail_counts,
             color=detail_counts.index,
-            color_discrete_map=self.palette_dict if len(selected_colleges) > 1 else self.program_colors,
+            color_discrete_map=self.program_colors if len(selected_colleges) == 1 else self.palette_dict,
             labels={'names': 'Category', 'values': 'Number of Research Outputs'},
         )
 
