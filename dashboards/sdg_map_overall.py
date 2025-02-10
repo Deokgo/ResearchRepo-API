@@ -289,33 +289,30 @@ class SDG_Map:
 
 
         self.dash_app.layout = html.Div([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
-            dcc.Store(id="shared-data-store"),
+            # URL tracking
+            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
+            dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
                 dbc.Row([
-                    # Sidebar
-                    dbc.Col(controls, style={"overflow": "hidden"}),  # Prevent extra overflow
-
-                    # Main Content
+                    dbc.Col(controls, width=2, style={"height": "100%"}),
                     dbc.Col([
                         dbc.Container([
-                            html.H5('SDG Impact Dashboard'),
-                            html.H4("Sample", id="chosen-sdg"),
-                            html.Div(
-                                "This dashboard analyzes the institution’s research alignment with the global Sustainable Development Goals (SDGs), highlighting trends, strengths, and areas for improvement. It provides an overview of research performance across SDG categories, supporting data-driven decisions to enhance sustainable development efforts.",
-                                style={"margin-bottom": "20px"}
-                            )
-                        ], style={"padding": "20px"}),
-
-                        # Tabs Section
+                            html.H5('SDG Impact Dashboard', id='college-info'),
+                            html.H4("sample",id="chosen-sdg"),
+                            html.Div("This dashboard analyzes the institution’s research alignment with the global Sustainable Development Goals (SDGs), highlighting trends, strengths, and areas for improvement. It provides an overview of research performance across SDG categories, supporting data-driven decisions to enhance sustainable development efforts.")
+                        ], style={"padding":"20px"}),
+                        
                         dcc.Tabs(
                             id="sdg-tabs",
-                            value="sdg-college-tab",
+                            value="sdg-college-tab",  
                             children=[
                                 dcc.Tab(
                                     label="Institutional SDG Impact",
                                     value="sdg-college-tab",
-                                    children=[tab1]
+                                    children=[
+                                        tab1,
+                                        
+                                    ]
                                 ),
                                 dcc.Tab(
                                     label="Global Research Publications",
@@ -324,38 +321,42 @@ class SDG_Map:
                                         dcc.Loading(
                                             id="loading-sdg-map",
                                             type="circle", 
-                                            children=[tab2]
-                                        )
+                                            children=[
+                                                tab2
+                                            ]
+                                        ),                                     
                                     ]
                                 ),
                                 dcc.Tab(
                                     label="Research Trends and Collaboration",
                                     value="sdg-trend-tab",
-                                    children=[tab3]
+                                    children=[
+                                        tab3
+                                    ]
                                 ),
                             ]
-                        )
+                        ),
                     ], style={
+                        "height": "100%",
                         "display": "flex",
                         "flex-direction": "column",
-                        "overflow-y": "auto",  # Allow vertical scrolling in the main content
-                        "flex-grow": "1",
-                        "padding": "10px",
-                        "min-width": 0,  # Prevent content from causing overflow
+                        "overflow-y": "auto",  
+                        "overflow-x": "auto",  
+                        "transform": "scale(0.98)",  
+                        "transform-origin": "0 0",  
+                        "margin": "0", 
+                        "padding": "5px",
+                        "flex-grow": "1",  
                     }),
-                ], style={"height": "100vh", "display": "flex"}),
-            ], fluid=True, style={
-                "height": "100%",
-                "margin": "0",
-                "padding": "0",
-                "overflow": "hidden",
+                ], style={"height": "100%", "display": "flex"}),
+            ], fluid=True, className="dbc dbc-ag-grid", style={
+                "height": "90vh", 
+                "margin": "0", 
+                "padding": "0", 
+                "overflow": "hidden"  # Prevent content from overflowing the container
             })
-        ], style={
-            "height": "100vh", 
-            "margin": "0", 
-            "padding": "0", 
-            "overflow": "hidden"
-        })
+        ], style={"height": "90vh", "margin": "0", "padding": "0", "overflow": "hidden"})
+
     def create_sdg_plot(self, selected_colleges, selected_status, selected_years, sdg_dropdown_value):
         # Get filtered data based on selected parameters
         df = db_manager.get_filtered_data(selected_colleges, selected_status, selected_years)

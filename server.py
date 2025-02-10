@@ -127,19 +127,15 @@ app.register_blueprint(backup, url_prefix='/backup')
 
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.main_dash import MainDashboard
-from dashboards.pub_dash import PublicationDash
 from knowledgegraph.knowledgegraph import create_kg_area
 from knowledgegraph.collectionkg import collection_kg
 from dashboards.college_dash import CollegeDashApp
 from dashboards.program_dash import ProgDashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
-from dashboards.sdg_dash import SDG_Dash
-from dashboards.sdg_college import SDG_College
 from dashboards.sdg_map_overall import SDG_Map
 from dashboards.sdg_map_college import SDG_Map_College
-from dashboards.engage_dash import Engage_Dash
-from dashboards.engage_college import Engage_College
+from dashboards.user_engagement_dash import UserEngagementDash
 
 # Created by Jelly Mallari | Create Dash apps and link them to Flask app
 # Create Dash apps and link them to Flask app
@@ -150,18 +146,14 @@ def create_dash_apps(app):
         # Check if key tables have data before proceeding
         if has_table_data(session, ResearchOutput):
             MainDashboard(app)
-            PublicationDash(app)
             create_main_dashboard(app)
             create_kg_area(app)
             collection_kg(app)
             CollegeDashApp(app)
             ProgDashApp(app)
-            SDG_Dash(app)
-            SDG_College(app)
             SDG_Map(app)
             SDG_Map_College(app)
-            Engage_Dash(app)
-            Engage_College(app)
+            UserEngagementDash(app)
             # print("Dash apps created successfully.")
             # print("Available routes:")
             # for rule in app.url_map.iter_rules():

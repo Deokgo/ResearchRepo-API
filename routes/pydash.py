@@ -125,7 +125,6 @@ def engage_dash():
         query_params = {
             "user-role": account_info.role_id,
             "college": user_prof.college_id,
-            "program": user_prof.program_id,
 
         }
 
@@ -133,9 +132,9 @@ def engage_dash():
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items() if value is not None)
 
         if account_info.role_id == "02":
-            dash_url = f"{base_url}/engage/"
+            dash_url = f"{base_url}/engage/?user-role=02"
         elif account_info.role_id == "04":
-            dash_url = f"{base_url}/engage-college/?{query_string}"
+            dash_url = f"{base_url}/engage/?{query_string}"
 
 
         print(f"Generated Dash URL: {dash_url}")
@@ -176,7 +175,7 @@ def combined_dash():
         if account_info.role_id == "02":
             sample_url = f"{base_url}/dashboard/overview/"
             analytics_url = f"{base_url}/sdg/map/"
-            engage_url = f"{base_url}/engage/"
+            engage_url = f"{base_url}/engage/?user-role=02"
             return jsonify({
                 "overview": sample_url,
                 "sdg": analytics_url,
@@ -186,7 +185,7 @@ def combined_dash():
         elif account_info.role_id == "04":
             sample_url = f"{base_url}/sample/?{query_string}"
             analytics_url = f"{base_url}/sdg/map/college/?{query_string}"
-            engage_url = f"{base_url}/engage-college/?{query_string}"
+            engage_url = f"{base_url}/engage/?{query_string}"
             return jsonify({
                 "overview": sample_url,
                 "sdg": analytics_url,
