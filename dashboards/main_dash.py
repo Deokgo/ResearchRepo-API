@@ -1513,12 +1513,19 @@ class MainDashboard:
             # Convert DataFrame to list of dictionaries
             df_filtered_data = df_filtered_data.to_dict(orient='records')
 
-            return f'{len(df_filtered_data)} Research Output(s)', \
-                    f'{len([d for d in df_filtered_data if d["status"] == "READY"])} Ready for Publication', \
-                    f'{len([d for d in df_filtered_data if d["status"] == "SUBMITTED"])} Submitted Paper(s)', \
-                    f'{len([d for d in df_filtered_data if d["status"] == "ACCEPTED"])} Accepted Paper(s)', \
-                    f'{len([d for d in df_filtered_data if d["status"] == "PUBLISHED"])} Published Paper(s)', \
-                    f'{len([d for d in df_filtered_data if d["status"] == "PULLOUT"])} Pulled-out Paper(s)'
+            # Create a dictionary for status counts
+            status_counts = {d["status"]: d["total_count"] for d in df_filtered_data}
+
+            total_research_outputs = sum(status_counts.values())
+
+            return (
+                f'{total_research_outputs} Research Output(s)',
+                f'{status_counts.get("READY", 0)} Ready for Publication',
+                f'{status_counts.get("SUBMITTED", 0)} Submitted Paper(s)',
+                f'{status_counts.get("ACCEPTED", 0)} Accepted Paper(s)',
+                f'{status_counts.get("PUBLISHED", 0)} Published Paper(s)',
+                f'{status_counts.get("PULLOUT", 0)} Pulled-out Paper(s)'
+            )
 
         # for total modal
         @self.dash_app.callback(
