@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from . import db_manager
 from database.institutional_performance_queries import get_data_for_performance_overview, get_data_for_research_type_bar_plot, get_data_for_research_status_bar_plot, get_data_for_scopus_section, get_data_for_jounal_section, get_data_for_sdg, get_data_for_modal_contents, get_data_for_text_displays
 from components.DashboardHeader import DashboardHeader
+from components.Tabs import Tabs
 
 def default_if_empty(selected_values, default_values):
     """
@@ -380,57 +381,17 @@ class CollegeDashApp:
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
 
                             # Tabs
-                            dcc.Tabs(
+                            html.Div(
                                 id="dashboard-tabs",
-                                value='main',
-                                children=[
-                                    dcc.Tab(
-                                        label="Performance Overview",
-                                        value="main",
-                                        children=[
-                                            html.Div(main_dash, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
-                                        ],
-                                        style={"font-size": "14px"},
-                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
-                                    ),
-                                    dcc.Tab(
-                                        label="Research Statuses and Types",
-                                        value="sub1",
-                                        children=[
-                                            html.Div(sub_dash1, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
-                                        ],
-                                        style={"font-size": "14px"},
-                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
-                                    ),
-                                    dcc.Tab(
-                                        label="Scopus and Non-Scopus",
-                                        value="sub2",
-                                        children=[
-                                            html.Div(sub_dash2, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
-                                        ],
-                                        style={"font-size": "14px"},
-                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
-                                    ),
-                                    dcc.Tab(
-                                        label="SDG Distribution",
-                                        value="sub3",
-                                        children=[
-                                            html.Div(sub_dash3, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
-                                        ],
-                                        style={"font-size": "14px"},
-                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
-                                    ),
-                                    dcc.Tab(
-                                        label="Publication Types",
-                                        value="sub4",
-                                        children=[
-                                            html.Div(sub_dash4, style={'border': '2px solid #dcdcdc', 'padding': '5px'})
-                                        ],
-                                        style={"font-size": "14px"},
-                                        selected_style={'backgroundColor': 'blue', 'color': 'white', "font-size": "14px"}
-                                    ),
-                                ],
-                                style={'width': '100%', 'display': 'flex', 'justify-content': 'center', 'fontSize': '12px'}
+                                children=Tabs(
+                                    tabs_data=[
+                                        ("Performance Overview", html.Div(main_dash, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
+                                        ("Research Statuses and Types", html.Div(sub_dash1, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
+                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
+                                        ("SDG Distribution", html.Div(sub_dash3, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
+                                        ("Publication Types", html.Div(sub_dash4, style={'border': '1px solid #e8e9eb', 'padding': '5px'}))
+                                    ]
+                                )
                             ),
                         ], style={
                             "height": "100%",
