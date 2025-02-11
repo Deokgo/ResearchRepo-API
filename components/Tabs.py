@@ -1,7 +1,7 @@
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 
-def Tabs(left_tab_text, tabs_data):
+def Tabs(tabs_data):
     """
     Creates a dynamic tab component.
 
@@ -11,9 +11,7 @@ def Tabs(left_tab_text, tabs_data):
     """
     
     # Creating the list of tabs
-    tab_elements = [
-        dbc.Tab( label=left_tab_text, tab_id="tab-left", tab_style={"marginRight": "auto"}, disabled=True)
-    ]
+    tab_elements = []
     
     # Dynamically adding other tabs based on input
     for index, (tab_label, tab_content) in enumerate(tabs_data, start=1):
