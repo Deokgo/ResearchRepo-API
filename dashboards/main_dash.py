@@ -11,6 +11,8 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 from database.institutional_performance_queries import get_data_for_performance_overview, get_data_for_research_type_bar_plot, get_data_for_research_status_bar_plot, get_data_for_scopus_section, get_data_for_jounal_section, get_data_for_sdg, get_data_for_modal_contents, get_data_for_text_displays
+from urllib.parse import parse_qs, urlparse
+from components.DashboardHeader import DashboardHeader
 
 def default_if_empty(selected_values, default_values):
     """
@@ -18,12 +20,18 @@ def default_if_empty(selected_values, default_values):
     """
     return selected_values if selected_values else default_values
 
-# Ensure college_id, status, year, and term are lists
-def safe_list(value):
-    if isinstance(value, str):
-        return value.split(',')  # Adjust based on your data format
-    return value if isinstance(value, list) else [value]
-
+def ensure_list(value):
+    """
+    Ensures that the given value is always returned as a list.
+    - If it's a NumPy array, convert it to a list.
+    - If it's a string, wrap it in a list.
+    - If it's already a list, return as is.
+    """
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    elif isinstance(value, str):
+        return [value]
+    return value  # Return as is if already a list or another type
 
 class MainDashboard:
     def __init__(self, flask_app):
@@ -279,6 +287,7 @@ class MainDashboard:
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
         
         self.dash_app.layout = html.Div([
+            dcc.Location(id='url', refresh=False),
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dbc.Container([
@@ -292,7 +301,7 @@ class MainDashboard:
                     # Main dashboard content
                     dbc.Col(
                         html.Div([
-                            html.H5('Institutional Performance Dashboard'),
+                            html.Div(id="dynamic-header"),
                             # Buttons in a single row
                             dbc.Row([
                                 dbc.Col(dbc.Button("Research Output(s)", id="open-total-modal", color="primary", size="lg", n_clicks=0, style={
@@ -471,37 +480,18 @@ class MainDashboard:
                 self.program_colors[program] = available_colors[i % len(available_colors)]
 
     def update_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_performance_overview
         filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
 
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
         if len(selected_colleges) == 1:
             grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
             color_column = 'program_id'
@@ -533,37 +523,18 @@ class MainDashboard:
         return fig_line
     
     def update_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_performance_overview
         filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
 
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
         if len(selected_colleges) == 1:
             college_name = selected_colleges[0]
             filtered_df = df[df['college_id'] == college_name]
@@ -592,36 +563,17 @@ class MainDashboard:
         return fig_pie
     
     def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_research_type_bar_plot
         filtered_data_with_term = get_data_for_research_type_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
 
         if df.empty:
             return px.bar(title="No data available")
@@ -666,36 +618,17 @@ class MainDashboard:
         return fig
 
     def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_filtered_data_with_term
         filtered_data_with_term = get_data_for_research_status_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
 
         if df.empty:
             return px.bar(title="No data available")
@@ -749,37 +682,18 @@ class MainDashboard:
         return fig
     
     def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_scopus_section
         filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
 
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
         df = df[df['scopus'] != 'N/A']
 
         if len(selected_colleges) == 1:
@@ -814,37 +728,18 @@ class MainDashboard:
         return fig_bar
     
     def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_jounal_section
         filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
 
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
         df = df[df['journal'] != 'unpublished']
         df = df[df['status'] != 'PULLOUT']
 
@@ -881,36 +776,17 @@ class MainDashboard:
 
 
     def update_sdg_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_sdg
         filtered_data_with_term = get_data_for_sdg(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
 
         if df.empty:
             return px.scatter(title="No data available")
@@ -990,37 +866,18 @@ class MainDashboard:
         return fig
     
     def scopus_line_graph(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_scopus_section
         filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
-        
+ 
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
 
@@ -1071,36 +928,17 @@ class MainDashboard:
         return fig_line
     
     def scopus_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_scopus_section
         filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         # Filter out rows where 'scopus' is 'N/A'
         df = df[df['scopus'] != 'N/A']
@@ -1136,36 +974,17 @@ class MainDashboard:
         return fig_pie
 
     def publication_format_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_jounal_section
         filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -1218,36 +1037,17 @@ class MainDashboard:
         return fig_line
     
     def publication_format_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-        #"""
         # Ensure selected_colleges is a standard Python list or array
-        if isinstance(selected_colleges, np.ndarray):
-            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_colleges, str):
-            selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-        if isinstance(selected_status, np.ndarray):
-            selected_status = selected_status.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_status, str):
-            selected_status = [selected_status]  # Ensure single status is in a list
-
-        if isinstance(selected_years, np.ndarray):
-            selected_years = selected_years.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_years, str):
-            selected_years = [selected_years]  # Ensure single year is in a list
-        
-        if isinstance(selected_terms, np.ndarray):
-            selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-        elif isinstance(selected_terms, str):
-            selected_terms = [selected_terms]  # Ensure single term is in a list
+        selected_colleges = ensure_list(selected_colleges)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
         # Fetch data using get_data_for_jounal_section
         filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
 
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        #"""
-
-        #df = db_manager.get_filtered_data_with_term(selected_colleges, selected_status, selected_years, selected_terms)
         
         # Filter out rows with 'unpublished' journals and 'PULLOUT' status
         df = df[df['journal'] != 'unpublished']
@@ -1287,6 +1087,35 @@ class MainDashboard:
         """
         Set up the callback functions for the dashboard.
         """
+
+        @self.dash_app.callback(
+            Output("dynamic-header", "children"),
+            Input("url", "search"),  # Extracts the query string (e.g., "?user=John&role=Admin")
+            prevent_initial_call=True  
+        )
+        def update_header(search):
+            if search:
+                params = parse_qs(search.lstrip("?"))  # Parse query parameters
+                user_role = params.get("user-role",["Guest"])[0]
+                college = params.get("college", [""])[0]
+                program = params.get("program", [""])[0]
+
+            view=""
+            style=None
+
+            if user_role == "02":
+                view="RPCO Director"
+                style = {"display": "block"}
+                college = ""
+                program = ""
+            elif user_role =="04":
+                view="College Dean"
+                style ={"display": "none"}
+                self.college = college
+                self.program = program
+            else:
+                view="Unknown"
+            return DashboardHeader(left_text=f"{college}", title=f"INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=view)
 
         # Callback for reset button
         @self.dash_app.callback(
@@ -1480,25 +1309,10 @@ class MainDashboard:
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-            if isinstance(selected_colleges, np.ndarray):
-                selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-            elif isinstance(selected_colleges, str):
-                selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-            if isinstance(selected_status, np.ndarray):
-                selected_status = selected_status.tolist()  # Convert NumPy array to list
-            elif isinstance(selected_status, str):
-                selected_status = [selected_status]  # Ensure single status is in a list
-
-            if isinstance(selected_years, np.ndarray):
-                selected_years = selected_years.tolist()  # Convert NumPy array to list
-            elif isinstance(selected_years, str):
-                selected_years = [selected_years]  # Ensure single year is in a list
-            
-            if isinstance(selected_terms, np.ndarray):
-                selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-            elif isinstance(selected_terms, str):
-                selected_terms = [selected_terms]  # Ensure single term is in a list
+            selected_colleges = ensure_list(selected_colleges)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
             # Apply filters
             filtered_data = get_data_for_text_displays(
@@ -1553,25 +1367,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters
                 filtered_data = get_data_for_modal_contents(
@@ -1643,25 +1442,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters
                 filtered_data = get_data_for_modal_contents(
@@ -1736,25 +1520,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters
                 filtered_data = get_data_for_modal_contents(
@@ -1829,25 +1598,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters
                 filtered_data = get_data_for_modal_contents(
@@ -1922,25 +1676,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters
                 filtered_data = get_data_for_modal_contents(
@@ -2015,25 +1754,10 @@ class MainDashboard:
                 selected_years = selected_years if selected_years else self.default_years
                 selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                if isinstance(selected_colleges, np.ndarray):
-                    selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_colleges, str):
-                    selected_colleges = [selected_colleges]  # Ensure single college is in a list
-
-                if isinstance(selected_status, np.ndarray):
-                    selected_status = selected_status.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_status, str):
-                    selected_status = [selected_status]  # Ensure single status is in a list
-
-                if isinstance(selected_years, np.ndarray):
-                    selected_years = selected_years.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_years, str):
-                    selected_years = [selected_years]  # Ensure single year is in a list
-                
-                if isinstance(selected_terms, np.ndarray):
-                    selected_terms = selected_terms.tolist()  # Convert NumPy array to list
-                elif isinstance(selected_terms, str):
-                    selected_terms = [selected_terms]  # Ensure single term is in a list
+                selected_colleges = ensure_list(selected_colleges)
+                selected_status = ensure_list(selected_status)
+                selected_years = ensure_list(selected_years)
+                selected_terms = ensure_list(selected_terms)
 
                 # Apply filters 
                 filtered_data = get_data_for_modal_contents(

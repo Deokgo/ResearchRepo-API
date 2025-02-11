@@ -173,7 +173,7 @@ def combined_dash():
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items() if value is not None)
 
         if account_info.role_id == "02":
-            sample_url = f"{base_url}/dashboard/overview/"
+            sample_url = f"{base_url}/dashboard/overview/?user-role=02"
             analytics_url = f"{base_url}/sdg/map/"
             engage_url = f"{base_url}/engage/?user-role=02"
             return jsonify({
