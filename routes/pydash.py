@@ -184,7 +184,7 @@ def combined_dash():
 
         elif account_info.role_id == "04":
             sample_url = f"{base_url}/sample/?{query_string}"
-            analytics_url = f"{base_url}/sdg/map/college/?{query_string}"
+            analytics_url = f"{base_url}/sdg-impact/college/?{query_string}"
             engage_url = f"{base_url}/engage/?{query_string}"
             return jsonify({
                 "overview": sample_url,

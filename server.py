@@ -137,6 +137,7 @@ from dashboards.sdg_map_overall import SDG_Map
 from dashboards.sdg_map_college import SDG_Map_College
 from dashboards.user_engagement_dash import UserEngagementDash
 from dashboards.sdg_impact_dash import SDG_Impact_Dash
+from dashboards.sdg_impact_college import SDG_Impact_College
 
 # Created by Jelly Mallari | Create Dash apps and link them to Flask app
 # Create Dash apps and link them to Flask app
@@ -156,6 +157,7 @@ def create_dash_apps(app):
             SDG_Map_College(app)
             UserEngagementDash(app)
             SDG_Impact_Dash(app)
+            SDG_Impact_College(app)
             # print("Dash apps created successfully.")
             # print("Available routes:")
             # for rule in app.url_map.iter_rules():
