@@ -14,6 +14,10 @@ from database.institutional_performance_queries import get_data_for_performance_
 from urllib.parse import parse_qs, urlparse
 from components.DashboardHeader import DashboardHeader
 from components.Tabs import Tabs
+import io
+import pandas as pd
+from dash.dcc import send_data_frame, send_file
+from components.KPI_Card import KPI_Card
 
 def default_if_empty(selected_values, default_values):
     """
@@ -40,7 +44,7 @@ class MainDashboard:
         Initialize the MainDashboard class and set up the Dash app.
         """
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/dashboard/overview/', 
-                             external_stylesheets=[dbc.themes.BOOTSTRAP])
+                             external_stylesheets=[dbc.themes.BOOTSTRAP, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"])
 
         self.palette_dict = db_manager.get_college_colors()
         
@@ -286,11 +290,29 @@ class MainDashboard:
                 )
             ], style={"margin": "10px"})
         ], fluid=True, style={"border": "2px solid #FFFFFF", "borderRadius": "5px", "transform": "scale(1)", "transform-origin": "0 0"})
-        
+
+        text_display = dbc.Container([
+            dbc.Row(
+                [
+                    dbc.Col(KPI_Card("Research Output(s)", "0", id="open-total-modal", icon="fas fa-book-open", color="primary"), width="auto"),
+                    dbc.Col(KPI_Card("Ready for Publication", "0", id="open-ready-modal", icon="fas fa-file-import", color="info"), width="auto"),
+                    dbc.Col(KPI_Card("Submitted Paper(s)", "0", id="open-submitted-modal", icon="fas fa-file-export", color="warning"), width="auto"),
+                    dbc.Col(KPI_Card("Accepted Paper(s)", "0", id="open-accepted-modal", icon="fas fa-check-circle", color="success"), width="auto"),
+                    dbc.Col(KPI_Card("Published Paper(s)", "0", id="open-published-modal", icon="fas fa-file-alt", color="danger"), width="auto"),
+                    dbc.Col(KPI_Card("Pulled-out Paper(s)", "0", id="open-pullout-modal", icon="fas fa-file-excel", color="secondary"), width="auto")
+                ],
+                className="g-2",  # Mas maliit na gap
+                justify="center",
+                style={"padding-top": "0", "padding-bottom": "0", "margin-top": "-10px"}  # Tinaas ang row
+            ),
+        ], className="p-0", style={"padding-top": "0", "padding-bottom": "0"})
+
+
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
+            #dcc.Download(id="download-link"),
             dbc.Container([
                 dbc.Row([
                     # Sidebar controls
@@ -304,32 +326,7 @@ class MainDashboard:
                         html.Div([
                             html.Div(id="dynamic-header"),
                             # Buttons in a single row
-                            dbc.Row([
-                                dbc.Col(dbc.Button("Research Output(s)", id="open-total-modal", color="primary", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                                dbc.Col(dbc.Button("Ready for Publication", id="open-ready-modal", color="info", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                                dbc.Col(dbc.Button("Submitted Paper(s)", id="open-submitted-modal", color="warning", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                                dbc.Col(dbc.Button("Accepted Paper(s)", id="open-accepted-modal", color="success", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                                dbc.Col(dbc.Button("Published Paper(s)", id="open-published-modal", color="danger", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                                dbc.Col(dbc.Button("Pulled-out Paper(s)", id="open-pullout-modal", color="secondary", size="lg", n_clicks=0, style={
-                                    "height": "100px", "width": "150px", "border-radius": "15px", "font-weight": "bold", "font-size": "14px",
-                                    "box-shadow": "0 4px 6px rgba(0, 0, 0, 0.1)", "transition": "background-color 0.3s ease, transform 0.2s ease"
-                                }), width="auto"),
-                            ], className="mb-2", justify="center"),  # Centering buttons in a single row
+                            text_display,
                             
                             # Modals for each button
                             dbc.Modal([
@@ -361,12 +358,13 @@ class MainDashboard:
                                 dbc.ModalBody(id="published-modal-content"),
                                 dbc.ModalFooter(dbc.Button("Close", id="close-published-modal", className="ms-auto", n_clicks=0)),
                             ], id="published-modal", scrollable=True, is_open=False, size="xl"),
-                            
+
                             dbc.Modal([
-                                dbc.ModalHeader(dbc.ModalTitle("Pulled-out Paper(s)")),
+                                dbc.ModalHeader(dbc.ModalTitle("Pullout Paper(s)")),
                                 dbc.ModalBody(id="pullout-modal-content"),
                                 dbc.ModalFooter(dbc.Button("Close", id="close-pullout-modal", className="ms-auto", n_clicks=0)),
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
+
                             # Tabs
                             html.Div(
                                 id="dashboard-tabs",
@@ -412,22 +410,6 @@ class MainDashboard:
             "padding": "0",
             "overflow": "hidden",  # Prevent outer scrolling
         })
-
-    def create_interactive_card(self, title, value, modal_id, color):
-        """
-        Create an interactive display card with a button.
-        """
-        return dbc.Col(
-            dbc.Button(
-                [
-                    html.Div(title, style={"fontSize": "0.9rem", "fontWeight": "bold"}),
-                    html.Div(value, style={"fontSize": "1.2rem"})
-                ],
-                id=modal_id, color=color, className="interactive-card"
-            ),
-            xs=6, sm=4, md=3, lg=2, xl=2,
-            style={"display": "flex", "justify-content": "center", "align-items": "center"}
-        )
     
     def get_program_colors(self, df):
         unique_programs = df['program_id'].unique()
@@ -1252,17 +1234,21 @@ class MainDashboard:
             
         # for text button (dynamic)
         @self.dash_app.callback(
-            Output('open-total-modal', 'children'),
-            Output('open-ready-modal', 'children'),
-            Output('open-submitted-modal', 'children'),
-            Output('open-accepted-modal', 'children'),
-            Output('open-published-modal', 'children'),
-            Output('open-pullout-modal', 'children'),
-            Input("data-refresh-interval", "n_intervals"),
-            Input('college', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            [
+                Output('open-total-modal', 'children'),
+                Output('open-ready-modal', 'children'),
+                Output('open-submitted-modal', 'children'),
+                Output('open-accepted-modal', 'children'),
+                Output('open-published-modal', 'children'),
+                Output('open-pullout-modal', 'children')
+            ],
+            [
+                Input("data-refresh-interval", "n_intervals"),
+                Input('college', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
         )
         def refresh_text_buttons(n_intervals, selected_colleges, selected_status, selected_years, selected_terms):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1294,19 +1280,19 @@ class MainDashboard:
             total_research_outputs = sum(status_counts.values())
 
             return (
-                f'{total_research_outputs} Research Output(s)',
-                f'{status_counts.get("READY", 0)} Ready for Publication',
-                f'{status_counts.get("SUBMITTED", 0)} Submitted Paper(s)',
-                f'{status_counts.get("ACCEPTED", 0)} Accepted Paper(s)',
-                f'{status_counts.get("PUBLISHED", 0)} Published Paper(s)',
-                f'{status_counts.get("PULLOUT", 0)} Pulled-out Paper(s)'
+                [ html.H3(f"{total_research_outputs}", className="mb-0")],
+                [ html.H3(f"{status_counts.get("READY", 0)}", className="mb-0")],
+                [ html.H3(f"{status_counts.get("SUBMITTED", 0)}", className="mb-0")],
+                [ html.H3(f"{status_counts.get("ACCEPTED", 0)}", className="mb-0")],
+                [ html.H3(f"{status_counts.get("PUBLISHED", 0)}", className="mb-0")],
+                [ html.H3(f"{status_counts.get("PULLOUT", 0)}", className="mb-0")]
             )
 
         # for total modal
         @self.dash_app.callback(
             Output("total-modal", "is_open"),
             Output("total-modal-content", "children"),
-            Input("open-total-modal", "n_clicks"),
+            Input("btn-open-total-modal", "n_clicks"),
             Input("close-total-modal", "n_clicks"),
             State("total-modal", "is_open"),
             Input('college', 'value'),
@@ -1322,7 +1308,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-total-modal":
+            if trigger_id == "btn-open-total-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1351,13 +1337,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
@@ -1381,7 +1365,7 @@ class MainDashboard:
         @self.dash_app.callback(
             Output("ready-modal", "is_open"),
             Output("ready-modal-content", "children"),
-            Input("open-ready-modal", "n_clicks"),
+            Input("btn-open-ready-modal", "n_clicks"),
             Input("close-ready-modal", "n_clicks"),
             State("ready-modal", "is_open"),
             Input('college', 'value'),
@@ -1397,7 +1381,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-ready-modal":
+            if trigger_id == "btn-open-ready-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1431,13 +1415,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
@@ -1459,7 +1441,7 @@ class MainDashboard:
         @self.dash_app.callback(
             Output("submitted-modal", "is_open"),
             Output("submitted-modal-content", "children"),
-            Input("open-submitted-modal", "n_clicks"),
+            Input("btn-open-submitted-modal", "n_clicks"),
             Input("close-submitted-modal", "n_clicks"),
             State("submitted-modal", "is_open"),
             Input('college', 'value'),
@@ -1475,7 +1457,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-submitted-modal":
+            if trigger_id == "btn-open-submitted-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1509,13 +1491,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
@@ -1537,7 +1517,7 @@ class MainDashboard:
         @self.dash_app.callback(
             Output("accepted-modal", "is_open"),
             Output("accepted-modal-content", "children"),
-            Input("open-accepted-modal", "n_clicks"),
+            Input("btn-open-accepted-modal", "n_clicks"),
             Input("close-accepted-modal", "n_clicks"),
             State("accepted-modal", "is_open"),
             Input('college', 'value'),
@@ -1553,7 +1533,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-accepted-modal":
+            if trigger_id == "btn-open-accepted-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1587,13 +1567,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
@@ -1615,7 +1593,7 @@ class MainDashboard:
         @self.dash_app.callback(
             Output("published-modal", "is_open"),
             Output("published-modal-content", "children"),
-            Input("open-published-modal", "n_clicks"),
+            Input("btn-open-published-modal", "n_clicks"),
             Input("close-published-modal", "n_clicks"),
             State("published-modal", "is_open"),
             Input('college', 'value'),
@@ -1631,7 +1609,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-published-modal":
+            if trigger_id == "btn-open-published-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1665,13 +1643,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
@@ -1688,12 +1664,12 @@ class MainDashboard:
                 return False, ""
             
             return is_open, ""
-        
+
         # for pullout modal
         @self.dash_app.callback(
             Output("pullout-modal", "is_open"),
             Output("pullout-modal-content", "children"),
-            Input("open-pullout-modal", "n_clicks"),
+            Input("btn-open-pullout-modal", "n_clicks"),
             Input("close-pullout-modal", "n_clicks"),
             State("pullout-modal", "is_open"),
             Input('college', 'value'),
@@ -1709,7 +1685,7 @@ class MainDashboard:
             
             trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
             
-            if trigger_id == "open-pullout-modal":
+            if trigger_id == "btn-open-pullout-modal":
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
                 selected_status = default_if_empty(selected_status, self.default_statuses)
                 selected_years = selected_years if selected_years else self.default_years
@@ -1720,7 +1696,7 @@ class MainDashboard:
                 selected_years = ensure_list(selected_years)
                 selected_terms = ensure_list(selected_terms)
 
-                # Apply filters 
+                # Apply filters
                 filtered_data = get_data_for_modal_contents(
                     selected_colleges=selected_colleges, 
                     selected_status=selected_status,
@@ -1743,13 +1719,11 @@ class MainDashboard:
 
                 # Choose specific columns to display
                 selected_columns = {
-                    "research_id": "Research ID",
-                    "title": "Research Title",
-                    "concatenated_keywords": "Keywords",
-                    "concatenated_authors": "Author(s)",
                     "sdg": "SDG",
-                    "college_id": "College",
+                    "title": "Research Title",
+                    "concatenated_authors": "Author(s)",
                     "program_name": "Program",
+                    "concatenated_keywords": "Keywords",
                     "research_type": "Research Type"
                 }
                 
