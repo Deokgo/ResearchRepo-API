@@ -1280,12 +1280,12 @@ class MainDashboard:
             total_research_outputs = sum(status_counts.values())
 
             return (
-                [ html.H3(f"{total_research_outputs}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("READY", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("SUBMITTED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("ACCEPTED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("PUBLISHED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("PULLOUT", 0)}", className="mb-0")]
+                [ html.H3(f'{total_research_outputs}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("READY", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("SUBMITTED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("ACCEPTED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("PUBLISHED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("PULLOUT", 0)}', className="mb-0")]
             )
 
         # for total modal

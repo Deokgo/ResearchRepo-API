@@ -1233,12 +1233,12 @@ class CollegeDashApp:
             header = DashboardHeader(left_text=college, title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=view)
 
             return (
-                [ html.H3(f"{total_research_outputs}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("READY", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("SUBMITTED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("ACCEPTED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("PUBLISHED", 0)}", className="mb-0")],
-                [ html.H3(f"{status_counts.get("PULLOUT", 0)}", className="mb-0")],
+                [ html.H3(f'{total_research_outputs}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("READY", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("SUBMITTED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("ACCEPTED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("PUBLISHED", 0)}', className="mb-0")],
+                [ html.H3(f'{status_counts.get("PULLOUT", 0)}', className="mb-0")],
                 header,
             )
         

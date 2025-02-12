@@ -6,12 +6,12 @@ def KPI_Card(title, value, id, icon=None, color="primary"):
         [
             html.Div(
                 [
-                    # Icon (mas maliit)
+                    # Icon (smaller size for responsiveness)
                     html.I(className=icon, style={"fontSize": "14px", "alignSelf": "start"}) if icon else None,
                     html.Div(
                         [
-                            html.H3(value, className="mb-0 fw-bold", id=id),  # Mas maliit na text
-                            html.Small(title, className="text-muted"),  # Title lagi visible
+                            html.H3(value, className="mb-0 fw-bold", id=id),  # Smaller text
+                            html.Small(title, className="text-muted"),  # Title always visible
                         ],
                         className="text-center",
                     ),
@@ -21,7 +21,13 @@ def KPI_Card(title, value, id, icon=None, color="primary"):
         ],
         color=color,
         outline=True,
-        className="p-2 text-start position-relative",  # Binawasan ang padding
-        style={"width": "150px", "height": "90px", "cursor": "pointer"},  # Mas maliit na width at height
+        className="p-2 text-start position-relative",  # Reduced padding
+        style={
+            "width": "100%",  # Full width by default
+            "maxWidth": "180px",  # Restrict max width for large screens
+            "height": "auto",  # Auto height for responsiveness
+            "minHeight": "90px",  # Minimum height for consistency
+            "cursor": "pointer",
+        },
         id=f"btn-{id}",
     )
