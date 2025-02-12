@@ -17,9 +17,7 @@ auditlogs = Blueprint('auditlogs', __name__)
 def fetch_logs(hours=None):
     # Perform the SQLAlchemy query
     query = (
-        db.session.query(Account, AuditTrail, Role)
-        .join(AuditTrail, Account.user_id == AuditTrail.user_id)
-        .join(Role, Account.role_id == Role.role_id)
+        db.session.query(AuditTrail)
         .order_by(desc(AuditTrail.change_datetime))
     )
 
@@ -32,16 +30,16 @@ def fetch_logs(hours=None):
 
     # Convert the results into a JSON-friendly format
     logs = []
-    for account, audit_trail, role in results:
+    for audit_trail in results:
         logs.append({
             "audit_log": audit_trail.audit_id,
-            "email": account.email,
+            "email": audit_trail.email,  # Now directly from audit_trail
             "operation": audit_trail.operation,
             "table_name": audit_trail.table_name,
             "record_id": audit_trail.record_id if audit_trail.record_id is not None else 'N/A',
-            "changed_datetime": audit_trail.change_datetime.strftime('%Y-%m-%d %H:%M:%S'),  # Format directly without timezone conversion
+            "changed_datetime": audit_trail.change_datetime.strftime('%Y-%m-%d %H:%M:%S'),
             "action_desc": audit_trail.action_desc,
-            "role_name": role.role_name
+            "role": audit_trail.role  # Now directly from audit_trail
         })
 
     return jsonify({"logs": logs})
@@ -57,26 +55,22 @@ def fetch_operations():
         .all()
     )
 
-    # Convert the result into a list of operations
-    operations = [op[0] for op in distinct_operations]  # Extract the first element of each tuple
-
+    operations = [op[0] for op in distinct_operations]
     return jsonify({"operations": operations})
 
 # For filtering purposes (operations)
 @auditlogs.route('/fetch_roles', methods=['GET'])
 @jwt_required()
 def fetch_roles():
-    # Perform the SQLAlchemy query to get distinct operations
-    distinct_operations = (
-        db.session.query(Role.role_name)
+    # Get distinct roles directly from audit_trail
+    distinct_roles = (
+        db.session.query(AuditTrail.role)
         .distinct()
         .all()
     )
 
-    # Convert the result into a list of operations
-    operations = [op[0] for op in distinct_operations]  # Extract the first element of each tuple
-
-    return jsonify({"roles": operations})
+    roles = [role[0] for role in distinct_roles]
+    return jsonify({"roles": roles})
 
 @auditlogs.route('/fetch_date_range', methods=['GET'])
 @jwt_required()

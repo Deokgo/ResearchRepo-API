@@ -27,15 +27,12 @@ def retrieve_dataset(research_id=None):
     # Subquery to concatenate authors
     ordered_authors = db.session.query(
         ResearchOutputAuthor.research_id,
-        ResearchOutputAuthor.author_id,
-        UserProfile.first_name,
-        UserProfile.middle_name,
-        UserProfile.last_name,
-        UserProfile.suffix,
+        ResearchOutputAuthor.author_first_name,
+        ResearchOutputAuthor.author_middle_name,
+        ResearchOutputAuthor.author_last_name,
+        ResearchOutputAuthor.author_suffix,
         ResearchOutputAuthor.author_order
-    ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
+    ).order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
 
     # Modified authors subquery to return array of JSON objects
     authors_subquery = db.session.query(
@@ -43,20 +40,17 @@ def retrieve_dataset(research_id=None):
         func.array_agg(
             func.json_build_object(
                 'name', func.concat(
-                    ordered_authors.c.first_name,
+                    ordered_authors.c.author_first_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.middle_name, ''),
+                    func.coalesce(ordered_authors.c.author_middle_name, ''),
                     ' ',
-                    ordered_authors.c.last_name,
+                    ordered_authors.c.author_last_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.suffix, '')
-                ),
-                'user_id', ordered_authors.c.author_id,
-                'email', Account.email
+                    func.coalesce(ordered_authors.c.author_suffix, '')
+                )
             )
         ).label('authors_array')
-    ).join(Account, ordered_authors.c.author_id == Account.user_id) \
-     .group_by(ordered_authors.c.research_id).subquery()
+    ).group_by(ordered_authors.c.research_id).subquery()
 
     # Modified panels subquery to return array of JSON objects
     panels_subquery = db.session.query(
@@ -64,21 +58,17 @@ def retrieve_dataset(research_id=None):
         func.array_agg(
             func.json_build_object(
                 'name', func.concat(
-                    UserProfile.first_name,
+                    Panel.panel_first_name,
                     ' ',
-                    func.coalesce(UserProfile.middle_name, ''),
+                    func.coalesce(Panel.panel_middle_name, ''),
                     ' ',
-                    UserProfile.last_name,
+                    Panel.panel_last_name,
                     ' ',
-                    func.coalesce(UserProfile.suffix, '')
-                ),
-                'user_id', Panel.panel_id,
-                'email', Account.email
+                    func.coalesce(Panel.panel_suffix, '')
+                )
             )
         ).label('panels_array')
-    ).join(Account, Panel.panel_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .group_by(Panel.research_id).subquery()
+    ).group_by(Panel.research_id).subquery()
 
     # Modified keywords subquery to return array
     keywords_subquery = db.session.query(
@@ -92,24 +82,23 @@ def retrieve_dataset(research_id=None):
         func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
     ).group_by(SDG.research_id).subquery()
 
-    # Update adviser subquery to use json_build_object
-    adviser_subquery = db.session.query(
-        ResearchOutput.research_id,
-        func.json_build_object(
-            'name', func.concat(
-                UserProfile.first_name,
-                ' ',
-                func.coalesce(UserProfile.middle_name, ''),
-                ' ',
-                UserProfile.last_name,
-                ' ',
-                func.coalesce(UserProfile.suffix, '')
-            ),
-            'user_id', Account.user_id,
-            'email', Account.email
-        ).label('adviser_info')
-    ).join(Account, ResearchOutput.adviser_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id).subquery()
+    # Update adviser subquery to use the new columns and properly create a subquery
+    adviser_subquery = (
+        db.session.query(
+            ResearchOutput.research_id,
+            func.json_build_object(
+                'name', func.concat(
+                    ResearchOutput.adviser_first_name,
+                    ' ',
+                    func.coalesce(ResearchOutput.adviser_middle_name, ''),
+                    ' ',
+                    ResearchOutput.adviser_last_name,
+                    ' ',
+                    func.coalesce(ResearchOutput.adviser_suffix, '')
+                )
+            ).label('adviser_info')
+        )
+    ).subquery()
 
     # Add this new subquery with the existing subqueries
     research_areas_subquery = db.session.query(
@@ -237,12 +226,8 @@ def retrieve_dataset(research_id=None):
                 'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
                 'adviser': {
                     'name': row.adviser_info['name'] if row.adviser_info is not None else None,
-                    'user_id': row.adviser_info['user_id'] if row.adviser_info is not None else None,
-                    'email': row.adviser_info['email'] if row.adviser_info is not None else None
                 } if row.adviser_info is not None else {
                     'name': None,
-                    'user_id': None,
-                    'email': None
                 },
                 'research_areas': row.research_areas_array if row.research_areas_array else [],
             } for row in result]
@@ -268,15 +253,12 @@ def fetch_ordered_dataset(research_id=None):
     # Subquery to concatenate authors
     ordered_authors = db.session.query(
         ResearchOutputAuthor.research_id,
-        ResearchOutputAuthor.author_id,
-        UserProfile.first_name,
-        UserProfile.middle_name,
-        UserProfile.last_name,
-        UserProfile.suffix,
+        ResearchOutputAuthor.author_first_name,
+        ResearchOutputAuthor.author_middle_name,
+        ResearchOutputAuthor.author_last_name,
+        ResearchOutputAuthor.author_suffix,
         ResearchOutputAuthor.author_order
-    ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
+    ).order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
 
     # Modified authors subquery to return array of JSON objects
     authors_subquery = db.session.query(
@@ -284,42 +266,35 @@ def fetch_ordered_dataset(research_id=None):
         func.array_agg(
             func.json_build_object(
                 'name', func.concat(
-                    ordered_authors.c.first_name,
+                    ordered_authors.c.author_first_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.middle_name, ''),
+                    func.coalesce(ordered_authors.c.author_middle_name, ''),
                     ' ',
-                    ordered_authors.c.last_name,
+                    ordered_authors.c.author_last_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.suffix, '')
-                ),
-                'user_id', ordered_authors.c.author_id,
-                'email', Account.email
+                    func.coalesce(ordered_authors.c.author_suffix, '')
+                )
             )
         ).label('authors_array')
-    ).join(Account, ordered_authors.c.author_id == Account.user_id) \
-     .group_by(ordered_authors.c.research_id).subquery()
+    ).group_by(ordered_authors.c.research_id).subquery()
 
-    # Modified panels subquery to include email and use json_build_object
+    # Modified panels subquery to use the new name columns
     panels_subquery = db.session.query(
         Panel.research_id,
         func.array_agg(
             func.json_build_object(
                 'name', func.concat(
-                    UserProfile.first_name,
+                    Panel.panel_first_name,
                     ' ',
-                    func.coalesce(UserProfile.middle_name, ''),
+                    func.coalesce(Panel.panel_middle_name, ''),
                     ' ',
-                    UserProfile.last_name,
+                    Panel.panel_last_name,
                     ' ',
-                    func.coalesce(UserProfile.suffix, '')
-                ),
-                'user_id', Panel.panel_id,
-                'email', Account.email
+                    func.coalesce(Panel.panel_suffix, '')
+                )
             )
         ).label('panels_array')
-    ).join(Account, Panel.panel_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-     .group_by(Panel.research_id).subquery()
+    ).group_by(Panel.research_id).subquery()
 
     # Modified keywords subquery to return array
     keywords_subquery = db.session.query(
@@ -333,24 +308,23 @@ def fetch_ordered_dataset(research_id=None):
         func.string_agg(SDG.sdg, '; ').label('concatenated_sdg')
     ).group_by(SDG.research_id).subquery()
 
-    # Update adviser subquery to use json_build_object
-    adviser_subquery = db.session.query(
-        ResearchOutput.research_id,
-        func.json_build_object(
-            'name', func.concat(
-                UserProfile.first_name,
-                ' ',
-                func.coalesce(UserProfile.middle_name, ''),
-                ' ',
-                UserProfile.last_name,
-                ' ',
-                func.coalesce(UserProfile.suffix, '')
-            ),
-            'user_id', Account.user_id,
-            'email', Account.email
-        ).label('adviser_info')
-    ).join(Account, ResearchOutput.adviser_id == Account.user_id) \
-     .join(UserProfile, Account.user_id == UserProfile.researcher_id).subquery()
+    # Update adviser subquery to use the new columns and properly create a subquery
+    adviser_subquery = (
+        db.session.query(
+            ResearchOutput.research_id,
+            func.json_build_object(
+                'name', func.concat(
+                    ResearchOutput.adviser_first_name,
+                    ' ',
+                    func.coalesce(ResearchOutput.adviser_middle_name, ''),
+                    ' ',
+                    ResearchOutput.adviser_last_name,
+                    ' ',
+                    func.coalesce(ResearchOutput.adviser_suffix, '')
+                ),
+            ).label('adviser_info')
+        )
+    ).subquery()
 
     # Add this new subquery with the existing subqueries
     research_areas_subquery = db.session.query(
@@ -446,45 +420,41 @@ def fetch_ordered_dataset(research_id=None):
 
     # Formatting results into a list of dictionaries
     data = [{
-                'abstract': row.abstract,
-                'college_name': row.college_name if pd.notnull(row.college_name) else 'Unknown',
-                'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
-                'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
-                'program_id': row.program_id if pd.notnull(row.program_id) else None,
-                'research_id': row.research_id,
-                'title': row.title if pd.notnull(row.title) else 'Untitled',
-                'full_manuscript': row.full_manuscript,
-                'extended_abstract': row.extended_abstract,
-                'year': row.school_year if pd.notnull(row.school_year) else None,
-                'term': row.term if pd.notnull(row.term) else None,
-                'view_count': row.combined_total_views if pd.notnull(row.combined_total_views) else 'No Views Yet',
-                'download_count': row.combined_total_downloads if pd.notnull(row.combined_total_downloads) else 'No Downloads Yet',
-                'authors': row.authors_array if row.authors_array else [],
-                'keywords': row.keywords_array if row.keywords_array else [],
-                'panels': row.panels_array if row.panels_array else [],
-                'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
-                'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
-                'journal': row.pub_format_name if pd.notnull(row.pub_format_name) else 'unpublished',
-                'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
-                'date_published': row.date_published,
-                'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
-                'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
-                'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
-                'conference_date': row.conference_date,
-                'status': row.status if pd.notnull(row.status) else "READY",
-                'timestamp': row.timestamp if pd.notnull(row.status) else "N/A",
-                'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
-                'adviser': {
-                    'name': row.adviser_info['name'] if row.adviser_info is not None else None,
-                    'user_id': row.adviser_info['user_id'] if row.adviser_info is not None else None,
-                    'email': row.adviser_info['email'] if row.adviser_info is not None else None
-                } if row.adviser_info is not None else {
-                    'name': None,
-                    'user_id': None,
-                    'email': None
-                },
-                'research_areas': row.research_areas_array if row.research_areas_array else [],
-            } for row in result]
+        'abstract': row.abstract,
+        'college_name': row.college_name if pd.notnull(row.college_name) else 'Unknown',
+        'college_id': row.college_id if pd.notnull(row.college_id) else 'Unknown',
+        'program_name': row.program_name if pd.notnull(row.program_name) else 'N/A',
+        'program_id': row.program_id if pd.notnull(row.program_id) else None,
+        'research_id': row.research_id,
+        'title': row.title if pd.notnull(row.title) else 'Untitled',
+        'full_manuscript': row.full_manuscript,
+        'extended_abstract': row.extended_abstract,
+        'year': row.school_year if pd.notnull(row.school_year) else None,
+        'term': row.term if pd.notnull(row.term) else None,
+        'view_count': row.combined_total_views if pd.notnull(row.combined_total_views) else 'No Views Yet',
+        'download_count': row.combined_total_downloads if pd.notnull(row.combined_total_downloads) else 'No Downloads Yet',
+        'authors': row.authors_array if row.authors_array else [],
+        'keywords': row.keywords_array if row.keywords_array else [],
+        'panels': row.panels_array if row.panels_array else [],
+        'sdg': row.concatenated_sdg if pd.notnull(row.concatenated_sdg) else 'Not Specified',
+        'research_type': row.research_type_name if pd.notnull(row.research_type_name) else 'Unknown Type',
+        'journal': row.pub_format_name if pd.notnull(row.pub_format_name) else 'unpublished',
+        'scopus': row.scopus if pd.notnull(row.scopus) else 'N/A',
+        'date_published': row.date_published,
+        'published_year': int(row.date_published.year) if pd.notnull(row.date_published) else None,
+        'conference_venue': row.conference_venue if pd.notnull(row.conference_venue) else 'Unknown Venue',
+        'conference_title': row.conference_title if pd.notnull(row.conference_title) else 'No Conference Title',
+        'conference_date': row.conference_date,
+        'status': row.status if pd.notnull(row.status) else "READY",
+        'timestamp': row.timestamp if pd.notnull(row.status) else "N/A",
+        'country': row.conference_venue.split(",")[-1].strip() if pd.notnull(row.conference_venue) else 'Unknown Country',
+        'adviser': {
+            'name': row.adviser_info['name'] if row.adviser_info is not None else None
+        } if row.adviser_info is not None else {
+            'name': None,
+        },
+        'research_areas': row.research_areas_array if row.research_areas_array else [],
+    } for row in result]
 
     return jsonify({"dataset": [dict(row) for row in data]})
 

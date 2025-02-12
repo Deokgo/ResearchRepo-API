@@ -32,19 +32,17 @@ class UserEngagementManager:
                 ).label('rn')
             ).subquery()
 
-            # Subquery to concatenate authors
+            # Subquery to concatenate authors with their names directly
             authors_subquery = session.query(
                 ResearchOutputAuthor.research_id,
                 func.string_agg(
                     func.concat(
-                        UserProfile.last_name, ', ',  # Surname first
-                        func.substring(UserProfile.first_name, 1, 1), '. ',  # First name initial
-                        func.coalesce(func.substring(UserProfile.middle_name, 1, 1) + '.', '') 
+                        ResearchOutputAuthor.author_last_name, ', ',
+                        ResearchOutputAuthor.author_first_name, ' ',
+                        func.coalesce(ResearchOutputAuthor.author_middle_name, '')
                     ), '; '
                 ).label('concatenated_authors')
-            ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
-            .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-            .group_by(ResearchOutputAuthor.research_id).subquery()
+            ).group_by(ResearchOutputAuthor.research_id).subquery()
 
             # Subquery to concatenate keywords
             keywords_subquery = session.query(

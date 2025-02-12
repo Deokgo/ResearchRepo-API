@@ -11,7 +11,10 @@ class ResearchOutput(BaseModel):
     full_manuscript = db.Column(db.String(100))
     extended_abstract = db.Column(db.String(100))
     user_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
-    adviser_id = db.Column(db.String(15), db.ForeignKey('account.user_id'))
+    adviser_first_name = db.Column(db.String(30))
+    adviser_middle_name = db.Column(db.String(2))
+    adviser_last_name = db.Column(db.String(30))
+    adviser_suffix = db.Column(db.String(10))
     research_type_id = db.Column(db.String(6), db.ForeignKey('research_types.research_type_id'))
     date_uploaded = db.Column(db.DateTime, nullable=False)
     research_areas = db.relationship(

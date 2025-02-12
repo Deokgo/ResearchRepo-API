@@ -48,14 +48,12 @@ class DatabaseManager:
                 ResearchOutputAuthor.research_id,
                 func.string_agg(
                     func.concat(
-                        UserProfile.last_name, ', ',  # Surname first
-                        func.substring(UserProfile.first_name, 1, 1), '. ',  # First name initial
-                        func.coalesce(func.substring(UserProfile.middle_name, 1, 1) + '.', '') 
+                        ResearchOutputAuthor.author_last_name, ', ',  # Surname first
+                        func.substring(ResearchOutputAuthor.author_first_name, 1, 1), '. ',  # First name initial
+                        func.coalesce(func.substring(ResearchOutputAuthor.author_middle_name, 1, 1) + '.', '') 
                     ), '; '
                 ).label('concatenated_authors')
-            ).join(Account, ResearchOutputAuthor.author_id == Account.user_id) \
-            .join(UserProfile, Account.user_id == UserProfile.researcher_id) \
-            .group_by(ResearchOutputAuthor.research_id).subquery()
+            ).group_by(ResearchOutputAuthor.research_id).subquery()
 
             # Subquery to concatenate keywords
             keywords_subquery = session.query(
@@ -122,12 +120,11 @@ class DatabaseManager:
             .outerjoin(latest_status_subquery, (Publication.publication_id == latest_status_subquery.c.publication_id) & (latest_status_subquery.c.rn == 1)) \
             .outerjoin(authors_subquery, ResearchOutput.research_id == authors_subquery.c.research_id) \
             .outerjoin(keywords_subquery, ResearchOutput.research_id == keywords_subquery.c.research_id) \
-            .outerjoin(sdg_subquery, ResearchOutput.research_id ==  sdg_subquery.c.research_id) \
-            .outerjoin(area_subquery, ResearchOutput.research_id ==  area_subquery.c.research_id) \
+            .outerjoin(sdg_subquery, ResearchOutput.research_id == sdg_subquery.c.research_id) \
+            .outerjoin(area_subquery, ResearchOutput.research_id == area_subquery.c.research_id) \
             .outerjoin(ResearchTypes, ResearchOutput.research_type_id == ResearchTypes.research_type_id) \
             .outerjoin(PublicationFormat, Publication.pub_format_id == PublicationFormat.pub_format_id) \
-            .outerjoin(agg_user_engage, agg_user_engage.c.research_id == ResearchOutput.research_id)\
-            .distinct()
+            .outerjoin(agg_user_engage, agg_user_engage.c.research_id == ResearchOutput.research_id)
 
             result = query.all()
 
