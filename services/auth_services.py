@@ -1,6 +1,7 @@
 import datetime
 from flask import Blueprint, request, jsonify, current_app, session, make_response
 from models import db
+from models.audit_trail import AuditTrail
 import jwt
 import re
 from functools import wraps
@@ -46,16 +47,15 @@ def formatting_id(indicator, model_class, id_field):
     return generated_id
 
 # Function for logging audit trails
-def log_audit_trail(user_id, table_name, record_id, operation, action_desc):
-    """Log an audit trail entry."""
-    from models.audit_trail import AuditTrail
+def log_audit_trail(email, role, table_name, record_id, operation, action_desc):
     try:
         audit_id = formatting_id('AUD', AuditTrail, 'audit_id')
 
         # Create the audit trail entry
         new_audit = AuditTrail(
             audit_id=audit_id,
-            user_id=user_id,
+            email=email,
+            role=role,
             table_name=table_name,
             record_id=record_id,
             operation=operation,

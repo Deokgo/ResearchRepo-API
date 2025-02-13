@@ -55,7 +55,8 @@ def login():
             
             # Log successful login
             auth_services.log_audit_trail(
-                user_id=user.user_id,
+                email=user.email,
+                role=user.role.role_name,
                 table_name='Account',
                 record_id=None,
                 operation='LOGIN',
@@ -118,10 +119,11 @@ def add_user():
 
         # Log the successful login in the Audit_Trail
         auth_services.log_audit_trail(
-            user_id=user_id, 
-            table_name='Account and Visitor', 
+            email=email,
+            role='RESEARCHER',
+            table_name='Account and Visitor',
             record_id=None,
-            operation='SIGNUP', 
+            operation='SIGNUP',
             action_desc='Created Account'
         )
 
@@ -189,14 +191,19 @@ def validate_session():
 def logout():
     # Get the current user's identity
     user_id = get_jwt_identity()
-    # Log the logout operation
-    auth_services.log_audit_trail(
-        user_id=user_id,
-        table_name='Account',
-        record_id=None,
-        operation='LOGOUT',
-        action_desc='User logged out'
-    )
+    
+    # Get user details for audit trail
+    user = Account.query.get(user_id)
+    if user:
+        # Log the logout operation
+        auth_services.log_audit_trail(
+            email=user.email,
+            role=user.role.role_name,
+            table_name='Account',
+            record_id=None,
+            operation='LOGOUT',
+            action_desc='User logged out'
+        )
     return jsonify({"message": "Logout successful"}), 200
 
 @auth.route('/send_otp', methods=['POST'])
@@ -285,7 +292,8 @@ def reset_password():
 
             # Log the password reset
             auth_services.log_audit_trail(
-                user_id=user.user_id,
+                email=user.email,
+                role=user.role.role_name,
                 table_name='Account',
                 record_id=user.user_id,
                 operation='UPDATE',
