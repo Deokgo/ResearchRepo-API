@@ -12,6 +12,7 @@ from flask_jwt_extended import JWTManager, get_jwt, create_access_token, get_jwt
 from datetime import datetime, timezone, timedelta
 import json
 from urllib.parse import urlparse
+from models import Account
 
 def initialize_redis(app):
     """Initialize Redis and attach it to the app."""
@@ -72,13 +73,17 @@ def refresh_expiring_jwts(response):
             # Log the token expiration
             from services import auth_services
             user_id = get_jwt_identity()
-            auth_services.log_audit_trail(
-                user_id=user_id,
-                table_name='Account',
-                record_id=None,
-                operation='LOGOUT',
-                action_desc='Token expired'
-            )
+            # Get user details for audit trail
+            user = Account.query.get(user_id)
+            if user:
+                auth_services.log_audit_trail(
+                    email=user.email,
+                    role=user.role.role_name,
+                    table_name='Account',
+                    record_id=None,
+                    operation='LOGOUT',
+                    action_desc='Token expired'
+                )
             return response
             
         # If token is about to expire (less than 30 min remaining)

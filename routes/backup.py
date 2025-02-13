@@ -17,6 +17,7 @@ from flask_jwt_extended import get_jwt_identity
 import hashlib
 import time
 from sqlalchemy import create_engine
+from models import Account
 
 backup = Blueprint('backup', __name__)
 
@@ -44,6 +45,11 @@ def get_changed_files(repository_dir, last_backup_date):
 @admin_required
 def create_backup(backup_type):
     try:
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
+
         backup_type = BackupType(backup_type.upper())
         
         # If it's an incremental backup, find the latest backup in current timeline
@@ -247,7 +253,8 @@ def create_backup(backup_type):
             db.session.commit()
 
             log_audit_trail(
-                user_id=get_jwt_identity(),
+                email=current_user.email,
+                role=current_user.role.role_name,
                 operation="CREATE_BACKUP",
                 action_desc=f"Created {backup_type.value} backup with ID: {backup_id}",
                 table_name="backup",
@@ -276,6 +283,11 @@ def restore_backup(backup_id):
     service_name = None
     original_data_backup = None
     try:
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
+
         # Get PGDATA path from config at the start
         pgdata = current_app.config.get('PGDATA')
         if not pgdata:
@@ -300,7 +312,6 @@ def restore_backup(backup_id):
             'files_backup_location': target_backup.files_backup_location,
             'backup_type': target_backup.backup_type
         }
-        user_id = get_jwt_identity()
 
         if target_backup.backup_type == BackupType.FULL.value:
             # --- SERVICE CONTROL: Stop PostgreSQL ---
@@ -520,7 +531,8 @@ def restore_backup(backup_id):
                                             
                                             # Try to log audit trail
                                             log_audit_trail(
-                                                user_id=user_id,
+                                                email=current_user.email,
+                                                role=current_user.role.role_name,
                                                 operation="RESTORE_BACKUP",
                                                 action_desc=f"Restored backup with ID: {backup_id}",
                                                 table_name="backup",
@@ -772,7 +784,8 @@ def restore_backup(backup_id):
                                 db.engine.dispose()
                                 
                                 log_audit_trail(
-                                    user_id=user_id,
+                                    email=current_user.email,
+                                    role=current_user.role.role_name,
                                     operation="RESTORE_BACKUP",
                                     action_desc=f"Restored backup with ID: {backup_id}",
                                     table_name="backup",

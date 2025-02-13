@@ -97,8 +97,12 @@ def get_user_acc_by_id(user_id):
 def update_acc(user_id):
     data = request.json
     try:
-        user_acc = Account.query.filter_by(user_id=user_id).first()
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
 
+        user_acc = Account.query.filter_by(user_id=user_id).first()
         if not user_acc:
             return jsonify({"message": "User not found"}), 404
         
@@ -109,10 +113,9 @@ def update_acc(user_id):
 
         db.session.commit()
         
-        # Get the current user's identity
-        user_id = get_jwt_identity()
         auth_services.log_audit_trail(
-            user_id=user_id,
+            email=current_user.email,
+            role=current_user.role.role_name,
             table_name='Account',
             record_id=user_acc.user_id,
             operation='UPDATE',
@@ -133,6 +136,11 @@ def update_acc(user_id):
 @accounts.route('/update_account/<user_id>', methods=['PUT'])
 def update_account(user_id):
     try:
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
+
         data = request.json
 
         # Retrieve the user's account and associated information
@@ -182,10 +190,11 @@ def update_account(user_id):
         # Log the update event in the Audit_Trail with specific changes
         formatted_changes = "\n".join(changes)
         auth_services.log_audit_trail(
-            user_id=user_acc.user_id, 
-            table_name='Account', 
+            email=current_user.email,
+            role=current_user.role.role_name,
+            table_name='Account',
             record_id=user_acc.user_id,
-            operation='UPDATE', 
+            operation='UPDATE',
             action_desc=f'Account profile updated:\n{formatted_changes}'
         )
 
@@ -233,8 +242,12 @@ def update_status(user_id):
 
         # Log the update event in the Audit_Trail
         auth_services.log_audit_trail(
-            user_id=user_acc.user_id, table_name='Account', record_id=user_acc.user_id,
-            operation='UPDATE', action_desc=f"Account status updated to '{new_status}'"
+            email=user_acc.email,
+            role=user_acc.role.role_name,
+            table_name='Account',
+            record_id=user_acc.user_id,
+            operation='UPDATE',
+            action_desc=f"Account status updated to '{new_status}'"
         )
 
         # Return the updated account status
@@ -347,7 +360,8 @@ def update_password(user_id):
         # Log the audit trail
         try:
             auth_services.log_audit_trail(
-                user_id=user_acc.user_id,  # Pass actual user_id here
+                email=user_acc.email,
+                role=user_acc.role.role_name,
                 table_name='Account',
                 record_id=user_acc.user_id,
                 operation='UPDATE',
@@ -430,7 +444,8 @@ def add_bulk_users():
             
             # Log the audit trail for each user created
             auth_services.log_audit_trail(
-                user_id=user_id,
+                email=user_id,
+                role=user_id,
                 table_name='Account',
                 record_id=acc_id,
                 operation='CREATE',

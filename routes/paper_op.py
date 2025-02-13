@@ -43,6 +43,12 @@ def add_paper():
     try:
         # Get the current user's identity
         user_id = get_jwt_identity()
+        
+        # Get user details for audit trail
+        user = Account.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
         data = request.form
 
         # Required Fields
@@ -263,9 +269,10 @@ def add_paper():
         # Finally commit everything
         db.session.commit()
 
-        # Log audit trail
+        # Modified audit trail logging
         auth_services.log_audit_trail(
-            user_id=user_id,
+            email=user.email,
+            role=user.role.role_name,
             table_name='Research_Output',
             record_id=new_research.research_id,
             operation='CREATE',
@@ -298,6 +305,12 @@ def update_paper(research_id):
     try:
         # Get the current user's identity
         user_id = get_jwt_identity()
+        
+        # Get user details for audit trail
+        user = Account.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
         data = request.form
         file = request.files.get('file')
         file_ea = request.files.get('extended_abstract')
@@ -440,10 +453,11 @@ def update_paper(research_id):
 
         db.session.commit()
 
-        # Log audit trail with detailed changes
+        # Modified audit trail logging
         formatted_changes = "\n".join(changes)
         auth_services.log_audit_trail(
-            user_id=user_id,
+            email=user.email,
+            role=user.role.role_name,
             table_name='Research_Output',
             record_id=research_id,
             operation='UPDATE',

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, session
-from models import db, Conference
+from models import db, Conference, Account
 from services import auth_services
 from datetime import datetime
 import traceback
@@ -11,10 +11,10 @@ conference = Blueprint('conference', __name__)
 @jwt_required()
 def add_conference():
     try:
-        # Get user_id from form data 
-        user_id = get_jwt_identity()
-        if not user_id:
-            return jsonify({"error": "User must be logged in to add conference"}), 401
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 401
 
         data = request.form  # Get form data
         
@@ -59,7 +59,8 @@ def add_conference():
 
         # Log audit trail
         auth_services.log_audit_trail(
-            user_id=user_id,
+            email=current_user.email,
+            role=current_user.role.role_name,
             table_name='Conference',
             record_id=new_conference.conference_id,
             operation='CREATE',

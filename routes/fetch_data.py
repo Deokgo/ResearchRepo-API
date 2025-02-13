@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, json
-from models import db,Conference,Role, UserProfile,Program,College
+from models import db,Conference,Role, UserProfile,Program,College,Account
 from services import auth_services
 from flask_jwt_extended import get_jwt_identity,jwt_required,get_jwt
 #from services.logs import formatting_id,log_audit_trail
@@ -121,6 +121,11 @@ def colleges(current_college=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
         try:
+            # Get the current user for audit trail
+            current_user = Account.query.get(get_jwt_identity())
+            if not current_user:
+                return jsonify({"error": "Current user not found"}), 404
+
             data = request.form  # Get form data
             
             # Required fields list
@@ -150,10 +155,9 @@ def colleges(current_college=None):
             db.session.commit()
 
             # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='College',
                 record_id=data['college_id'],
                 operation='CREATE',
@@ -197,6 +201,11 @@ def programs(current_program=None):
             return jsonify({'error': str(e)}), 400
     elif request.method == 'POST':
         try:
+            # Get the current user for audit trail
+            current_user = Account.query.get(get_jwt_identity())
+            if not current_user:
+                return jsonify({"error": "Current user not found"}), 404
+
             data = request.form  # Get form data
             
             # Required fields list
@@ -232,10 +241,9 @@ def programs(current_program=None):
             db.session.commit()
 
             # Log audit trail
-            # Get the current user's identity
-            user_id = get_jwt_identity()
             auth_services.log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Program',
                 record_id=data['program_id'],
                 operation='CREATE',

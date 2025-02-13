@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy.exc import SQLAlchemyError
-from models import db, Publication , ResearchOutput, Status, Conference, PublicationFormat
+from models import db, Publication , ResearchOutput, Status, Conference, PublicationFormat, Account
 from services.auth_services import formatting_id, log_audit_trail
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, date
@@ -109,15 +109,20 @@ def get_research_status(research_id=None):
             send_notification_email("NEW PUBLICATION STATUS UPDATE",
                                 f'Research paper by {research_id} has been updated to {changed_status.status}.')
             
-            # Log audit trail here asynchronously (optional)
-            # Get the current user's identity
-            user_id = get_jwt_identity()
+            # Get the current user for audit trail
+            current_user = Account.query.get(get_jwt_identity())
+            if not current_user:
+                return jsonify({"error": "Current user not found"}), 404
+
+            # Log audit trail here
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Publication and Status',
                 record_id=research_id,
                 operation='UPDATE',
-                action_desc='Updated research output status')
+                action_desc='Updated research output status'
+            )
 
             return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
@@ -181,15 +186,20 @@ def pullout_paper(research_id):
         send_notification_email("NOTIFICATION",
                                 f'Research paper by {research_id} has been pulled out.')
 
-        # Log audit trail here asynchronously (optional)
-        # Get the current user's identity
-        user_id = get_jwt_identity()
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
+
+        # Log audit trail here
         log_audit_trail(
-                user_id=user_id,
-                table_name='Publication and Status',
-                record_id=research_id,
-                operation='UPDATE',
-                action_desc='Updated research output status')
+            email=current_user.email,
+            role=current_user.role.role_name,
+            table_name='Publication and Status',
+            record_id=research_id,
+            operation='UPDATE',
+            action_desc='Updated research output status'
+        )
             
         return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
 
@@ -199,6 +209,11 @@ def pullout_paper(research_id):
 def publication_papers(research_id=None):
     user_id = get_jwt_identity()
     try:
+        # Get the current user for audit trail
+        current_user = Account.query.get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
+
         if request.method == 'GET':
             # Fetch publication details
             query = (
@@ -278,7 +293,8 @@ def publication_papers(research_id=None):
                     db.session.add(conference)  # Add new conference to the database
                     db.session.commit()  # Commit changes
                     log_audit_trail(
-                        user_id=user_id,
+                        email=current_user.email,
+                        role=current_user.role.role_name,
                         table_name='Conference',
                         record_id=cf_id,
                         operation='CREATE',
@@ -301,9 +317,10 @@ def publication_papers(research_id=None):
             db.session.add(new_publication)
             db.session.commit()
 
-            # Log audit trail
+            # Log audit trail for CREATE
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Publication',
                 record_id=publication_id,
                 operation='CREATE',
@@ -353,7 +370,8 @@ def publication_papers(research_id=None):
                     db.session.add(conference)  # Add new conference to the database
                     db.session.commit()  # Commit changes
                     log_audit_trail(
-                        user_id=user_id,
+                        email=current_user.email,
+                        role=current_user.role.role_name,
                         table_name='Conference',
                         record_id=cf_id,
                         operation='CREATE',
@@ -381,9 +399,10 @@ def publication_papers(research_id=None):
                 f"scopus': {publication.scopus}}}"
             )
 
-            # Log audit trail with previous and new data
+            # Log audit trail for UPDATE with previous and new data
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Publication',
                 record_id=publication_id,
                 operation='UPDATE',
@@ -499,6 +518,9 @@ def fetch_all_contents(table):
 @jwt_required()
 def manage_publication(status, research_id):
     user_id = get_jwt_identity()
+    current_user = Account.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "Current user not found"}), 404
     #user_id ="US-20241009-010"
     # Validate the operation
     operations = ['submitted', 'accepted', 'published']
@@ -538,7 +560,8 @@ def manage_publication(status, research_id):
                 db.session.add(conference)
                 db.session.commit()
                 log_audit_trail(
-                    user_id=user_id,
+                    email=current_user.email,
+                    role=current_user.role.role_name,
                     table_name='Conference',
                     record_id=cf_id,
                     operation='CREATE',
@@ -570,14 +593,16 @@ def manage_publication(status, research_id):
             print("error")
         else:
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
                 action_desc=f'{research_id} Status Updated: READY -> SUBMITTED')
 
         log_audit_trail(
-            user_id=user_id,
+            email=current_user.email,
+            role=current_user.role.role_name,
             table_name='Publication',
             record_id=publication_id,
             operation='CREATE',
@@ -592,7 +617,8 @@ def manage_publication(status, research_id):
             print("error")
         else:
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
@@ -655,7 +681,8 @@ def manage_publication(status, research_id):
         db.session.commit()
 
         log_audit_trail(
-            user_id=user_id,
+            email=current_user.email,
+            role=current_user.role.role_name,
             table_name='Publication',
             record_id=publication.publication_id,
             operation='UPDATE',
@@ -667,7 +694,8 @@ def manage_publication(status, research_id):
             print("error")
         else:
             log_audit_trail(
-                user_id=user_id,
+                email=current_user.email,
+                role=current_user.role.role_name,
                 table_name='Status',
                 record_id=research_id,
                 operation='UPDATE',
