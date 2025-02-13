@@ -12,6 +12,10 @@ from database.institutional_performance_queries import get_data_for_performance_
 from components.DashboardHeader import DashboardHeader
 from components.Tabs import Tabs
 from components.KPI_Card import KPI_Card
+import os
+import datetime
+from pathlib import Path
+from dash.dcc import send_data_frame, send_file
 
 def default_if_empty(selected_values, default_values):
     """
@@ -31,6 +35,18 @@ def ensure_list(value):
     elif isinstance(value, str):
         return [value]
     return value  # Return as is if already a list or another type
+
+def download_file(df, file):
+    """Handles saving the file and returns the file path."""
+    downloads_folder = str(Path.home() / "Downloads")  # Works for Windows, Mac, Linux
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{file}_{timestamp}.xlsx"
+    file_path = os.path.join(downloads_folder, file_name)
+
+    # Save the file
+    df.to_excel(file_path, index=False)
+
+    return file_path
 
 class CollegeDashApp:
     def __init__(self, server, title=None, college=None, program=None, **kwargs):
@@ -319,6 +335,12 @@ class CollegeDashApp:
             dcc.Location(id='url', refresh=False),
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1 second
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
+            dcc.Download(id="total-download-link"), # For download feature (modal content)
+            dcc.Download(id="ready-download-link"), # For download feature (modal content)
+            dcc.Download(id="submitted-download-link"), # For download feature (modal content)
+            dcc.Download(id="accepted-download-link"), # For download feature (modal content)
+            dcc.Download(id="published-download-link"), # For download feature (modal content)
+            dcc.Download(id="pullout-download-link"), # For download feature (modal content)
             dbc.Container([
                 dbc.Row([
                     # Sidebar controls
@@ -339,37 +361,67 @@ class CollegeDashApp:
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Research Output(s)")),
                                 dbc.ModalBody(id="total-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-total-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="total-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-total-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                ) 
                             ], id="total-modal", scrollable=True, is_open=False, size="xl"),
                             
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Ready for Publication")),
                                 dbc.ModalBody(id="ready-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-ready-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="ready-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-ready-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                ) 
                             ], id="ready-modal", scrollable=True, is_open=False, size="xl"),
                             
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Submitted Paper(s)")),
                                 dbc.ModalBody(id="submitted-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-submitted-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="submitted-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-submitted-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                ) 
                             ], id="submitted-modal", scrollable=True, is_open=False, size="xl"),
                             
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Accepted Paper(s)")),
                                 dbc.ModalBody(id="accepted-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-accepted-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="accepted-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-accepted-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                )  
                             ], id="accepted-modal", scrollable=True, is_open=False, size="xl"),
                             
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Published Paper(s)")),
                                 dbc.ModalBody(id="published-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-published-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="published-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-published-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                )  
                             ], id="published-modal", scrollable=True, is_open=False, size="xl"),
-                            
+
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Pulled-out Paper(s)")),
                                 dbc.ModalBody(id="pullout-modal-content"),
-                                dbc.ModalFooter(dbc.Button("Close", id="close-pullout-modal", className="ms-auto", n_clicks=0)),
+                                dbc.ModalFooter(
+                                    dbc.ModalFooter([
+                                        dbc.Button("Export", id="pullout-download-btn", color="success", className="mr-2", n_clicks=0),
+                                        dbc.Col(dbc.Button("Close", id="close-pullout-modal", className="ms-auto", n_clicks=0))
+                                    ])
+                                )     
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
 
                             # Tabs
@@ -1296,457 +1348,547 @@ class CollegeDashApp:
         @self.dash_app.callback(
             Output("total-modal", "is_open"),
             Output("total-modal-content", "children"),
-            Input("btn-open-total-modal", "n_clicks"),
+            Output("total-download-link", "data"),
+            Output("total-download-btn", "style"),  # Control visibility
+            Input("open-total-modal", "n_clicks"),
             Input("close-total-modal", "n_clicks"),
+            Input("total-download-btn", "n_clicks"),
             State("total-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-total-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a valid DataFrame or empty list
-                if df_filtered_data is None or len(df_filtered_data) == 0:
-                    return True, "No data records."
-                elif isinstance(df_filtered_data, pd.DataFrame):
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                # Convert to DataFrame and filter selected columns
-                if filtered_data:
-                    filtered_df = pd.DataFrame(filtered_data)[list(selected_columns.keys())]
-                    filtered_df = filtered_df.rename(columns=selected_columns)  # Rename columns
-                else:
-                    filtered_df = pd.DataFrame(columns=list(selected_columns.values()))  # Empty DataFrame with renamed columns
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Convert DataFrame to dbc.Table
-                table = dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-total-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-total-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-total-modal":
-                return False, ""
-            
-            return is_open, ""
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "total-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "total_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
         
         # for ready modal
         @self.dash_app.callback(
             Output("ready-modal", "is_open"),
             Output("ready-modal-content", "children"),
-            Input("btn-open-ready-modal", "n_clicks"),
+            Output("ready-download-link", "data"),
+            Output("ready-download-btn", "style"),  # Control visibility
+            Input("open-ready-modal", "n_clicks"),
             Input("close-ready-modal", "n_clicks"),
+            Input("ready-download-btn", "n_clicks"),
             State("ready-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-ready-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a list of dictionaries
-                if df_filtered_data is None:
-                    df_filtered_data = []
-                elif isinstance(df_filtered_data, pd.DataFrame):  
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "ready" papers
-                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "READY"]
-                if df_filtered_data == []:
-                    return True, "No data records."
-                
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Rename columns
-                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            # Filter only "READY" papers
+            df_filtered_data = [d for d in df_filtered_data if d.get("status") == "READY"]
 
-                # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-ready-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-ready-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-ready-modal":
-                return False, ""
-            
-            return is_open, ""
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "ready-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "ready_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
         
         # for submitted modal
         @self.dash_app.callback(
             Output("submitted-modal", "is_open"),
             Output("submitted-modal-content", "children"),
-            Input("btn-open-submitted-modal", "n_clicks"),
+            Output("submitted-download-link", "data"),
+            Output("submitted-download-btn", "style"),  # Control visibility
+            Input("open-submitted-modal", "n_clicks"),
             Input("close-submitted-modal", "n_clicks"),
+            Input("submitted-download-btn", "n_clicks"),
             State("submitted-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-submitted-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a list of dictionaries
-                if df_filtered_data is None:
-                    df_filtered_data = []
-                elif isinstance(df_filtered_data, pd.DataFrame):  
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "SUBMITTED" papers
-                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "SUBMITTED"]
-                if df_filtered_data == []:
-                    return True, "No data records."
-                
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Rename columns
-                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            # Filter only "SUBMITTED" papers
+            df_filtered_data = [d for d in df_filtered_data if d.get("status") == "SUBMITTED"]
 
-                # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-submitted-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-submitted-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-submitted-modal":
-                return False, ""
-            
-            return is_open, ""
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "submitted-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "submitted_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
         
         # for accepted modal
         @self.dash_app.callback(
             Output("accepted-modal", "is_open"),
             Output("accepted-modal-content", "children"),
-            Input("btn-open-accepted-modal", "n_clicks"),
+            Output("accepted-download-link", "data"),
+            Output("accepted-download-btn", "style"),  # Control visibility
+            Input("open-accepted-modal", "n_clicks"),
             Input("close-accepted-modal", "n_clicks"),
+            Input("accepted-download-btn", "n_clicks"),
             State("accepted-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-accepted-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a list of dictionaries
-                if df_filtered_data is None:
-                    df_filtered_data = []
-                elif isinstance(df_filtered_data, pd.DataFrame):  
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "ACCEPTED" papers
-                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "ACCEPTED"]
-                if df_filtered_data == []:
-                    return True, "No data records."
-                
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Rename columns
-                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            # Filter only "ACCEPTED" papers
+            df_filtered_data = [d for d in df_filtered_data if d.get("status") == "ACCEPTED"]
 
-                # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-accepted-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-accepted-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-accepted-modal":
-                return False, ""
-            
-            return is_open, ""
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "accepted-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "accepted_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
         
         # for published modal
         @self.dash_app.callback(
             Output("published-modal", "is_open"),
             Output("published-modal-content", "children"),
-            Input("btn-open-published-modal", "n_clicks"),
+            Output("published-download-link", "data"),
+            Output("published-download-btn", "style"),  # Control visibility
+            Input("open-published-modal", "n_clicks"),
             Input("close-published-modal", "n_clicks"),
+            Input("published-download-btn", "n_clicks"),
             State("published-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-published-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a list of dictionaries
-                if df_filtered_data is None:
-                    df_filtered_data = []
-                elif isinstance(df_filtered_data, pd.DataFrame):  
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "PUBLISHED" papers
-                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PUBLISHED"]
-                if df_filtered_data == []:
-                    return True, "No data records."
-                
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Rename columns
-                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            # Filter only "PUBLISHED" papers
+            df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PUBLISHED"]
 
-                # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-published-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-published-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-published-modal":
-                return False, ""
-            
-            return is_open, ""
-        
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "published-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "published_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
+
         # for pullout modal
         @self.dash_app.callback(
             Output("pullout-modal", "is_open"),
             Output("pullout-modal-content", "children"),
-            Input("btn-open-pullout-modal", "n_clicks"),
+            Output("pullout-download-link", "data"),
+            Output("pullout-download-btn", "style"),  # Control visibility
+            Input("open-pullout-modal", "n_clicks"),
             Input("close-pullout-modal", "n_clicks"),
+            Input("pullout-download-btn", "n_clicks"),
             State("pullout-modal", "is_open"),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value')
+            State("program", "value"),
+            State("status", "value"),
+            State("years", "value"),
+            State("terms", "value"),
+            prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
-
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_programs, selected_status, selected_years, selected_terms):
             ctx = dash.callback_context
-            if not ctx.triggered:
-                return is_open, ""
-            
-            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            
-            if trigger_id == "btn-open-pullout-modal":
-                selected_programs = default_if_empty(selected_programs, self.default_programs)
-                selected_status = default_if_empty(selected_status, self.default_statuses)
-                selected_years = selected_years if selected_years else self.default_years
-                selected_terms = default_if_empty(selected_terms, self.default_terms)
+            trigger_id = ctx.triggered_id
 
-                selected_programs = ensure_list(selected_programs)
-                selected_status = ensure_list(selected_status)
-                selected_years = ensure_list(selected_years)
-                selected_terms = ensure_list(selected_terms)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
 
-                # Apply filters
-                filtered_data = get_data_for_modal_contents(
-                    None,
-                    selected_programs=selected_programs, 
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
 
-                df_filtered_data = pd.DataFrame(filtered_data)
+            # Apply filters
+            filtered_data = get_data_for_modal_contents(
+                selected_programs=selected_programs, 
+                selected_status=selected_status,
+                selected_years=selected_years,
+                selected_terms=selected_terms
+            )
 
-                # Ensure df_filtered_data is a list of dictionaries
-                if df_filtered_data is None:
-                    df_filtered_data = []
-                elif isinstance(df_filtered_data, pd.DataFrame):  
-                    df_filtered_data = df_filtered_data.to_dict(orient="records")
+            df_filtered_data = pd.DataFrame(filtered_data)
 
-                # Filter only "PULLOUT" papers
-                df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PULLOUT"]
-                if df_filtered_data == []:
-                    return True, "No data records."
-                
-                # Choose specific columns to display
-                selected_columns = {
-                    "sdg": "SDG",
-                    "title": "Research Title",
-                    "concatenated_authors": "Author(s)",
-                    "program_name": "Program",
-                    "concatenated_keywords": "Keywords",
-                    "research_type": "Research Type"
-                }
-                
-                df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            if df_filtered_data is None:
+                df_filtered_data = []
+            elif isinstance(df_filtered_data, pd.DataFrame):  
+                df_filtered_data = df_filtered_data.to_dict(orient="records")
 
-                # Rename columns
-                df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            # Filter only "PULLOUT" papers
+            df_filtered_data = [d for d in df_filtered_data if d.get("status") == "PULLOUT"]
 
-                # Convert to dbc.Table
-                table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            # Hide download button if there is no data
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
 
-                return True, table
+            # Handle case where there's no data
+            if not df_filtered_data:
+                if trigger_id == "close-pullout-modal":
+                    print("closed")
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            # Choose specific columns to display
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-pullout-modal":
+                return True, table, None, download_btn_style  
+
             elif trigger_id == "close-pullout-modal":
-                return False, ""
-            
-            return is_open, ""
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "pullout-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "pullout_papers")
+
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style  
