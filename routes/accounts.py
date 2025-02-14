@@ -11,6 +11,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from io import BytesIO, StringIO
 import csv
 import json
+from services.archive_service import AccountArchiver
 
 
 accounts = Blueprint('accounts', __name__)
@@ -498,4 +499,23 @@ def check_email():
     email = request.args.get('email')
     exists = Account.query.filter_by(email=email).first() is not None
     return jsonify({"exists": exists}), 200
+    
+@accounts.route('/archive_accounts', methods=['POST'])
+@jwt_required()
+def archive_accounts():
+    try:
+        data = request.json
+        archive_type = data.get('archive_type')
+        days = data.get('days', 180)  # Default to 180 days if not specified
+        
+        if archive_type not in ['INACTIVE', 'DEACTIVATED']:
+            return jsonify({"error": "Invalid archive type"}), 400
+            
+        archiver = AccountArchiver()
+        result = archiver.archive_accounts(archive_type, days)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
