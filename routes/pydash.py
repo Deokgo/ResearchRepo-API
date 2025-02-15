@@ -173,7 +173,7 @@ def combined_dash():
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items() if value is not None)
 
         if account_info.role_id == "02":
-            sample_url = f"{base_url}/dashboard/overview/?user-role=02"
+            sample_url = f"{base_url}/institutional-performance/?user-role=02"
             analytics_url = f"{base_url}/sdg-impact/?user-role=02"
             engage_url = f"{base_url}/engage/?user-role=02"
             return jsonify({
@@ -183,7 +183,7 @@ def combined_dash():
             }), 200
 
         elif account_info.role_id == "04":
-            sample_url = f"{base_url}/sample/?{query_string}"
+            sample_url = f"{base_url}/institutional-performance/college/?{query_string}"
             analytics_url = f"{base_url}/sdg-impact/college/?{query_string}"
             engage_url = f"{base_url}/engage/?{query_string}"
             return jsonify({
@@ -194,7 +194,7 @@ def combined_dash():
 
         else:
             if account_info.role_id == "05":
-                sample_url = f"{base_url}/progchairdash/?{query_string}"
+                sample_url = f"{base_url}/institutional-performance/?{query_string}"
             return jsonify({
                 "overview": sample_url
             }), 200
