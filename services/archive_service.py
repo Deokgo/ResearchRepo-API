@@ -1,9 +1,11 @@
-import csv
 import json
 from datetime import datetime, timedelta
 import os
+import subprocess
 from models import db, Account
 from services.auth_services import log_audit_trail
+from flask import current_app
+from sqlalchemy import text
 
 class AccountArchiver:
     def __init__(self):
@@ -13,24 +15,38 @@ class AccountArchiver:
     def archive_accounts(self, archive_type, days):
         """
         Archive accounts based on specified criteria:
-        - Inactive accounts (no login for X days)
-        - Deactivated accounts (deactivated for X days)
+        - INACTIVE: no login for X days or never logged in since creation
+        - DEACTIVATED: deactivated for X days
+        - ALL: both inactive and deactivated accounts
         """
         current_date = datetime.utcnow()
-        
-        # Build query based on archive type
-        if archive_type == "INACTIVE":
-            accounts_to_archive = Account.query.filter(
+        accounts_to_archive = []
+
+        if archive_type in ["INACTIVE", "ALL"]:
+            # Get accounts that haven't logged in for X days
+            inactive_with_login = Account.query.filter(
                 Account.last_login.isnot(None),
                 Account.last_login <= current_date - timedelta(days=days)
             ).all()
-        elif archive_type == "DEACTIVATED":
-            accounts_to_archive = Account.query.filter(
+            
+            # Get accounts that have never logged in and were created X days ago
+            never_logged_in = Account.query.filter(
+                Account.last_login.is_(None),
+                Account.created_at <= current_date - timedelta(days=days)
+            ).all()
+            
+            accounts_to_archive.extend(inactive_with_login)
+            accounts_to_archive.extend(never_logged_in)
+
+        if archive_type in ["DEACTIVATED", "ALL"]:
+            deactivated_accounts = Account.query.filter(
                 Account.acc_status == 'DEACTIVATED',
                 Account.updated_at <= current_date - timedelta(days=days)
             ).all()
-        else:
-            raise ValueError("Invalid archive type")
+            # Avoid duplicates if an account is both inactive and deactivated
+            deactivated_ids = {acc.user_id for acc in accounts_to_archive}
+            accounts_to_archive.extend([acc for acc in deactivated_accounts 
+                                     if acc.user_id not in deactivated_ids])
 
         if not accounts_to_archive:
             return {"message": "No accounts to archive", "count": 0}
@@ -39,20 +55,24 @@ class AccountArchiver:
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         archive_name = f'{archive_type.lower()}_accounts_{timestamp}'
         
-        # Export to CSV and JSON
-        csv_filename = os.path.join(self.archive_dir, f'{archive_name}.csv')
-        json_filename = os.path.join(self.archive_dir, f'{archive_name}.json')
-        
-        self._export_to_csv(accounts_to_archive, csv_filename)
-        self._export_to_json(accounts_to_archive, json_filename)
+        # Export to SQL dump
+        sql_filename = os.path.join(self.archive_dir, f'{archive_name}.sql')
+        backup_success = self._export_to_sql_dump(accounts_to_archive, sql_filename)
+
+        if not backup_success:
+            return {"error": "Failed to create SQL backup"}, 500
 
         # Log archives and delete accounts
         archived_count = 0
         for account in accounts_to_archive:
             try:
-                archive_reason = (
-                    f"Account {archive_type.lower()} for over {days} days"
-                )
+                # Determine archive reason
+                if account.last_login is None:
+                    archive_reason = f"Account archived: Never logged in since creation ({days} days ago)"
+                elif account.acc_status == 'DEACTIVATED':
+                    archive_reason = f"Account archived: Deactivated for over {days} days"
+                else:
+                    archive_reason = f"Account archived: Inactive for over {days} days"
                 
                 # Log the archival
                 log_audit_trail(
@@ -61,10 +81,10 @@ class AccountArchiver:
                     table_name="Account",
                     record_id=account.user_id,
                     operation="ARCHIVE",
-                    action_desc=f"Account archived: {archive_reason}. Exported to {archive_name}"
+                    action_desc=f"{archive_reason}. Exported to {archive_name}"
                 )
 
-                # Delete the account
+                # Delete the account (cascade will handle user_profile)
                 db.session.delete(account)
                 archived_count += 1
 
@@ -76,51 +96,113 @@ class AccountArchiver:
         return {
             "message": f"Successfully archived {archived_count} accounts",
             "count": archived_count,
-            "csv_file": csv_filename,
-            "json_file": json_filename
+            "sql_file": sql_filename
         }
 
-    def _export_to_csv(self, accounts, filename):
-        """Export accounts to CSV file"""
-        with open(filename, 'w', newline='') as csvfile:
-            fieldnames = [
-                'user_id', 'email', 'role_id', 'acc_status',
-                'last_login', 'created_at', 'updated_at'
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    def _export_to_sql_dump(self, accounts, filename):
+        """Export accounts to PostgreSQL dump file"""
+        try:
+            # Get database configuration from Flask app
+            db_uri = current_app.config['SQLALCHEMY_DATABASE_URI']
+            pg_bin = current_app.config['PG_BIN']
             
-            writer.writeheader()
-            for account in accounts:
-                writer.writerow({
-                    'user_id': account.user_id,
-                    'email': account.email,
-                    'role_id': account.role_id,
-                    'acc_status': account.acc_status,
-                    'last_login': account.last_login,
-                    'created_at': account.created_at,
-                    'updated_at': account.updated_at
-                })
+            if not pg_bin:
+                raise Exception("PostgreSQL binary path not configured")
+            
+            db_info = db_uri.replace('postgresql://', '').split('/')
+            db_credentials = db_info[0].split('@')
+            user_pass = db_credentials[0].split(':')
+            host_port = db_credentials[1].split(':')
 
-    def _export_to_json(self, accounts, filename):
-        """Export accounts to JSON file with complete data"""
-        accounts_data = []
-        for account in accounts:
-            account_data = {
-                'user_id': account.user_id,
-                'email': account.email,
-                'role_id': account.role_id,
-                'acc_status': account.acc_status,
-                'last_login': account.last_login.isoformat() if account.last_login else None,
-                'created_at': account.created_at.isoformat(),
-                'updated_at': account.updated_at.isoformat(),
-                'user_profile': {
-                    'first_name': account.user_profile.first_name if account.user_profile else None,
-                    'last_name': account.user_profile.last_name if account.user_profile else None,
-                    'college_id': account.user_profile.college_id if account.user_profile else None,
-                    'program_id': account.user_profile.program_id if account.user_profile else None
-                } if account.user_profile else None
-            }
-            accounts_data.append(account_data)
+            username = user_pass[0]
+            password = user_pass[1]
+            host = host_port[0]
+            port = host_port[1] if len(host_port) > 1 else '5432'
+            database = db_info[1]
 
-        with open(filename, 'w') as jsonfile:
-            json.dump(accounts_data, jsonfile, indent=2) 
+            # Create list of user IDs to archive
+            user_ids = [f"'{account.user_id}'" for account in accounts]
+            user_ids_str = ','.join(user_ids)
+
+            # Create temporary tables using SQLAlchemy's text()
+            create_tables_sql = text(f"""
+                CREATE TABLE public.accounts_to_archive AS 
+                SELECT * FROM account WHERE user_id IN ({user_ids_str});
+                
+                CREATE TABLE public.profiles_to_archive AS 
+                SELECT * FROM user_profile WHERE researcher_id IN ({user_ids_str});
+            """)
+            
+            db.session.execute(create_tables_sql)
+            db.session.commit()
+
+            # Set PGPASSWORD environment variable
+            env = os.environ.copy()
+            env['PGPASSWORD'] = password
+
+            # Use full path to pg_dump
+            pg_dump_path = os.path.join(pg_bin, 'pg_dump')
+            
+            # Create archives directory if it doesn't exist
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+            # Construct pg_dump command for the tables
+            cmd = [
+                pg_dump_path,
+                '-h', host,
+                '-p', port,
+                '-U', username,
+                '-d', database,
+                '-t', 'public.accounts_to_archive',
+                '-t', 'public.profiles_to_archive',
+                '--data-only',
+                '-a',
+                '--column-inserts',
+                '--inserts',
+                '-w',
+                '-f', filename
+            ]
+
+            # Execute pg_dump
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+            
+            # Clean up tables using text()
+            cleanup_sql = text("""
+                DROP TABLE IF EXISTS public.accounts_to_archive;
+                DROP TABLE IF EXISTS public.profiles_to_archive;
+            """)
+            db.session.execute(cleanup_sql)
+            db.session.commit()
+
+            if result.returncode != 0:
+                print(f"Error during pg_dump: {result.stderr}")
+                return False
+
+            # Read the original content
+            with open(filename, 'r') as f:
+                content = f.read()
+            
+            # Replace table names with actual table names
+            content = content.replace('INSERT INTO public.accounts_to_archive', 'INSERT INTO public.account')
+            content = content.replace('INSERT INTO public.profiles_to_archive', 'INSERT INTO public.user_profile')
+            
+            # Add transaction markers and write modified content
+            with open(filename, 'w') as f:
+                f.write("BEGIN;\n\n")
+                f.write("-- Archived accounts data dump\n")
+                f.write("-- Generated on: " + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC') + "\n\n")
+                f.write(content)
+                f.write("\nCOMMIT;\n")
+
+            return True
+
+        except Exception as e:
+            print(f"Error creating SQL dump: {str(e)}")
+            # Clean up tables in case of error
+            cleanup_sql = text("""
+                DROP TABLE IF EXISTS public.accounts_to_archive;
+                DROP TABLE IF EXISTS public.profiles_to_archive;
+            """)
+            db.session.execute(cleanup_sql)
+            db.session.commit()
+            return False 

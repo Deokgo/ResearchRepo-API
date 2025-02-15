@@ -14,8 +14,6 @@ from models import (
     ResearchTypes,
     PublicationFormat,
     UserEngagement,
-    ArchiveManus,
-    ArchiveEA
 )
 from services import auth_services
 import os

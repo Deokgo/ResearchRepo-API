@@ -63,6 +63,10 @@ def login():
                 action_desc='User logged in'
             )
 
+            # Inside your login route after successful authentication
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+
             return response, 200
 
         except Exception as e:

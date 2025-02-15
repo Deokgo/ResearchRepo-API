@@ -26,12 +26,7 @@ from .research_output_area import ResearchOutputArea
 from .research_types import ResearchTypes
 from .publication_format import PublicationFormat
 from .user_engagement import UserEngagement
-from .arch_user_engagement import ArchUserEngagement
 from .aggr_user_engagement import AggrUserEngagement
-from .archive_manus import ArchiveManus
-from .archive_ea import ArchiveEA
-from .arch_user_profile import ArchUserProfile
-from .arch_visitor import ArchVisitor
 from .backup import Backup
 
 def check_db(db_name, user, password, host='localhost', port='5432'):

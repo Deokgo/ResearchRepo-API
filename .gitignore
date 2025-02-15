@@ -156,8 +156,9 @@ cython_debug/
 
 # Folder for PDFs
 /research_repository/
-# Folder for backups
+# Folder for backups and archive
 /backups/
+/archives/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
