@@ -1,4 +1,4 @@
-from database.sdg_queries import get_research_count, get_research_percentage, get_research_type_distribution, get_geographical_distribution,get_conference_participation,get_local_vs_foreign_participation,get_research_with_keywords,get_research_area_data
+from database.sdg_queries import get_research_count, get_research_percentage, get_research_type_distribution, get_geographical_distribution,get_conference_participation,get_local_vs_foreign_participation,get_research_with_keywords,get_research_area_data, get_sdg_research
 import pandas as pd
 import plotly.express as px
 from services.sdg_colors import sdg_colors
@@ -25,14 +25,22 @@ nltk.download("wordnet")
 stop_words = set(stopwords.words("english"))
 lemmatizer = WordNetLemmatizer()
 
+import pandas as pd
+import plotly.express as px
+import numpy as np
+
 def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
     all_sdgs = [f'SDG {i}' for i in range(1, 18)]
     
+    print("Selected SDG:", sdg_dropdown_value)  # Debugging: Check selected SDG value
+
     if isinstance(selected_colleges, np.ndarray):
         selected_colleges = selected_colleges.tolist()
-    if isinstance(selected_status, np.ndarray):
         selected_status = selected_status.tolist()
-
+    elif isinstance(selected_colleges, str):
+        selected_colleges = [selected_colleges]
+        selected_status = [selected_status]
+    
     # Fetch data from database using get_research_count
     research_data = get_research_count(
         start_year=min(selected_years),
@@ -41,68 +49,65 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
         status_filter=selected_status,
         college_filter=selected_colleges
     )
-    
+
+    print("Query Parameters:", {
+        "Start Year": min(selected_years),
+        "End Year": max(selected_years),
+        "SDG Filter": [sdg_dropdown_value] if sdg_dropdown_value != "ALL" else "ALL",
+        "Status Filter": selected_status,
+        "College Filter": selected_colleges
+    })  # Debugging: Check query parameters
+
     # Convert to DataFrame
     df = pd.DataFrame(research_data)
-    
+
+    # Debugging: Check unique SDGs in the data
+    print("Unique SDGs in Data:", df['sdg'].unique() if not df.empty else "No data")
+
     # Check if df is empty
     if df.empty:
-        return px.imshow([[0]], labels={'x': "Year", 'y': "SDG", 'color': "Count"}, title="No data available for the selected parameters.")
+        return px.line(title="No data available for the selected parameters.")
     
     # Rename columns if necessary
     df.rename(columns={'research_count': 'Count', 'sdg': 'sdg', 'school_year': 'school_year', 'college_id': 'College'}, inplace=True)
     
-    # Sort by year (school_year) and SDG based on all_sdgs order
-    df['school_year'] = df['school_year'].astype(int)  # Ensure school_year is treated as an integer
-    df = df.sort_values(by=['school_year', 'sdg'], key=lambda col: col.map({sdg: i for i, sdg in enumerate(all_sdgs)}))
-    
-    # If sdg_dropdown_value is not "ALL", create a line graph for the selected SDG
+    # Sort DataFrame by year
+    df.sort_values(by='school_year', inplace=True)
+
+    # Create plots
     if sdg_dropdown_value != "ALL":
-        # Filter data for the selected SDG
-        df = df[df['sdg'] == sdg_dropdown_value]
-        
-        # Sort the DataFrame by year for line graph
-        df = df.sort_values(by='school_year')  # Ensures the data is ordered by year
-        
-        # Create line plot for the selected SDG over time
         fig = px.line(
             df,
             x='school_year',
             y='Count',
-            title=f"Research Outputs Over Time for {sdg_dropdown_value}",
-            labels={'school_year': 'Year', 'Count': 'Research Output Count'},
+            color='sdg',
+            title=f'Research Outputs Over Time by College (Filtered by SDG: {sdg_dropdown_value})',
+            labels={'school_year': 'Year', 'Count': 'Number of Research Outputs', 'sdg': 'sdg'},
             template="plotly_white",
-            markers=True
+            color_discrete_map=sdg_colors,
         )
-        
-        fig.update_layout(
-            title_font_size=14,
-            width=670,
-            height=350,
-            margin=dict(l=10, r=10, t=30, b=10)
+    else:
+        fig = px.line(
+            df,
+            x='school_year',
+            y='Count',
+            color='sdg',
+            title='SDG Research Outputs Over Time',
+            labels={'school_year': 'Year', 'Count': 'Number of Research Outputs', 'sdg': 'SDG'},
+            color_discrete_map=sdg_colors,
+            category_orders={'sdg': all_sdgs},
         )
     
-    else:
-        # Sort the DataFrame by year for heatmap
-        df = df.sort_values(by='school_year')  # Ensures the data is ordered by year
-        
-        # Create heatmap for all SDGs
-        fig = px.imshow(
-            df.pivot(index='sdg', columns='school_year', values='Count').fillna(0).reindex(index=all_sdgs),
-            labels={'x': "Year", 'y': "SDG", 'color': "Count"},
-            title='Research Outputs Over Time by SDG',
-            color_continuous_scale='Viridis'
-        )
-        
-        fig.update_layout(
-            title_font_size=14,
-            template="plotly_white",
-            width=670,
-            height=350,
-            margin=dict(l=10, r=10, t=30, b=10)
-        )
+    fig.update_layout(
+        title_font_size=14,
+        template="plotly_white",
+        width=700,
+        height=300,
+        margin=dict(l=10, r=10, t=30, b=10)
+    )
     
     return fig
+
 
 
 def create_sdg_pie_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
@@ -145,6 +150,7 @@ def create_sdg_pie_chart(selected_colleges, selected_status, selected_years, sdg
             title='Percentage of Research Outputs by SDG',
             labels={'sdg': 'SDG', 'percentage': 'Percentage of Total Outputs'},
             category_orders={"sdg": all_sdgs}  # Ensure legend follows all_sdgs order
+            
         )
     else:
         # Group by College for distribution if SDG filter is not "ALL"
@@ -163,8 +169,8 @@ def create_sdg_pie_chart(selected_colleges, selected_status, selected_years, sdg
         title_font_size=14,  
         legend_title_font_size=12,  
         template="plotly_white",
-        width=600,  
-        height=350,  
+        width=450,  
+        height=300,  
         margin=dict(l=10, r=10, t=30, b=10),  
         uniformtext_minsize=10,  
         uniformtext_mode='hide',
@@ -186,24 +192,24 @@ def create_sdg_pie_chart(selected_colleges, selected_status, selected_years, sdg
 
 def create_sdg_research_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
     """
-    Generates a bar chart or line chart showing research type distribution by SDG.
-
+    Generates a stacked bar chart showing research type distribution by SDG or by research type (depending on selection).
+    
     :param selected_colleges: List of selected colleges
     :param selected_status: List of selected statuses
     :param selected_years: List of selected school years
     :param sdg_dropdown_value: Selected SDG filter
-    :return: Plotly figure (stacked bar chart or line chart)
+    :return: Plotly figure (stacked bar chart)
     """
-    # Fetch unique research types
-    all_sdgs = [f'SDG {i}' for i in range(1, 18)]
+    all_sdgs = [f'SDG {i}' for i in range(1, 18)]  # Ensuring SDG order
 
     # Convert arrays to lists if needed
     if isinstance(selected_colleges, np.ndarray):
         selected_colleges = selected_colleges.tolist()
     if isinstance(selected_status, np.ndarray):
         selected_status = selected_status.tolist()
-    types = [rt.research_type_name for rt in ResearchTypes.query_all()]
     
+    types = [rt.research_type_name for rt in ResearchTypes.query_all()]
+
     # Fetch research type distribution from the database
     research_data = get_research_type_distribution(
         start_year=min(selected_years),
@@ -216,64 +222,54 @@ def create_sdg_research_chart(selected_colleges, selected_status, selected_years
     # Convert to DataFrame
     df = pd.DataFrame(research_data)
 
-    # Ensure SDG and Research Type are categorical (for ordering)
+    # Ensure SDG and Research Type are categorical (for correct ordering)
     df['research_type_name'] = pd.Categorical(df['research_type_name'], categories=types, ordered=True)
-    df['sdg'] = pd.Categorical(df['sdg'], categories=all_sdgs, ordered=True)
+    df['sdg'] = pd.Categorical(df['sdg'], categories=all_sdgs, ordered=True)  # Order SDGs correctly
 
-    # If sdg_dropdown_value is not "ALL", create a bar chart
-    if sdg_dropdown_value != "ALL":
-        # Create bar chart for the selected SDG and research type
+    if sdg_dropdown_value == "ALL":
+        # SDGs on x-axis, research types stacked
+        fig = px.bar(
+            df,
+            x="sdg",
+            y="research_count",
+            color="research_type_name",
+            title="Research Type Distribution by SDG",
+            labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Research Count", "research_type_name": "Research Type"},
+            template="plotly_white",
+            color_discrete_map=sdg_colors,
+            barmode="stack",
+            category_orders={"sdg": all_sdgs}  # Ensures SDGs are ordered correctly
+        )
+        x_title = "Sustainable Development Goals (SDGs)"
+        x_angle = 0  # Rotate SDG labels for readability
+    else:
+        # Research types on x-axis, bars grouped by SDG
         fig = px.bar(
             df,
             x="research_type_name",
             y="research_count",
-            color="research_type_name",
+            color="sdg",
             title=f"Research Type Distribution for {sdg_dropdown_value}",
-            labels={"research_type_name": "Research Type", "research_count": "Research Count"},
+            labels={"research_type_name": "Research Type", "research_count": "Research Count", "sdg": "SDG"},
             template="plotly_white",
             color_discrete_sequence=px.colors.qualitative.Set2,
-            barmode="stack"  # To stack the bars
+            barmode="stack",
+            category_orders={"sdg": all_sdgs}  # Ensures SDGs are ordered correctly
         )
+        x_title = "Research Type"
+        x_angle = 0  # Keep labels horizontal
 
-        # Customize layout to ensure all types are displayed and the bar size is appropriate
-        fig.update_layout(
-            title_font_size=14,
-            width=1200,
-            height=250,
-            margin=dict(l=10, r=10, t=30, b=80),
-            xaxis_title="Research Type",
-            yaxis_title="Research Count",
-            xaxis=dict(tickangle=0),  # Rotate labels for better readability
-            showlegend=True
-        )
-
-    else:
-        # Pivot the data to a format suitable for a heatmap
-        heatmap_data = df.pivot(index='research_type_name', columns='sdg', values='research_count')
-
-        # Ensure all research types appear and replace NaN with 0
-        heatmap_data = heatmap_data.reindex(index=types, columns=all_sdgs, fill_value=0).fillna(0)
-
-        # Create heatmap with a visually appealing color scale
-        fig = px.imshow(
-            heatmap_data,
-            labels=dict(x="Sustainable Development Goals (SDGs)", y="Research Type", color="Research Count"),
-            color_continuous_scale="Plasma",  # Alternative: "Viridis", "Turbo", "Sunsetdark"
-            aspect="auto"
-        )
-
-        # Customize layout for heatmap
-        fig.update_layout(
-            title="Research Type Distribution by SDG",
-            title_font_size=14,
-            width=1200,
-            height=250,
-            margin=dict(l=10, r=10, t=30, b=10),
-            xaxis_title="Sustainable Development Goals (SDGs)",
-            yaxis_title="Research Type",
-            coloraxis_colorbar=dict(title="Research Count"),
-            xaxis=dict(tickangle=-45)  # Rotate SDG labels for better readability
-        )
+    # Apply common layout settings
+    fig.update_layout(
+        title_font_size=14,
+        width=1200,
+        height=200,
+        margin=dict(l=10, r=10, t=30, b=30),
+        xaxis_title=x_title,
+        yaxis_title="Research Count",
+        xaxis=dict(tickangle=x_angle),
+        showlegend=True
+    )
 
     return fig
 
@@ -336,8 +332,8 @@ def create_geographical_heatmap(selected_colleges, selected_status, selected_yea
         title_font_size=14,
         geo_scope="world",
         template="plotly_white",
-        width=900,
-        height=400,
+        width=800,
+        height=300,
         margin=dict(l=0, r=0, t=23, b=0)  # Reduce unnecessary spacing
     )
 
@@ -348,6 +344,8 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
     """
     Generates a treemap for the geographical distribution of research outputs,
     with countries as the main category and cities as the subcategory.
+    
+    Only the top 10 countries with the highest research count are included.
 
     :param selected_colleges: List of selected colleges (list of strings)
     :param selected_status: List of selected research statuses (list of strings)
@@ -380,9 +378,20 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
     # Aggregate research count by country and city
     df_grouped = df.groupby(['country', 'city'], as_index=False)['research_count'].sum()
 
+    # Get the top 10 countries with the highest total research count
+    top_countries = (
+        df_grouped.groupby('country', as_index=False)['research_count']
+        .sum()
+        .sort_values(by='research_count', ascending=False)
+        .head(10)['country']
+    )
+
+    # Filter dataset to include only these top countries
+    df_filtered = df_grouped[df_grouped['country'].isin(top_countries)]
+
     # Create treemap with country as the main category and city as subcategory
     fig = px.treemap(
-        df_grouped,
+        df_filtered,
         path=['country', 'city'],  # Main category: country, Sub-category: city
         values='research_count',
         color='research_count',
@@ -394,12 +403,13 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
     fig.update_layout(
         title_font_size=14,
         template="plotly_white",
-        width=400,
-        height=400,
+        width=350,
+        height=350,
         margin=dict(l=0, r=0, t=25, b=0)  # Reduce margins to remove extra spacing
     )
 
     return fig
+
 
 
 def create_conference_participation_bar_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
@@ -453,7 +463,7 @@ def create_conference_participation_bar_chart(selected_colleges, selected_status
     fig.update_layout(
         title_font_size=14,
         template="plotly_white",
-        width=900,
+        width=800,
         height=200,
         margin=dict(l=0, r=0, t=25, b=0),
         xaxis=dict(type='category',tickangle=0),  # Ensure school years appear as categorical
@@ -514,9 +524,9 @@ def create_local_vs_foreign_donut_chart(selected_colleges, selected_status, sele
     fig.update_layout(
         title_font_size=14,
         template="plotly_white",
-        height=200,
-        width=400,
-        margin=dict(l=0, r=0, t=25, b=0) 
+        height=150,
+        width=350,
+        margin=dict(l=0, r=0, t=25, b=0)
     )
 
     return fig
@@ -587,6 +597,7 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
     # Tokenize, remove stopwords, and clean text
     stop_words = set(stopwords.words("english"))
     words = [word.lower() for word in all_text.split() if word.isalpha() and word.lower() not in stop_words]
+    print(words)
 
     # If no valid words, return an empty figure
     if not words:
@@ -595,9 +606,9 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
     # Generate word cloud
     wordcloud = WordCloud(
         background_color="white",
-        width=800,
-        height=400,
-        max_words=200
+        width=500,  # Set width to 400
+        height=300,  # Set height to 200
+        max_words=100
     ).generate(" ".join(words))
 
     # Convert word cloud to an image buffer
@@ -635,16 +646,15 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
     fig.update_layout(
         title=f"Common Topics for {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
         margin=dict(l=0, r=0, t=40, b=0),
-        width=720,  # Match word cloud size
-        height=400  # Match word cloud size
+        width=500,  # Match word cloud width
+        height=300   # Match word cloud height
     )
 
     return fig
 
-
 def generate_research_area_visualization(selected_colleges, selected_status, selected_years, sdg_dropdown_value="ALL"):
     """
-    Generates an interactive bubble chart of research areas per SDG or year using Plotly.
+    Generates an interactive stacked bar chart of research areas per SDG.
     """
 
     # Convert arrays to lists if needed
@@ -677,51 +687,201 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
     # Convert research count to integer
     df["research_count"] = df["research_count"].astype(int)
 
-    # Determine X-axis
-    x_axis = "sdg"
-    if sdg_dropdown_value != "ALL":
-        df = df[df["sdg"] == sdg_dropdown_value]
-        x_axis = "year"  # Show distribution across years when filtering by SDG
+    # Ensure SDG ordering
+    all_sdgs = [f'SDG {i}' for i in range(1, 18)]  # SDG 1 to SDG 17
+    df["sdg"] = pd.Categorical(df["sdg"], categories=all_sdgs, ordered=True)
+
+    # Rename column
+    df = df.rename(columns={"research_area_name": "Research Area"})
 
     # Aggregate research areas
-    df_grouped = df.groupby([x_axis, "research_area_name"])["research_count"].sum().reset_index()
+    df_grouped = df.groupby(["sdg", "Research Area"])["research_count"].sum().reset_index()
 
-    # Sort and get top N research areas
-    if x_axis == "year":
-        df_grouped = df_grouped.sort_values(by=["year", "research_count"], ascending=[True, False])
-    else:
-        df_grouped = df_grouped.sort_values(by=["research_count"], ascending=False)
-
-    # Define SDG ordering if needed
-    all_sdgs = [f'SDG {i}' for i in range(1, 18)]  # SDG 1 to SDG 17
-
-    # Create bubble chart
-    fig = px.scatter(
+    # Create stacked bar chart
+    fig = px.bar(
         df_grouped,
-        x="research_area_name", 
-        y= x_axis,
-        size="research_count",  
-        color="research_area_name",  
-        hover_name="research_area_name",  
-        title=f"Research Areas per {'Year' if x_axis == 'year' else 'SDG'}",
-        labels={x_axis: 'Year' if x_axis == 'year' else 'Sustainable Development Goals (SDGs)',
-                "research_area_name": "Research Areas"},
-        template="plotly_white",  
-        height=400,
-        width=600,
-        category_orders={"sdg": all_sdgs} if x_axis == "sdg" else None  # Ensure SDG order
+        x="sdg",
+        y="research_count",
+        color="Research Area",
+        title="Research Areas per SDG",
+        labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Number of Research Papers"},
+        template="plotly_white",
+        height=200,
+        width=500,
+        category_orders={"sdg": all_sdgs}  # Ensure SDG order
     )
 
-    # Update layout to hide Y-axis label
+    # Update layout
     fig.update_layout(
-        yaxis_title="Year" if x_axis == "year" else "SDG",
-        xaxis_title="",  # Hide the Y-axis label
-        showlegend=False,
-        xaxis=dict(tickvals=[]),  # Remove the Y-axis ticks (research area names)
-        margin=dict(l=0, r=0, t=30, b=0),
-        yaxis=dict(
-            tickangle=0  # Set tick labels to be horizontal
+        xaxis_title="SDGs",
+        yaxis_title="Number of Research Papers",
+        barmode="stack",  # Stacked bars
+        margin=dict(l=40, r=40, t=40, b=40),
+        showlegend=False  # Remove legends
+    )
+
+    return fig
+
+
+
+import numpy as np
+import pandas as pd
+import networkx as nx
+import plotly.graph_objects as go
+from services.sdg_colors import sdg_colors  # Import predefined SDG colors
+
+def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    """
+    Generates a bipartite graph showing relationships between SDGs based on shared research.
+
+    :param selected_colleges: List of selected colleges (list of strings)
+    :param selected_status: List of selected research statuses (list of strings)
+    :param selected_years: List of selected years (list of integers)
+    :param sdg_dropdown_value: Selected SDG goal (string)
+    :return: Plotly figure object
+    """
+
+    # Convert arrays to lists if needed
+    if isinstance(selected_colleges, np.ndarray):
+        selected_colleges = selected_colleges.tolist()
+    if isinstance(selected_status, np.ndarray):
+        selected_status = selected_status.tolist()
+
+    # Fetch data
+    data = get_sdg_research(
+        start_year=min(selected_years),
+        end_year=max(selected_years),
+        sdg_filter=None if sdg_dropdown_value == "ALL" else [sdg_dropdown_value],
+        status_filter=selected_status,
+        college_filter=selected_colleges
+    )
+
+    # Convert list to DataFrame
+    df = pd.DataFrame(data, columns=["sdg", "research_id"])
+
+    if df.empty:
+        return None  # No data available
+
+    # Create an undirected graph
+    G = nx.Graph()
+
+    # Group research IDs by SDGs
+    sdg_groups = df.groupby("research_id")["sdg"].apply(list)
+
+    # Add nodes (SDGs)
+    unique_sdgs = df["sdg"].unique()
+    G.add_nodes_from(unique_sdgs)
+
+    # Track edge weights (how often an SDG pair appears together)
+    edge_weights = {}
+
+    # Add edges and track occurrences
+    for sdg_list in sdg_groups:
+        for i in range(len(sdg_list)):
+            for j in range(i + 1, len(sdg_list)):
+                edge = tuple(sorted([sdg_list[i], sdg_list[j]]))  # Ensure unique key
+                edge_weights[edge] = edge_weights.get(edge, 0) + 1
+
+    # Add weighted edges to graph
+    for edge, weight in edge_weights.items():
+        G.add_edge(edge[0], edge[1], weight=weight)
+
+    # Compute node degrees (how many connections each SDG has)
+    degrees = dict(G.degree())
+    
+    min_degree = min(degrees.values()) if degrees else 1  # Lowest number of connections
+    max_degree = max(degrees.values()) if degrees else 1  # Highest number of connections
+
+    # Function to scale color from Yellow → Orange → Green
+    def get_gradient_color(degree, min_degree, max_degree):
+        if max_degree == min_degree:
+            return "rgb(255, 165, 0)"  # Default orange if all nodes have the same degree
+
+        # Normalize degree to range 0-1
+        ratio = (degree - min_degree) / (max_degree - min_degree)
+
+        if ratio < 0.5:
+            # Transition from Yellow (255,255,0) to Orange (255,165,0)
+            red = 255
+            green = int(255 - (90 * (ratio / 0.5)))  # Green decreases from 255 to 165
+            blue = 0
+        else:
+            # Transition from Orange (255,165,0) to Green (0,128,0)
+            red = int(255 - (255 * ((ratio - 0.5) / 0.5)))  # Red decreases from 255 to 0
+            green = int(165 + (63 * ((ratio - 0.5) / 0.5)))  # Green increases from 165 to 128
+            blue = 0
+
+        return f"rgb({red}, {green}, {blue})"
+
+    # Determine node colors
+    node_colors = {}
+    if sdg_dropdown_value == "ALL":
+        # Use predefined SDG colors
+        node_colors = {node: sdg_colors.get(node, "gray") for node in G.nodes()}
+    else:
+        # Use gradient coloring
+        node_colors = {node: get_gradient_color(degrees[node], min_degree, max_degree) for node in G.nodes()}
+
+    # Get node positions
+    pos = nx.spring_layout(G, seed=42)  # Position nodes
+
+    # Create edge traces
+    edge_x, edge_y = [], []
+
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        line=dict(width=1, color="lightgray"),
+        hoverinfo="none",
+        mode="lines"
+    )
+
+    # Create node traces
+    node_x, node_y, node_text, node_size, node_color = [], [], [], [], []
+
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        node_text.append(node)
+        node_size.append(10 + (degrees[node] / max_degree) * 30)  # Adjust size dynamically
+        node_color.append(node_colors[node])  # Apply SDG colors or gradient
+
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        text=node_text,
+        textposition="top center",
+        hoverinfo="text",
+        marker=dict(
+            size=node_size,
+            color=node_color,
+            line=dict(width=2, color="black")
         ),
+        textfont=dict(
+            family="Arial, sans-serif",
+            size=12,  # Adjust size if needed
+            color="black",
+            weight="bold"  # Makes the text bold
+        )
+    )
+
+    # Create the final figure
+    fig = go.Figure(data=[edge_trace, node_trace])
+    fig.update_layout(
+        title="SDG Research Bipartite Graph",
+        showlegend=False,
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=500, width=700,
+        plot_bgcolor="white",  # Sets background color to white
+        paper_bgcolor="white",  # Ensures the entire figure background is white
+        xaxis=dict(showticklabels=False, zeroline=False, showgrid=False),  # Hide X-axis labels
+        yaxis=dict(showticklabels=False, zeroline=False, showgrid=False)   # Hide Y-axis labels
     )
 
     return fig

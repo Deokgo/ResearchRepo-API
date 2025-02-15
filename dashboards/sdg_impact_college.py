@@ -157,13 +157,13 @@ class SDG_Impact_College:
             CollageContainer([
                 dbc.Card(
                     dcc.Graph(
-                        id='sdg-map'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto", "marginRight":"5px"}
+                        id='local-vs-foreign'
+                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
                 ),
                 dbc.Card(
                     dcc.Graph(
-                        id='tree-map'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
+                        id='sdg-map'
+                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto", "marginRight":"5px"}
                 ),
                 dbc.Card(
                     dcc.Graph(
@@ -172,9 +172,9 @@ class SDG_Impact_College:
                 ),
                 dbc.Card(
                     dcc.Graph(
-                        id='local-vs-foreign'
+                        id='tree-map'
                     ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                )
+                )         
             ], column_count=1)  # Adjust column count for layout
         ])
 

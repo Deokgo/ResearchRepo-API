@@ -331,3 +331,49 @@ def get_research_area_data(start_year, end_year, sdg_filter=None, status_filter=
 
     finally:
         session.close()
+
+
+def get_sdg_research(start_year, end_year, sdg_filter=None, status_filter=None, college_filter=None, program_filter=None):
+    """
+    Calls the get_sdg_research function in PostgreSQL and checks if any data is retrieved.
+
+    :param start_year: Start school year (integer)
+    :param end_year: End school year (integer)
+    :param sdg_filter: List of SDG filters (list of strings)
+    :param status_filter: List of status filters (list of strings)
+    :param college_filter: Optional college filter (list of strings)
+    :param program_filter: Optional program filter (list of strings)
+    :return: List of dictionaries containing SDG and research_id
+    """
+    session = Session()
+    try:
+        # Prepare the SQL query
+        query = text("""
+            SELECT * FROM get_sdg_research(:start_year, :end_year, :sdg_filter, :status_filter, :college_filter, :program_filter)
+        """)
+
+        # Execute the query with parameters
+        result = session.execute(query, {
+            'start_year': start_year,
+            'end_year': end_year,
+            'sdg_filter': sdg_filter if sdg_filter else None,
+            'status_filter': status_filter if status_filter else None,
+            'college_filter': college_filter if college_filter else None,
+            'program_filter': program_filter if program_filter else None
+        })
+
+        # Convert to list of dictionaries
+        data = [dict(row) for row in result.mappings()]
+        
+        # Check if any data is retrieved
+        if not data:
+            print("🔍 No SDG research data found for the given filters.")
+        else:
+            print(f"✅ Retrieved {len(data)} records.")
+            for i, row in enumerate(data[:5]):  # Print only the first 5 rows for preview
+                print(f"  {i+1}: {row}")
+
+        return data
+
+    finally:
+        session.close()

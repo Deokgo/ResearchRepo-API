@@ -9,7 +9,7 @@ from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
 from services.sdg_colors import sdg_colors
-from database.sdg_charts import create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization
+from database.sdg_charts import create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization,generate_sdg_bipartite_graph
 
 def default_if_empty(selected_values, default_values):
     return selected_values if selected_values else default_values
@@ -119,53 +119,60 @@ class SDG_Impact_Dash:
             ],
              className="mb-4",
         )
-        self.collage = html.Div([
-            CollageContainer([
-                dbc.Card(
-                    dcc.Graph(
-                        id='sdg-time-series'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto", "marginRight":"5px"}
+        self.collage = dbc.Container([
+            dbc.Row([
+                dbc.Col(
+                    dbc.Card(
+                        dcc.Graph(id='sdg-time-series'),
+                        body=True,
+                        style={"width": "auto", "height": "auto"}
+                    ),
+                    width="auto", className='p-0'
+
                 ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='sdg-pie'
-                    ), body=True, style={"display": "inline-block", "width": "50%", "height": "auto"}
+                dbc.Col(
+                    dbc.Card(
+                        dcc.Graph(id='sdg-pie'),
+                        body=True,
+                        style={"width": "auto", "height": "auto"}
+                    ),width="auto", className='p-0'
                 ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='sdg-research-type'
-                    ), body=True, style={"display": "inline-block", "width": "100%", "height": "auto"}
-                )
-            ], column_count=1)  # Adjust column count for layout
+            ],className='g-0 d-flex'),  # Margin-bottom for spacing
+
+            dbc.Row([
+                dbc.Col(
+                    dbc.Card(
+                        dcc.Graph(id='sdg-research-type'),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                    width="auto", className='p-0'
+                ),
+            ],className='g-0 d-flex')
+        ], fluid=True)  # Set container to fluid for responsiveness
+
+
+        self.map = dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card(dcc.Graph(id='local-vs-foreign'), body=True, style={"width": "100%", "height": "auto"}),
+                    dbc.Card(dcc.Graph(id='tree-map'), body=True, style={"width": "100%", "height": "auto"})
+                ], width="auto", className='p-0'),
+                dbc.Col([
+                    dbc.Card(dcc.Graph(id='sdg-map'), body=True, style={"width": "100%", "height": "auto"}),
+                    dbc.Card(dcc.Graph(id='participation-graph'), body=True, style={"width": "100%", "height": "auto"})
+                ], width="auto", className='p-0')
+            ], className='g-0 d-flex')
         ])
 
-        self.map = html.Div([
-            CollageContainer([
-                dbc.Card(
-                    dcc.Graph(
-                        id='sdg-map'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto", "marginRight":"5px"}
-                ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='tree-map'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='participation-graph'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto","marginRight":"5px"}
-                ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='local-vs-foreign'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                )
-            ], column_count=1)  # Adjust column count for layout
-        ])
 
         self.trend = html.Div([
             CollageContainer([
+                dbc.Card(
+                    dcc.Graph(
+                        id='sdg-graph'
+                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
+                ),
                 dbc.Card(
                     dcc.Graph(
                         id='word-cloud'
@@ -175,7 +182,8 @@ class SDG_Impact_Dash:
                     dcc.Graph(
                         id='research-areas'
                     ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                )
+                ),
+                
             ], column_count=1)  # Adjust column count for layout
         ])
 
@@ -190,31 +198,31 @@ class SDG_Impact_Dash:
         style={"background": "#d3d8db", "height": "100vh", "position": "fixed", "left": 0, "top": 0, "zIndex": 1000})
 
 
-        main_content = dbc.Col(
-            [
-                dcc.Location(id="url", refresh=False),  # Track URL changes
-                html.Div(id="dynamic-header"),  # Placeholder for dynamic DashboardHeader
-                html.Div(
-                    id="tabs-container",
-                    children=Tabs(  # Default Tabs
-                        tabs_data=[
-                            ("Institutional SDG Impact", self.collage),
-                            ("Global Research Publications", self.map),
-                            ("Research Trends and Collaboration",self.trend)
-                        ]
-                    )
-                ),
-            ],
-            width=10,  # Takes remaining space
-            className="p-3",
-            style={"marginLeft": "16.67%"}  # Pushes main content to the right of sidebar
-        )
+        main_content = dbc.Col([
+            dcc.Location(id="url", refresh=False),
+            html.Div(id="dynamic-header"),
+            html.Div(id="tabs-container", children=Tabs(
+                tabs_data=[
+                    ("Institutional SDG Impact", self.collage),
+                    ("Global Research Publications", self.map),
+                    ("Research Trends and Collaboration", self.trend)
+                ]
+            )),
+        ], width=10, className="p-3", style={"marginLeft": "16.67%"})
+
 
         self.dash_app.layout = dbc.Container([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
-            dbc.Row([sidebar, main_content], className="g-0")],  # g-0 removes extra spacing
-            fluid=True
-        )
+            dbc.Row([sidebar, main_content], className="g-0")
+        ], fluid=True, style={
+            "paddingBottom": "0px",
+            "marginBottom": "0px",
+            "overflow": "hidden",
+            "height": "100vh",
+            "width": "100vw",
+            "display": "flex",
+            "flexDirection": "column"
+        })
 
     def add_callbacks(self):
         @self.dash_app.callback(
@@ -360,7 +368,20 @@ class SDG_Impact_Dash:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return generate_research_area_visualization(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        @self.dash_app.callback(
+            Output('sdg-graph', 'figure'),
+            [Input('college', 'value'), 
+             Input('status', 'value'), 
+             Input('years', 'value'),
+             Input('sdg-dropdown', 'value')]
+        )
+        def update_fig(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            return generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
 
+   
    
   
  

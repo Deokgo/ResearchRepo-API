@@ -35,6 +35,7 @@ def login():
 
         try:
             user = Account.query.filter_by(email=email).one_or_none()
+            
 
             if user is None:
                 return jsonify({"message": "User not found"}), 404
