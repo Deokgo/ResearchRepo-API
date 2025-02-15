@@ -161,7 +161,7 @@ def colleges(current_college=None):
                 table_name='College',
                 record_id=data['college_id'],
                 operation='CREATE',
-                action_desc='Added college department'
+                action_desc=f"Added New College: {data['college_id']}, {data['college_name']}"
             )
 
             return jsonify({'message': 'College added successfully'}), 201
@@ -247,7 +247,7 @@ def programs(current_program=None):
                 table_name='Program',
                 record_id=data['program_id'],
                 operation='CREATE',
-                action_desc='Added program'
+                action_desc=f"Added New Program: {data['program_id']}, {data['program_name']}"
             )
 
             return jsonify({'message': 'Program added successfully'}), 201
