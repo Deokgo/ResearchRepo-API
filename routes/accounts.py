@@ -219,52 +219,48 @@ def update_account(user_id):
     finally:
         db.session.close()  # Ensure the session is closed
 
-@accounts.route('/update_status/<user_id>', methods=['PUT'])
-def update_status(user_id):
+@accounts.route('/update_status/<researcher_id>', methods=['PUT'])
+@jwt_required()
+def update_account_status(researcher_id):
     try:
-        data = request.json
+        # Get the user who is performing the update
+        current_user = Account.query.options(db.joinedload(Account.role)).get(get_jwt_identity())
+        if not current_user:
+            return jsonify({"error": "Current user not found"}), 404
 
-        # Validate that 'acc_status' is provided in the request body
-        if 'acc_status' not in data:
-            return jsonify({"message": "Missing 'acc_status' in request body"}), 400
+        # Store user info for audit trail
+        user_info = {
+            'email': current_user.email,
+            'role_name': current_user.role.role_name
+        }
 
-        new_status = data['acc_status']
+        data = request.get_json()
+        new_status = data.get('acc_status')
 
-        # Retrieve the user's account and associated information
-        user_acc = Account.query.filter_by(user_id=user_id).first()
-        if not user_acc:
-            return jsonify({"message": "User not found"}), 404
+        # Find the account to update
+        account = Account.query.filter_by(user_id=researcher_id).first()  # Changed from researcher_id to user_id
+        if not account:
+            return jsonify({"error": "Account not found"}), 404
 
-        # Update the acc_status field
-        user_acc.acc_status = new_status
-
-        # Commit changes to the database
+        old_status = account.acc_status
+        account.acc_status = new_status
         db.session.commit()
 
-        # Log the update event in the Audit_Trail
+        # Log the status change with the admin's info who made the change
         auth_services.log_audit_trail(
-            email=user_acc.email,
-            role=user_acc.role.role_name,
-            table_name='Account',
-            record_id=user_acc.user_id,
-            operation='UPDATE',
-            action_desc=f"Account status updated to '{new_status}'"
+            email=user_info['email'],
+            role=user_info['role_name'],
+            operation="UPDATE",
+            action_desc=f"Changed account status from {old_status} to {new_status}",
+            table_name="Account",
+            record_id=researcher_id
         )
 
-        # Return the updated account status
-        return jsonify({
-            "researcher": {
-                "status": user_acc.acc_status
-            }
-        }), 200
+        return jsonify({"message": "Account status updated successfully"}), 200
 
     except Exception as e:
-        db.session.rollback()  # Rollback in case of any error
-        return jsonify({"message": f"Failed to update status account: {e}"}), 500
-
-    finally:
-        db.session.close()  # Ensure the session is closed
-
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @accounts.route('/search_user', methods=['GET'])
 @accounts.route('/search_user/<college_id>', methods=['GET'])

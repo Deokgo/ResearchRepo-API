@@ -92,7 +92,7 @@ def create_backup(backup_type):
             pg_bin = current_app.config.get('PG_BIN')
             if not pg_bin:
                 # Default PostgreSQL binary location on Windows
-                pg_bin = r'C:\Program Files\PostgreSQL\15\bin'
+                pg_bin = r'C:\Program Files\PostgreSQL\16\bin'
             print(f"Using PostgreSQL binaries from: {pg_bin}")
 
             if backup_type == BackupType.FULL:
@@ -283,10 +283,16 @@ def restore_backup(backup_id):
     service_name = None
     original_data_backup = None
     try:
-        # Get the current user for audit trail
-        current_user = Account.query.get(get_jwt_identity())
+        # Before stopping PostgreSQL, eagerly load the user and role data
+        current_user = Account.query.options(db.joinedload(Account.role)).get(get_jwt_identity())
         if not current_user:
             return jsonify({"error": "Current user not found"}), 404
+
+        # Store the needed information
+        user_info = {
+            'email': current_user.email,
+            'role_name': current_user.role.role_name  # Get this before closing connection
+        }
 
         # Get PGDATA path from config at the start
         pgdata = current_app.config.get('PGDATA')
@@ -320,10 +326,10 @@ def restore_backup(backup_id):
                 list_command = 'sc query state= all | findstr /I "postgresql"'
                 result = subprocess.run(list_command, shell=True, capture_output=True, text=True)
                 service_output = result.stdout.lower()
-                if 'postgresql-x64-15' in service_output:
-                    service_name = 'postgresql-x64-15'
-                elif 'postgresql-15' in service_output:
-                    service_name = 'postgresql-15'
+                if 'postgresql-x64-16' in service_output:
+                    service_name = 'postgresql-x64-16'
+                elif 'postgresql-16' in service_output:
+                    service_name = 'postgresql-16'
                 elif 'postgresql' in service_output:
                     service_name = 'postgresql'
                 else:
@@ -403,7 +409,7 @@ def restore_backup(backup_id):
                         pg_bin = current_app.config.get('PG_BIN')
                         if not pg_bin:
                             # Default PostgreSQL binary location on Windows
-                            pg_bin = r'C:\Program Files\PostgreSQL\15\bin'
+                            pg_bin = r'C:\Program Files\PostgreSQL\16\bin'
                         print(f"Using PostgreSQL binaries from: {pg_bin}")
 
                         # First, stop PostgreSQL and clean data directory
@@ -483,7 +489,7 @@ def restore_backup(backup_id):
 
 
                         # Try to start PostgreSQL
-                        start_command = f'net start postgresql-x64-15'
+                        start_command = f'net start postgresql-x64-16'
                         result = subprocess.run(start_command, shell=True, capture_output=True, text=True)
                         print(f"Start command output: {result.stdout}")
                         
@@ -531,8 +537,8 @@ def restore_backup(backup_id):
                                             
                                             # Try to log audit trail
                                             log_audit_trail(
-                                                email=current_user.email,
-                                                role=current_user.role.role_name,
+                                                email=user_info['email'],
+                                                role=user_info['role_name'],
                                                 operation="RESTORE_BACKUP",
                                                 action_desc=f"Restored backup with ID: {backup_id}",
                                                 table_name="backup",
@@ -615,7 +621,7 @@ def restore_backup(backup_id):
                         
                         # Try to start PostgreSQL with original data
                         try:
-                            subprocess.run('net start postgresql-x64-15', shell=True, check=True)
+                            subprocess.run('net start postgresql-x64-16', shell=True, check=True)
                             print("Restored original data directory and restarted PostgreSQL")
                         except Exception as start_error:
                             print(f"Failed to restart PostgreSQL with original data: {start_error}")
@@ -663,7 +669,7 @@ def restore_backup(backup_id):
 
                 # Stop PostgreSQL service
                 print("Stopping PostgreSQL service...")
-                stop_command = 'net stop postgresql-x64-15'
+                stop_command = 'net stop postgresql-x64-16'
                 subprocess.run(stop_command, shell=True, check=True)
                 time.sleep(10)
 
@@ -752,7 +758,7 @@ def restore_backup(backup_id):
                         os.chmod(os.path.join(root, f), 0o600)
 
                 print("Starting PostgreSQL service...")
-                start_command = 'net start postgresql-x64-15'
+                start_command = 'net start postgresql-x64-16'
                 subprocess.run(start_command, shell=True, check=True)
                 time.sleep(15)
 
@@ -784,8 +790,8 @@ def restore_backup(backup_id):
                                 db.engine.dispose()
                                 
                                 log_audit_trail(
-                                    email=current_user.email,
-                                    role=current_user.role.role_name,
+                                    email=user_info['email'],
+                                    role=user_info['role_name'],
                                     operation="RESTORE_BACKUP",
                                     action_desc=f"Restored backup with ID: {backup_id}",
                                     table_name="backup",
@@ -868,7 +874,7 @@ def restore_backup(backup_id):
                         if os.path.exists(pgdata):
                             shutil.rmtree(pgdata)
                         shutil.copytree(original_data_backup, pgdata)
-                        subprocess.run('net start postgresql-x64-15', shell=True, check=True)
+                        subprocess.run('net start postgresql-x64-16', shell=True, check=True)
                         print("Restored original data directory after failed restore")
                     except Exception as restore_error:
                         print(f"Failed to restore original data: {restore_error}")
@@ -915,7 +921,7 @@ def restore_from_file():
 
             # Stop PostgreSQL service
             print("Stopping PostgreSQL service...")
-            subprocess.run('net stop postgresql-x64-15', shell=True, check=True)
+            subprocess.run('net stop postgresql-x64-16', shell=True, check=True)
             time.sleep(10)
 
             # Backup current PGDATA
@@ -968,7 +974,7 @@ def restore_from_file():
 
                 # Start PostgreSQL service
                 print("Starting PostgreSQL service...")
-                subprocess.run('net start postgresql-x64-15', shell=True, check=True)
+                subprocess.run('net start postgresql-x64-16', shell=True, check=True)
                 time.sleep(15)
 
                 # Test connection with retries
@@ -1019,7 +1025,7 @@ def restore_from_file():
                     if os.path.exists(pgdata):
                         shutil.rmtree(pgdata)
                     shutil.copytree(original_data_backup, pgdata)
-                    subprocess.run('net start postgresql-x64-15', shell=True)
+                    subprocess.run('net start postgresql-x64-16', shell=True)
                 raise
 
     except Exception as e:
