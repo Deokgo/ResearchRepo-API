@@ -4,107 +4,70 @@ import plotly.express as px
 import pandas as pd
 import pandas as pd
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
+import pandas as pd
+import plotly.express as px
 
-def update_line_plot(self, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_programs = ensure_list(selected_programs)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
+class ResearchOutputPlot:
+    def __init__(self):
+        self.program_colors = {}
+        self.all_sdgs = [
+            'SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 
+            'SDG 8', 'SDG 9', 'SDG 10', 'SDG 11', 'SDG 12', 'SDG 13', 
+            'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17'
+        ]
+    
+    def get_program_colors(self, df):
+        unique_programs = df['program_id'].unique()
+        available_colors = px.colors.qualitative.Set1  # Choose a color palette
 
-    if selected_programs == None:
-        # Fetch data using get_data_for_performance_overview
-        filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
+        for i, program in enumerate(unique_programs):
+            if program not in self.program_colors:
+                self.program_colors[program] = available_colors[i % len(available_colors)]
+    
+    def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+        
+        if user_id == "02":
+            filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
+            df = pd.DataFrame(filtered_data_with_term)
+            
+            if len(selected_colleges) == 1:
+                grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
+                color_column = 'program_id'
+                title = f'Number of Research Outputs for {selected_colleges[0]}'
+                self.get_program_colors(grouped_df)  # Ensure this method returns a dictionary
+                color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
+            else:
+                grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
+                color_column = 'college_id'
+                title = 'Number of Research Outputs per College'
+                color_discrete_map = college_colors if isinstance(college_colors, dict) else {}
+        
+        elif user_id in ["04", "05"]:
+            filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
+            df = pd.DataFrame(filtered_data_with_term)
+            
+            if len(selected_programs) == 1:
+                grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
+                color_column = 'program_id'
+                title = f'Number of Research Outputs for {selected_programs[0]}'
+            else:
+                df = df[df['program_id'].isin(selected_programs)]
+                grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
+                color_column = 'program_id'
+                title = 'Number of Research Outputs per Program'
+            
+            self.get_program_colors(df)
+            color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
 
-        df = pd.DataFrame(filtered_data_with_term) # Convert data to DataFrame
-        if len(selected_colleges) == 1:
-            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_id'
-            title = f'Number of Research Outputs for {selected_colleges[0]}'
-            self.get_program_colors(grouped_df) 
-        else:
-            grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'college_id'
-            title = 'Number of Research Outputs per College'
-        
-        fig_line = px.line(
-            grouped_df, 
-            x='year', 
-            y='TitleCount', 
-            color=color_column, 
-            markers=True,
-            color_discrete_map=self.program_colors if len(selected_colleges) == 1 else self.palette_dict
-        )
-        
-        fig_line.update_layout(
-            title=dict(text=title, font=dict(size=12)),  # Smaller title
-            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
-            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-            template='plotly_white',
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=400,
-            showlegend=True  
-        )
-    elif len(selected_programs) > 1:
-        # Fetch data using get_data_for_performance_overview
-        filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
+        # Debugging: Print color map type
+        print("color_discrete_map:", color_discrete_map)
+        print("Type of color_discrete_map:", type(color_discrete_map))
 
-        df = pd.DataFrame(filtered_data_with_term) # Convert data to DataFrame
-        if len(selected_programs) == 1:
-            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_id'
-            title = f'Number of Research Outputs for {selected_programs[0]}'
-        else:
-            df = df[df['program_id'].isin(selected_programs)]
-            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_id'
-            title = 'Number of Research Outputs per Program'
-        
-        # Generate a dynamic color mapping based on unique values in the color_column
-        self.get_program_colors(df)
-        color_discrete_map = self.program_colors
-        
-        # Generate the line plot
-        fig_line = px.line(
-            grouped_df,
-            x='year',
-            y='TitleCount',
-            color=color_column,
-            markers=True,
-            color_discrete_map=color_discrete_map
-        )
-        
-        # Update the layout for aesthetics and usability
-        fig_line.update_layout(
-            title=dict(text=title, font=dict(size=12)),  # Smaller title
-            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
-            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-            template='plotly_white',
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=400
-        )
-    elif len(selected_programs) == 1:
-        # Fetch data using get_data_for_performance_overview
-        filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
-
-        df = pd.DataFrame(filtered_data_with_term) # Convert data to DataFrame
-        if len(selected_programs) == 1:
-            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_id'
-            title = f'Number of Research Outputs for {selected_programs[0]}'
-        else:
-            df = df[df['program_id'].isin(selected_programs)]
-            grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
-            color_column = 'program_id'
-            title = 'Number of Research Outputs per College'
-        
-        # Generate a dynamic color mapping based on unique values in the color_column
-        unique_values = grouped_df[color_column].unique()
-        color_discrete_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] 
-                            for i, value in enumerate(unique_values)}
-        
-        # Generate the line plot
         fig_line = px.line(
             grouped_df,
             x='year',
@@ -114,576 +77,501 @@ def update_line_plot(self, selected_colleges, selected_programs, selected_status
             color_discrete_map=color_discrete_map
         )
         
-        # Update the layout for aesthetics and usability
         fig_line.update_layout(
-            title=dict(text=title, font=dict(size=12)),  # Smaller title
+            title=dict(text=title, font=dict(size=12)),
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
             margin=dict(l=0, r=0, t=30, b=0),
-            height=300
-        ) 
-    return fig_line
-
-"""
-def update_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_performance_overview
-    filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    if len(selected_colleges) == 1:
-        college_name = selected_colleges[0]
-        filtered_df = df[df['college_id'] == college_name]
-        detail_counts = filtered_df.groupby('program_id').size()
-        self.get_program_colors(filtered_df) 
-        title = f'Research Output Distribution for {selected_colleges[0]}'
-    else:
-        detail_counts = df.groupby('college_id').size()
-        title = 'Research Output Distribution by College'
-    
-    fig_pie = px.pie(
-        names=detail_counts.index,
-        values=detail_counts,
-        color=detail_counts.index,
-        color_discrete_map=self.program_colors if len(selected_colleges) == 1 else self.palette_dict,
-        labels={'names': 'Category', 'values': 'Number of Research Outputs'},
-    )
-
-    fig_pie.update_layout(
-        template='plotly_white',
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=400,
-        title=dict(text=title, font=dict(size=12)),  # Smaller title
-    )
-
-    return fig_pie
-
-def update_research_type_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_research_type_bar_plot
-    filtered_data_with_term = get_data_for_research_type_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    if df.empty:
-        return px.bar(title="No data available")
-    
-    fig = go.Figure()
-
-    if len(selected_colleges) == 1:
-        self.get_program_colors(df) 
-        status_count = df.groupby(['research_type', 'program_id']).size().reset_index(name='Count')
-        pivot_df = status_count.pivot(index='research_type', columns='program_id', values='Count').fillna(0)
-
-        sorted_programs = sorted(pivot_df.columns)
-        title = f"Comparison of Research Output Type Across Programs"
-
-        for program in sorted_programs:
-            fig.add_trace(go.Bar(
-                x=pivot_df.index,
-                y=pivot_df[program],
-                name=program,
-                marker_color=self.program_colors[program]
-            ))
-    else:
-        status_count = df.groupby(['research_type', 'college_id']).size().reset_index(name='Count')
-        pivot_df = status_count.pivot(index='research_type', columns='college_id', values='Count').fillna(0)
-        title = 'Comparison of Research Output Type Across Colleges'
-        
-        for college in pivot_df.columns:
-            fig.add_trace(go.Bar(
-                x=pivot_df.index,
-                y=pivot_df[college],
-                name=college,
-                marker_color=self.palette_dict.get(college, 'grey')
-            ))
-
-    fig.update_layout(
-        barmode='group',
-        xaxis_title=dict(text='Research Type', font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        title=dict(text=title, font=dict(size=12)),  # Smaller title
-    )
-
-    return fig
-
-def update_research_status_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_filtered_data_with_term
-    filtered_data_with_term = get_data_for_research_status_bar_plot(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    if df.empty:
-        return px.bar(title="No data available")
-
-    status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
-
-    fig = go.Figure()
-
-    if len(selected_colleges) == 1:
-        self.get_program_colors(df) 
-        status_count = df.groupby(['status', 'program_id']).size().reset_index(name='Count')
-        pivot_df = status_count.pivot(index='status', columns='program_id', values='Count').fillna(0)
-
-        sorted_programs = sorted(pivot_df.columns)
-        title = f"Comparison of Research Status Across Programs"
-
-        for program in sorted_programs:
-            fig.add_trace(go.Bar(
-                x=pivot_df.index,
-                y=pivot_df[program],
-                name=program,
-                marker_color=self.program_colors[program]
-            ))
-    else:
-        status_count = df.groupby(['status', 'college_id']).size().reset_index(name='Count')
-        pivot_df = status_count.pivot(index='status', columns='college_id', values='Count').fillna(0)
-        title = 'Comparison of Research Output Status Across Colleges'
-        
-        for college in pivot_df.columns:
-            fig.add_trace(go.Bar(
-                x=pivot_df.index,
-                y=pivot_df[college],
-                name=college,
-                marker_color=self.palette_dict.get(college, 'grey')
-            ))
-
-    fig.update_layout(
-        barmode='group',
-        xaxis_title=dict(text='Research Status', font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        title=dict(text=title, font=dict(size=12)),  # Smaller title,
-        xaxis=dict(
-            tickvals=status_order,  # This should match the unique statuses in pivot_df index
-            ticktext=status_order    # This ensures that the order of the statuses is displayed correctly
+            height=400 if user_id != "05" else 300,
+            showlegend=True
         )
-    )
+        
+        return fig_line
 
-    # Ensure the x-axis is sorted in the defined order
-    fig.update_xaxes(categoryorder='array', categoryarray=status_order)
-
-    return fig
-
-def create_publication_bar_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_scopus_section
-    filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    df = df[df['scopus'] != 'N/A']
-
-    if len(selected_colleges) == 1:
-        grouped_df = df.groupby(['scopus', 'program_id']).size().reset_index(name='Count')
-        x_axis = 'program_id'
-        xaxis_title = 'Programs'
-        title = f'Scopus vs. Non-Scopus per Program in {selected_colleges[0]}'
-    else:
-        grouped_df = df.groupby(['scopus', 'college_id']).size().reset_index(name='Count')
-        x_axis = 'college_id'
-        xaxis_title = 'Colleges'
-        title = 'Scopus vs. Non-Scopus per College'
+    def update_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+        
+        # Determine the filtering parameters based on user_id
+        colleges, programs = (selected_colleges, None) if user_id == "02" else (None, selected_programs)
+        
+        # Fetch data
+        filtered_data_with_term = get_data_for_performance_overview(colleges, programs, selected_status, selected_years, selected_terms)
+        df = pd.DataFrame(filtered_data_with_term)
+        
+        if user_id == "02" and len(selected_colleges) == 1:
+            detail_counts = df[df['college_id'] == selected_colleges[0]].groupby('program_id').size()
+            self.get_program_colors(df)
+            title, color_map = f'Research Output Distribution for {selected_colleges[0]}', self.program_colors
+        elif user_id in ["04", "05"] and len(selected_programs) == 1:
+            detail_counts = df[df['program_id'] == selected_programs[0]].groupby('year').size().reset_index(name='count')
+            title, color_map = f"Research Output Distribution for {selected_programs[0]}", None
+        else:
+            detail_counts = df.groupby('college_id' if user_id == "02" else 'program_id').size().reset_index(name='count')
+            title = 'Research Output Distribution by College' if user_id == "02" else 'Research Outputs per Program'
+            self.get_program_colors(df)
+            color_map = self.program_colors if user_id != "02" else college_colors
+        
+        # Create the pie chart
+        fig_pie = px.pie(
+            data_frame=detail_counts,
+            names=detail_counts.index if isinstance(detail_counts, pd.Series) else detail_counts.columns[0],
+            values=detail_counts if isinstance(detail_counts, pd.Series) else 'count',
+            color=detail_counts.index if isinstance(detail_counts, pd.Series) else detail_counts.columns[0],
+            color_discrete_map=color_map,
+            labels={'names': 'Category', 'values': 'Number of Research Outputs'}
+        )
+        
+        # Update layout
+        fig_pie.update_layout(
+            template='plotly_white',
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=400 if user_id != "05" else 300,
+            title=dict(text=title, font=dict(size=12))
+        )
+        
+        return fig_pie
     
-    fig_bar = px.bar(
-        grouped_df,
-        x=x_axis,
-        y='Count',
-        color='scopus',
-        barmode='group',
-        color_discrete_map=self.palette_dict,
-        labels={'scopus': 'Scopus vs. Non-Scopus'}
-    )
+    def update_research_type_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+
+        filter_college = selected_colleges if user_id == "02" else None
+        filter_program = selected_programs if user_id in ["04", "05"] else None
+        
+        df = pd.DataFrame(get_data_for_research_type_bar_plot(filter_college, filter_program, selected_status, selected_years, selected_terms))
+        if df.empty:
+            return px.bar(title="No data available")
+        
+        fig = go.Figure()
+        group_col = 'college_id' if user_id == "02" and len(selected_colleges) > 1 else 'program_id'
+        title = "Comparison of Research Output Type Across " + ("Colleges" if group_col == 'college_id' else "Programs")
+        
+        status_count = df.groupby(['research_type', group_col]).size().reset_index(name='Count')
+        pivot_df = status_count.pivot(index='research_type', columns=group_col, values='Count').fillna(0)
+        
+        if user_id == "02" and len(selected_colleges) == 1:
+            self.get_program_colors(df)
+            color_map = self.program_colors
+        elif user_id == "05":
+            unique_values = status_count[group_col].unique()
+            color_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] for i, value in enumerate(unique_values)}
+        else:
+            color_map = college_colors if group_col == 'college_id' else self.program_colors
+        
+        for group in sorted(pivot_df.columns):
+            fig.add_trace(go.Bar(
+                x=pivot_df.index,
+                y=pivot_df[group],
+                name=group,
+                marker_color=color_map.get(group, 'grey')
+            ))
+        
+        fig.update_layout(
+            barmode='group',
+            xaxis_title=dict(text='Research Type', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            title=dict(text=title, font=dict(size=12)),
+            height=300 if user_id == "05" else None
+        )
+        
+        return fig
     
-    fig_bar.update_layout(
-        title=dict(text=title, font=dict(size=12)),  # Smaller title,
-        xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        template='plotly_white',
-        height=400
-    )
+    def update_research_status_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
-    return fig_bar
+        data_params = {
+            "02": (selected_colleges, None),
+            "04": (None, selected_programs),
+            "05": (None, selected_programs),
+        }
 
-def update_publication_format_bar_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
+        if user_id not in data_params:
+            return px.bar(title="Invalid User ID")
 
-    # Fetch data using get_data_for_jounal_section
-    filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+        filtered_data_with_term = get_data_for_research_status_bar_plot(
+            *data_params[user_id], selected_status, selected_years, selected_terms
+        )
 
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
+        df = pd.DataFrame(filtered_data_with_term)
+        if df.empty:
+            return px.bar(title="No data available")
 
-    df = df[df['journal'] != 'unpublished']
-    df = df[df['status'] != 'PULLOUT']
-
-    if len(selected_colleges) == 1:
-        grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
-        x_axis = 'program_id'
-        xaxis_title = 'Programs'
-        title = f'Publication Types per Program in {selected_colleges[0]}'
-    else:
-        grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
-        x_axis = 'college_id'
-        xaxis_title = 'Colleges'
-        title = 'Publication Types per College'
-
-    fig_bar = px.bar(
-        grouped_df,
-        x=x_axis,
-        y='Count',
-        color='journal',
-        barmode='group',
-        color_discrete_map=self.palette_dict,
-        labels={'journal': 'Publication Type'}
-    )
-    
-    fig_bar.update_layout(
-        title=dict(text=title, font=dict(size=12)),  # Smaller title,
-        xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        template='plotly_white',
-        height=400
-    )
-
-    return fig_bar
-
-
-def update_sdg_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_sdg
-    filtered_data_with_term = get_data_for_sdg(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    if df.empty:
-        return px.scatter(title="No data available")
-
-    df_copy = df.copy()
-
-    if len(selected_colleges) == 1:
-        self.get_program_colors(df)
-        df_copy = df_copy.set_index('program_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
-        df_copy['sdg'] = df_copy['sdg'].str.strip()
-        df_copy = df_copy.drop(columns=['level_1'])
-        sdg_count = df_copy.groupby(['sdg', 'program_id']).size().reset_index(name='Count')
-        title = f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
-
-        if sdg_count.empty:
-            print("Data is empty after processing")
-            return px.scatter(title="No data available")
-
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
         fig = go.Figure()
 
-        for program in sdg_count['program_id'].unique():
-            program_data = sdg_count[sdg_count['program_id'] == program]
-            fig.add_trace(go.Scatter(
-                x=program_data['sdg'],
-                y=program_data['program_id'],
-                mode='markers',
-                marker=dict(
-                    size=program_data['Count'],
-                    color=self.program_colors.get(program, 'grey'),
-                    sizemode='area',
-                    sizeref=2. * max(sdg_count['Count']) / (100**2),  # Bubble size scaling
-                    sizemin=4
-                ),
-                name=program
-            ))
-    else:
-        df_copy = df_copy.set_index('college_id')['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
-        df_copy['sdg'] = df_copy['sdg'].str.strip()
-        df_copy = df_copy.drop(columns=['level_1'])
-        sdg_count = df_copy.groupby(['sdg', 'college_id']).size().reset_index(name='Count')
-        title = 'Distribution of SDG-Targeted Research Across Colleges'
+        group_by_col = 'college_id' if user_id == "02" and len(selected_colleges) > 1 else 'program_id'
+        title_suffix = "Colleges" if group_by_col == 'college_id' else "Programs"
 
-        if sdg_count.empty:
-            print("Data is empty after processing")
+        status_count = df.groupby(['status', group_by_col]).size().reset_index(name='Count')
+        pivot_df = status_count.pivot(index='status', columns=group_by_col, values='Count').fillna(0)
+
+        colors = (
+            college_colors if group_by_col == 'college_id' else 
+            self.program_colors if user_id in ["02", "04"] else 
+            {p: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] for i, p in enumerate(pivot_df.columns)}
+        )
+
+        for category in pivot_df.columns:
+            fig.add_trace(go.Bar(
+                x=pivot_df.index,
+                y=pivot_df[category],
+                name=category,
+                marker_color=colors.get(category, 'grey')
+            ))
+
+        fig.update_layout(
+            barmode='group',
+            title=dict(text=f"Comparison of Research Status Across {title_suffix}", font=dict(size=12)),
+            xaxis_title="Research Status",
+            yaxis_title="Research Outputs",
+            xaxis=dict(tickvals=status_order, ticktext=status_order, categoryorder='array', categoryarray=status_order),
+            height=300 if user_id == "05" else None
+        )
+
+        return fig
+    
+    def create_publication_bar_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+        
+        data_func_args = (selected_colleges, None) if user_id == "02" else (None, selected_programs)
+        df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms))
+        df = df[df['scopus'] != 'N/A']
+        
+        if df.empty:
+            return px.bar(title="No data available")
+        
+        if user_id == "02" and len(selected_colleges) == 1:
+            x_axis, xaxis_title = 'program_id', 'Programs'
+            title = f'Scopus vs. Non-Scopus per Program in {selected_colleges[0]}'
+        else:
+            x_axis, xaxis_title = ('college_id', 'Colleges') if user_id == "02" else ('program_id', 'Programs')
+            title = 'Scopus vs. Non-Scopus per College' if x_axis == 'college_id' else 'Scopus vs. Non-Scopus per Program'
+        
+        if user_id in ["04", "05"]:
+            self.get_program_colors(df)
+        
+        grouped_df = df.groupby(['scopus', x_axis]).size().reset_index(name='Count')
+        
+        fig_bar = px.bar(
+            grouped_df, x=x_axis, y='Count', color='scopus', barmode='group', 
+            color_discrete_map=college_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}
+        )
+        
+        fig_bar.update_layout(
+            title=dict(text=title, font=dict(size=12)),
+            xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            template='plotly_white', height=400 if user_id != "05" else 300
+        )
+        
+        return fig_bar
+    
+    def update_publication_format_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+
+        # Determine filtering based on user_id
+        if user_id == "02":
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+        else:
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+        
+        # Convert data to DataFrame
+        df = pd.DataFrame(filtered_data_with_term)
+        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        
+        # Determine grouping
+        if user_id == "02" and len(selected_colleges) == 1:
+            grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+            x_axis, xaxis_title = 'program_id', 'Programs'
+            title = f'Publication Types per Program in {selected_colleges[0]}'
+        elif user_id == "02":
+            grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
+            x_axis, xaxis_title = 'college_id', 'Colleges'
+            title = 'Publication Types per College'
+        else:
+            grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
+            x_axis, xaxis_title, title = 'program_id', 'Programs', 'Publication Types per Program'
+        
+        # Create bar chart
+        fig_bar = px.bar(
+            grouped_df, x=x_axis, y='Count', color='journal', barmode='group',
+            color_discrete_map=college_colors, labels={'journal': 'Publication Type'}
+        )
+        
+        # Adjust layout
+        fig_bar.update_layout(
+            title=dict(text=title, font=dict(size=12)),
+            xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            template='plotly_white',
+            height=300 if user_id == "05" else 400
+        )
+        
+        return fig_bar
+    
+    def update_sdg_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+        
+        user_filters = {
+            "02": (selected_colleges, None),
+            "04": (None, selected_programs),
+            "05": (None, selected_programs)
+        }
+        
+        if user_id not in user_filters:
+            return px.scatter(title="Invalid user ID")
+        
+        filtered_data = get_data_for_sdg(*user_filters[user_id], selected_status, selected_years, selected_terms)
+        df = pd.DataFrame(filtered_data)
+        
+        if df.empty:
             return px.scatter(title="No data available")
-
+        
+        entity = 'program_id' if user_id != "02" or len(selected_colleges) == 1 else 'college_id'
+        title = (f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
+                if user_id == "02" and len(selected_colleges) == 1
+                else 'Distribution of SDG-Targeted Research Across Programs'
+                if user_id != "02" else 'Distribution of SDG-Targeted Research Across Colleges')
+        
+        df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
+        df_expanded['sdg'] = df_expanded['sdg'].str.strip()
+        df_expanded.drop(columns=['level_1'], inplace=True)
+        sdg_count = df_expanded.groupby(['sdg', entity]).size().reset_index(name='Count')
+        
+        if sdg_count.empty:
+            return px.scatter(title="No data available")
+        
         fig = go.Figure()
-
-        for college in sdg_count['college_id'].unique():
-            college_data = sdg_count[sdg_count['college_id'] == college]
+        self.get_program_colors(df)  # Ensuring color consistency
+        color_map = self.program_colors if entity == 'program_id' else college_colors
+        
+        for value in sdg_count[entity].unique():
+            entity_data = sdg_count[sdg_count[entity] == value]
             fig.add_trace(go.Scatter(
-                x=college_data['sdg'],
-                y=college_data['college_id'],
+                x=entity_data['sdg'],
+                y=entity_data[entity],
                 mode='markers',
                 marker=dict(
-                    size=college_data['Count'],
-                    color=self.palette_dict.get(college, 'grey'),
+                    size=entity_data['Count'],
+                    color=color_map.get(value, 'grey'),
                     sizemode='area',
-                    sizeref=2. * max(sdg_count['Count']) / (100**2),  # Bubble size scaling
+                    sizeref=2. * max(sdg_count['Count']) / (100**2),
                     sizemin=4
                 ),
-                name=college
+                name=value
             ))
+        
+        fig.update_layout(
+            xaxis_title='SDG Targeted',
+            yaxis_title='Programs' if entity == 'program_id' else 'Colleges',
+            title=title,
+            xaxis=dict(tickvals=self.all_sdgs, ticktext=self.all_sdgs),
+            yaxis=dict(autorange="reversed"),
+            showlegend=True,
+            height=300 if user_id == "05" else None
+        )
+        
+        return fig
 
-    fig.update_layout(
-        xaxis_title='SDG Targeted',
-        yaxis_title='Programs or Colleges',
-        title=title,
-        xaxis=dict(
-            tickvals=self.all_sdgs,
-            ticktext=self.all_sdgs
-        ),
-        yaxis=dict(autorange="reversed"),
-        showlegend=True
-    )
-
-    return fig
-
-def scopus_line_graph(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_scopus_section
-    filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-
-    # Filter out rows where 'scopus' is 'N/A'
-    df = df[df['scopus'] != 'N/A']
-
-    # Group data by 'scopus' and 'year'
-    grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
-
-    # Ensure year and count are numeric
-    grouped_df['year'] = grouped_df['year'].astype(int)
-    grouped_df['Count'] = grouped_df['Count'].astype(int)
-
-    # Create the line chart with markers
-    fig_line = px.line(
-        grouped_df,
-        x='year',
-        y='Count',
-        color='scopus',
-        color_discrete_map=self.palette_dict,
-        labels={'scopus': 'Scopus vs. Non-Scopus'},
-        markers=True
-    )
-
-    # Update layout for smaller text and responsive UI
-    fig_line.update_traces(
-        line=dict(width=1.5),  # Thinner lines
-        marker=dict(size=5)  # Smaller marker points
-    )
-
-    fig_line.update_layout(
-        title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),  # Smaller title
-        xaxis_title=dict(text='Academic Year', font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        template='plotly_white',
-        height=300,  # Smaller chart height
-        margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
-        xaxis=dict(
-            type='linear',  
-            tickangle=-45,  # Angled labels for better fit
-            automargin=True,  # Prevent label overflow
-            tickfont=dict(size=10)  # Smaller x-axis text
-        ),
-        yaxis=dict(
-            automargin=True,  
-            tickfont=dict(size=10)  # Smaller y-axis text
-        ),
-        legend=dict(font=dict(size=9)),  # Smaller legend text
-    )
-
-    return fig_line
-
-def scopus_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_scopus_section
-    filtered_data_with_term = get_data_for_scopus_section(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
+    def scopus_line_graph(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
+        
+        # Determine filter parameters based on user_id
+        college_filter = selected_colleges if user_id == "02" else None
+        program_filter = selected_programs if user_id in ["04", "05"] else None
+        
+        # Fetch data
+        filtered_data = get_data_for_scopus_section(college_filter, program_filter, selected_status, selected_years, selected_terms)
+        df = pd.DataFrame(filtered_data)
+        df = df[df['scopus'] != 'N/A']  # Filter out 'N/A' values
+        
+        # Group and ensure numeric types
+        grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
+        grouped_df[['year', 'Count']] = grouped_df[['year', 'Count']].astype(int)
+        
+        # Create the line chart
+        fig_line = px.line(
+            grouped_df, x='year', y='Count', color='scopus',
+            color_discrete_map=college_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}, markers=True
+        )
+        
+        # Update layout
+        fig_line.update_traces(line=dict(width=1.5), marker=dict(size=5))
+        fig_line.update_layout(
+            title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),
+            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            template='plotly_white', height=300 if user_id != "05" else 200,
+            margin=dict(l=5, r=5, t=30, b=30),
+            xaxis=dict(type='linear', tickangle=-45, automargin=True, tickfont=dict(size=10)),
+            yaxis=dict(automargin=True, tickfont=dict(size=10)),
+            legend=dict(font=dict(size=9))
+        )
+        
+        return fig_line
     
-    # Filter out rows where 'scopus' is 'N/A'
-    df = df[df['scopus'] != 'N/A']
+    def scopus_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
-    # Group data by 'scopus' and sum the counts
-    grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
+        # Determine filtering criteria based on user_id
+        colleges = selected_colleges if user_id == "02" else None
+        programs = selected_programs if user_id in ["04", "05"] else None
+        
+        # Fetch and process data
+        filtered_data_with_term = get_data_for_scopus_section(colleges, programs, selected_status, selected_years, selected_terms)
+        df = pd.DataFrame(filtered_data_with_term)
+        df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
+        grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
 
-    # Create the pie chart
-    fig_pie = px.pie(
-        grouped_df,
-        names='scopus',
-        values='Count',
-        color='scopus',
-        color_discrete_map=self.palette_dict,
-        labels={'scopus': 'Scopus vs. Non-Scopus'}
-    )
+        # Create pie chart
+        fig_pie = px.pie(
+            grouped_df,
+            names='scopus',
+            values='Count',
+            color='scopus',
+            color_discrete_map=college_colors,
+            labels={'scopus': 'Scopus vs. Non-Scopus'}
+        )
 
-    # Update layout for a smaller and more responsive design
-    fig_pie.update_traces(
-        textfont=dict(size=9),  # Smaller text inside the pie
-        insidetextfont=dict(size=9),  # Smaller text inside the pie
-        marker=dict(line=dict(width=0.5))  # Thinner slice borders
-    )
-
-    fig_pie.update_layout(
-        title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),  # Smaller title
-        template='plotly_white',
-        height=300,  # Smaller chart height
-        margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
-        legend=dict(font=dict(size=9)),  # Smaller legend text
-    )
-
-    return fig_pie
-
-def publication_format_line_plot(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
-
-    # Fetch data using get_data_for_jounal_section
-    filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
-
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
+        # Adjust layout and styling
+        fig_pie.update_traces(
+            textfont=dict(size=9),
+            insidetextfont=dict(size=9),
+            marker=dict(line=dict(width=0.5))
+        )
+        fig_pie.update_layout(
+            title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),
+            template='plotly_white',
+            height=200 if user_id == "05" else 300,  # Adjust height for user_id 05
+            margin=dict(l=5, r=5, t=30, b=30),
+            legend=dict(font=dict(size=9))
+        )
+        
+        return fig_pie
     
-    # Filter out rows with 'unpublished' journals and 'PULLOUT' status
-    df = df[df['journal'] != 'unpublished']
-    df = df[df['status'] != 'PULLOUT']
+    def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
-    # Group data by 'journal' and 'year'
-    grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
+        # Determine data filtering based on user_id
+        if user_id == "02":
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+        else:  # Covers both user_id "04" and "05"
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
 
-    # Ensure year and count are numeric
-    grouped_df['year'] = grouped_df['year'].astype(int)
-    grouped_df['Count'] = grouped_df['Count'].astype(int)
+        # Convert data to DataFrame and apply filters
+        df = pd.DataFrame(filtered_data_with_term)
+        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        
+        # Group data by 'journal' and 'year'
+        grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
+        grouped_df[['year', 'Count']] = grouped_df[['year', 'Count']].astype(int)
 
-    # Create the line chart with markers
-    fig_line = px.line(
-        grouped_df,
-        x='year',
-        y='Count',
-        color='journal',
-        color_discrete_map=self.palette_dict,
-        labels={'journal': 'Publication Type'},
-        markers=True
-    )
+        # Create the line chart with markers
+        fig_line = px.line(
+            grouped_df,
+            x='year',
+            y='Count',
+            color='journal',
+            color_discrete_map=college_colors,
+            labels={'journal': 'Publication Type'},
+            markers=True
+        )
 
-    # Update layout for smaller text and responsive UI
-    fig_line.update_traces(
-        line=dict(width=1.5),  # Thinner lines
-        marker=dict(size=5)  # Smaller marker points
-    )
+        # Update layout for smaller text and responsive UI
+        fig_line.update_traces(line=dict(width=1.5), marker=dict(size=5))
+        fig_line.update_layout(
+            title=dict(text='Publication Types Over Time', font=dict(size=12)),
+            xaxis_title=dict(text='Academic Year', font=dict(size=12)),
+            yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
+            template='plotly_white',
+            height=300 if user_id != "05" else 200,  # Adjust height for user_id "05"
+            margin=dict(l=5, r=5, t=30, b=30),
+            xaxis=dict(type='linear', tickangle=-45, automargin=True, tickfont=dict(size=10)),
+            yaxis=dict(automargin=True, tickfont=dict(size=10)),
+            legend=dict(font=dict(size=9))
+        )
 
-    fig_line.update_layout(
-        title=dict(text='Publication Types Over Time', font=dict(size=12)),  # Smaller title
-        xaxis_title=dict(text='Academic Year', font=dict(size=12)),
-        yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-        template='plotly_white',
-        height=300,  # Smaller chart height
-        margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins for compact display
-        xaxis=dict(
-            type='linear',  
-            tickangle=-45,  # Angled labels for better fit
-            automargin=True,  # Prevent label overflow
-            tickfont=dict(size=10)  # Smaller x-axis text
-        ),
-        yaxis=dict(
-            automargin=True,  
-            tickfont=dict(size=10)  # Smaller y-axis text
-        ),
-        legend=dict(font=dict(size=9)),  # Smaller legend text
-    )
+        return fig_line
 
-    return fig_line
+    def publication_format_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        selected_colleges = ensure_list(selected_colleges)
+        selected_programs = ensure_list(selected_programs)
+        selected_status = ensure_list(selected_status)
+        selected_years = ensure_list(selected_years)
+        selected_terms = ensure_list(selected_terms)
 
-def publication_format_pie_chart(self, selected_colleges, selected_status, selected_years, selected_terms):
-    # Ensure selected_colleges is a standard Python list or array
-    selected_colleges = ensure_list(selected_colleges)
-    selected_status = ensure_list(selected_status)
-    selected_years = ensure_list(selected_years)
-    selected_terms = ensure_list(selected_terms)
+        # Determine the filtering parameters based on user_id
+        if user_id == "02":
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+        else:  # For user_id "04" and "05"
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
 
-    # Fetch data using get_data_for_jounal_section
-    filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+        # Convert data to DataFrame and apply filters
+        df = pd.DataFrame(filtered_data_with_term)
+        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
 
-    # Convert data to DataFrame
-    df = pd.DataFrame(filtered_data_with_term)
-    
-    # Filter out rows with 'unpublished' journals and 'PULLOUT' status
-    df = df[df['journal'] != 'unpublished']
-    df = df[df['status'] != 'PULLOUT']
+        # Group data by 'journal' and sum the counts
+        grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
 
-    # Group data by 'journal' and sum the counts
-    grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
+        # Create the pie chart
+        fig_pie = px.pie(
+            grouped_df,
+            names='journal',
+            values='Count',
+            color='journal',
+            color_discrete_map=college_colors,
+            labels={'journal': 'Publication Type'}
+        )
 
-    # Create the pie chart
-    fig_pie = px.pie(
-        grouped_df,
-        names='journal',
-        values='Count',
-        color='journal',
-        color_discrete_map=self.palette_dict,
-        labels={'journal': 'Publication Type'}
-    )
+        # Update layout for a smaller and more responsive design
+        fig_pie.update_traces(
+            textfont=dict(size=9),
+            insidetextfont=dict(size=9),
+            marker=dict(line=dict(width=0.5))
+        )
 
-    # Update layout for a smaller and more responsive design
-    fig_pie.update_traces(
-        textfont=dict(size=9),  # Smaller text inside the pie
-        insidetextfont=dict(size=9),  # Smaller text inside the pie
-        marker=dict(line=dict(width=0.5))  # Thinner slice borders
-    )
+        fig_pie.update_layout(
+            title=dict(text='Publication Type Distribution', font=dict(size=12)),
+            template='plotly_white',
+            height=200 if user_id == "05" else 300,  # Adjust height for user_id "05"
+            margin=dict(l=5, r=5, t=30, b=30),
+            legend=dict(font=dict(size=9))
+        )
 
-    fig_pie.update_layout(
-        title=dict(text='Publication Type Distribution', font=dict(size=12)),  # Smaller title
-        template='plotly_white',
-        height=300,  # Smaller chart height
-        margin=dict(l=5, r=5, t=30, b=30),  # Minimal margins
-        legend=dict(font=dict(size=9)),  # Smaller legend text
-    )
-
-    return fig_pie
-"""
+        return fig_pie

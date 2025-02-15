@@ -19,8 +19,7 @@ import os
 import datetime
 from pathlib import Path
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
-from charts.institutional_performance_charts import update_line_plot#, update_pie_chart, update_research_type_bar_plot, update_research_status_bar_plot, create_publication_bar_chart, update_publication_format_bar_plot, update_sdg_chart, scopus_line_graph, scopus_pie_chart, publication_format_line_plot, publication_format_pie_chart
-
+from charts.institutional_performance_charts import ResearchOutputPlot
 class Institutional_Performance_Dash:
     def __init__(self, flask_app, college=None, program=None):
         """
@@ -28,6 +27,8 @@ class Institutional_Performance_Dash:
         """
         self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/institutional-performance/', 
                              external_stylesheets=[dbc.themes.BOOTSTRAP, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"])
+        
+        self.plot_instance = ResearchOutputPlot()
         self.college = college
         self.program = program
         self.user_role = ""
@@ -39,15 +40,12 @@ class Institutional_Performance_Dash:
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_terms = db_manager.get_unique_values('term')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+
+        self.selected_colleges = []
+        self.selected_programs = []
         
         self.create_layout()
         self.set_callbacks()
-
-        self.all_sdgs = [
-            'SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 
-            'SDG 8', 'SDG 9', 'SDG 10', 'SDG 11', 'SDG 12', 'SDG 13', 
-            'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17'
-        ]
 
     def create_layout(self):
         """
@@ -328,11 +326,10 @@ class Institutional_Performance_Dash:
                         width={"size": 2, "order": 1},  # Adjust width for sidebar
                         style={"height": "100%", "padding": "0", "overflow-y": "auto"}
                     ),
-                    # Main dashboard content
+                    # Main Contents
                     dbc.Col(
                         html.Div([
-                            html.Div(id="dynamic-header"),
-                            # Buttons in a single row
+                            html.Div(id="dynamic-header", style={"margin-bottom": "20px"}),  # Adjust margin-bottom
                             text_display,
                             
                             # Modals for each button
@@ -407,24 +404,25 @@ class Institutional_Performance_Dash:
                                 id="dashboard-tabs",
                                 children=Tabs(
                                     tabs_data=[
-                                        ("Performance Overview", html.Div(main_dash, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
-                                        ("Research Statuses and Types", html.Div(sub_dash1, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
-                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
-                                        ("SDG Distribution", html.Div(sub_dash3, style={'border': '1px solid #e8e9eb', 'padding': '5px'})),
-                                        ("Publication Types", html.Div(sub_dash4, style={'border': '1px solid #e8e9eb', 'padding': '5px'}))
+                                        ("Performance Overview", html.Div(main_dash, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
+                                        ("Research Statuses and Types", html.Div(sub_dash1, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
+                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
+                                        ("SDG Distribution", html.Div(sub_dash3, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
+                                        ("Publication Types", html.Div(sub_dash4, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'}))
                                     ]
-                                )
+                                ),
+                                style={"margin-top": "20px"}  # Adds space before the tabs
                             ),
-                          
                         ], style={
                             "height": "100%",
                             "display": "flex",
                             "flex-direction": "column",
-                            "overflow-x": "hidden",  # Prevent horizontal overflow
-                            "overflow-y": "auto",  # Enable vertical scrolling
-                            "padding": "10px",
+                            "overflow-x": "hidden",
+                            "overflow-y": "auto",
+                            "padding": "20px",
+                            "margin-top": "20px"  # Move content lower
                         }),
-                        width={"size": 10, "order": 2},  # Adjust main content width
+                        width={"size": 10, "order": 2},
                         style={
                             "height": "100%",
                             "display": "flex",
@@ -434,7 +432,8 @@ class Institutional_Performance_Dash:
                 ], style={
                     "height": "100vh",
                     "display": "flex",
-                    "flex-wrap": "nowrap",  # Prevent wrapping to maintain layout
+                    "flex-wrap": "nowrap",
+                    "align-items": "flex-start",  # Aligns content lower
                 }),
             ], fluid=True, style={
                 "height": "100vh",
@@ -447,17 +446,6 @@ class Institutional_Performance_Dash:
             "padding": "0",
             "overflow": "hidden",  # Prevent outer scrolling
         })
-    
-    def get_program_colors(self, df):
-        unique_programs = df['program_id'].unique()
-        if not hasattr(self, "program_colors"):
-            self.program_colors = {}  # Initialize if not exists
-
-        available_colors = px.colors.qualitative.Set1  # Choose a color palette
-
-        for i, program in enumerate(unique_programs):
-            if program not in self.program_colors:
-                self.program_colors[program] = available_colors[i % len(available_colors)]
     
     def set_callbacks(self):
         """
@@ -528,36 +516,28 @@ class Institutional_Performance_Dash:
             self.user_role = user_role
 
             if user_role == "02":
-                # Select all colleges, hide program selection, and RESET selected_programs
-                college = self.default_colleges
-                program = []  # ❗ Ensure selected_programs is reset
+                college = []  # UI should show nothing selected
+                program = []  # Reset programs
                 program_style = {"display": "none"}
 
             elif user_role == "04":
-                # Select all programs of the given college
-                college = []
+                college = self.college  # Retain college selection
+                program = []  # Reset program selection
                 self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
-                program = self.default_programs
                 program_options = [{'label': p, 'value': p} for p in self.default_programs]
                 college_style = {"display": "none"}
 
             elif user_role == "05":
-                # Select only the specific program of the user
                 college = []
                 program = [self.program] if self.program else []
                 college_style = {"display": "none"}
                 program_style = {"display": "none"}
 
-            # 🚀 Reset both selected_colleges and selected_programs properly
-            if user_role == "02":
-                self.selected_colleges = college
-                self.selected_programs = []  # ✅ Reset programs when switching back to 02
-            else:
-                self.selected_colleges = [college] if college else []
-                self.selected_programs = program
+            self.selected_colleges = self.default_colleges if user_role == "02" else (college if isinstance(college, list) else [])
+            self.selected_programs = program if isinstance(program, list) else []
 
             print(f'college: {college}\nprogram: {program}\nprogram_options: {program_options}')
-
+            
             return college, program, college_style, program_style, program_options
 
         @self.dash_app.callback(
@@ -579,9 +559,8 @@ class Institutional_Performance_Dash:
             ]
         )
         def refresh_text_buttons(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            # 🚀 Ensure reset when user_role == "02"
             if self.user_role == "02":
-                selected_programs = []  # ✅ Force reset selected_programs
+                selected_programs = [] 
 
             selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
             selected_programs = default_if_empty(selected_programs, self.selected_programs)
@@ -602,11 +581,10 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            # 💡 Fix: Only filter by programs if they are valid
             if selected_programs and self.user_role != "02":
                 filter_kwargs["selected_programs"] = selected_programs
             else:
-                filter_kwargs["selected_colleges"] = selected_colleges  # ✅ Ensure colleges are used
+                filter_kwargs["selected_colleges"] = selected_colleges  
 
             filtered_data = get_data_for_text_displays(**filter_kwargs)
 
@@ -626,3 +604,773 @@ class Institutional_Performance_Dash:
                 [html.H3(f'{status_counts.get("PUBLISHED", 0)}', className="mb-0")],
                 [html.H3(f'{status_counts.get("PULLOUT", 0)}', className="mb-0")]
             )
+
+        @self.dash_app.callback(
+            Output('college_line_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_lineplot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('college_pie_chart', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_pie_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('research_type_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_research_type_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_research_type_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+
+        @self.dash_app.callback(
+            Output('research_status_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_research_status_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_research_status_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def create_publication_bar_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.create_publication_bar_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('proceeding_conference_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_publication_format_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_publication_format_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('sdg_bar_plot', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_sdg_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            return self.plot_instance.update_sdg_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+        
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_graph', 'figure'),
+            [
+                Input('nonscopus_scopus_tabs', 'value'),
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_scopus_graph(tab, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            if tab == 'line':
+                return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+            else:
+                return self.plot_instance.scopus_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+            
+        @self.dash_app.callback(
+            Output('proceeding_conference_graph', 'figure'),
+            [
+                Input('proceeding_conference_tabs', 'value'),
+                Input('college', 'value'),
+                Input('program', 'value'),
+                Input('status', 'value'),
+                Input('years', 'value'),
+                Input('terms', 'value')
+            ]
+        )
+        def update_scopus_graph(tab, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            if tab == 'line':
+                return self.plot_instance.publication_format_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+            else:
+                return self.plot_instance.publication_format_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+            
+        # for total modal
+        @self.dash_app.callback(
+            [
+                Output("total-modal", "is_open"),
+                Output("total-modal-content", "children"),
+                Output("total-download-link", "data"),
+                Output("total-download-btn", "style")  # Control visibility
+            ],
+            [
+                Input("open-total-modal", "n_clicks"),
+                Input("close-total-modal", "n_clicks"),
+                Input("total-download-btn", "n_clicks")
+            ],
+            [
+                State("total-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": selected_status,
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+            df_filtered_data = pd.DataFrame(filtered_data) if filtered_data else pd.DataFrame()
+            df_filtered_data = df_filtered_data.to_dict(orient="records") if not df_filtered_data.empty else []
+
+            download_btn_style = {"display": "none"} if not df_filtered_data else {"display": "block"}
+
+            if not df_filtered_data:
+                if trigger_id == "close-total-modal":
+                    return False, "", None, download_btn_style  
+                return True, "No data records.", None, download_btn_style  
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            df_filtered_data = pd.DataFrame(df_filtered_data)[list(selected_columns.keys())] if df_filtered_data else pd.DataFrame(columns=list(selected_columns.keys()))
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+
+            if trigger_id == "open-total-modal":
+                return True, table, None, download_btn_style  
+
+            elif trigger_id == "close-total-modal":
+                return False, "", None, download_btn_style  
+
+            elif trigger_id == "total-download-btn":
+                if df_filtered_data is not None and not df_filtered_data.empty:
+                    file_path = download_file(df_filtered_data, "total_papers")
+                    download_message = dbc.Alert(
+                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        color="success",
+                        dismissable=False
+                    )
+                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+
+            return is_open, "", None, download_btn_style
+        
+        # for ready modal
+        @self.dash_app.callback(
+            [
+                Output("ready-modal", "is_open"),
+                Output("ready-modal-content", "children"),
+                Output("ready-download-link", "data"),
+                Output("ready-download-btn", "style")
+            ],
+            [
+                Input("open-ready-modal", "n_clicks"),
+                Input("close-ready-modal", "n_clicks"),
+                Input("ready-download-btn", "n_clicks")
+            ],
+            [
+                State("ready-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            if self.user_role == "02":
+                selected_programs = []
+
+            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
+            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": ["READY"],  # Only get READY status data
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+
+            df_filtered_data = pd.DataFrame(filtered_data)
+
+            if df_filtered_data.empty:
+                download_btn_style = {"display": "none"}
+                if trigger_id == "close-ready-modal":
+                    return False, "", None, download_btn_style
+                return True, "No data records.", None, download_btn_style
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            # Apply renaming and select only the needed columns
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+
+            # Keep only the relevant columns in the correct order
+            final_columns = ["SDG", "Research Title", "Author(s)", "Program", "Keywords", "Research Type"]
+            df_filtered_data = df_filtered_data[final_columns]
+
+            # Generate the table
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            download_btn_style = {"display": "block"}
+
+            if trigger_id == "open-ready-modal":
+                return True, table, None, download_btn_style
+
+            elif trigger_id == "close-ready-modal":
+                return False, "", None, download_btn_style
+
+            elif trigger_id == "ready-download-btn":
+                file_path = download_file(df_filtered_data, "ready_papers")
+                download_message = dbc.Alert(
+                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    color="success",
+                    dismissable=False
+                )
+                return is_open, download_message, send_file(file_path), {"display": "none"}
+
+            return is_open, "", None, download_btn_style
+
+        # for submitted modal
+        @self.dash_app.callback(
+            [
+                Output("submitted-modal", "is_open"),
+                Output("submitted-modal-content", "children"),
+                Output("submitted-download-link", "data"),
+                Output("submitted-download-btn", "style")
+            ],
+            [
+                Input("open-submitted-modal", "n_clicks"),
+                Input("close-submitted-modal", "n_clicks"),
+                Input("submitted-download-btn", "n_clicks")
+            ],
+            [
+                State("submitted-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            if self.user_role == "02":
+                selected_programs = []
+
+            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
+            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": ["SUBMITTED"],  # Only get SUBMITTED status data
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+
+            df_filtered_data = pd.DataFrame(filtered_data)
+
+            if df_filtered_data.empty:
+                download_btn_style = {"display": "none"}
+                if trigger_id == "close-submitted-modal":
+                    return False, "", None, download_btn_style
+                return True, "No data records.", None, download_btn_style
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            # Apply renaming and select only the needed columns
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+
+            # Keep only the relevant columns in the correct order
+            final_columns = ["SDG", "Research Title", "Author(s)", "Program", "Keywords", "Research Type"]
+            df_filtered_data = df_filtered_data[final_columns]
+
+            # Generate the table
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            download_btn_style = {"display": "block"}
+
+            if trigger_id == "open-submitted-modal":
+                return True, table, None, download_btn_style
+
+            elif trigger_id == "close-submitted-modal":
+                return False, "", None, download_btn_style
+
+            elif trigger_id == "submitted-download-btn":
+                file_path = download_file(df_filtered_data, "submitted_papers")
+                download_message = dbc.Alert(
+                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    color="success",
+                    dismissable=False
+                )
+                return is_open, download_message, send_file(file_path), {"display": "none"}
+
+            return is_open, "", None, download_btn_style
+
+        # for accepted modal
+        @self.dash_app.callback(
+            [
+                Output("accepted-modal", "is_open"),
+                Output("accepted-modal-content", "children"),
+                Output("accepted-download-link", "data"),
+                Output("accepted-download-btn", "style")
+            ],
+            [
+                Input("open-accepted-modal", "n_clicks"),
+                Input("close-accepted-modal", "n_clicks"),
+                Input("accepted-download-btn", "n_clicks")
+            ],
+            [
+                State("accepted-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            if self.user_role == "02":
+                selected_programs = []
+
+            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
+            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": ["ACCEPTED"],  # Only get ACCEPTED status data
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+
+            df_filtered_data = pd.DataFrame(filtered_data)
+
+            if df_filtered_data.empty:
+                download_btn_style = {"display": "none"}
+                if trigger_id == "close-accepted-modal":
+                    return False, "", None, download_btn_style
+                return True, "No data records.", None, download_btn_style
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            # Apply renaming and select only the needed columns
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+
+            # Keep only the relevant columns in the correct order
+            final_columns = ["SDG", "Research Title", "Author(s)", "Program", "Keywords", "Research Type"]
+            df_filtered_data = df_filtered_data[final_columns]
+
+            # Generate the table
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            download_btn_style = {"display": "block"}
+
+            if trigger_id == "open-accepted-modal":
+                return True, table, None, download_btn_style
+
+            elif trigger_id == "close-accepted-modal":
+                return False, "", None, download_btn_style
+
+            elif trigger_id == "accepted-download-btn":
+                file_path = download_file(df_filtered_data, "accepted_papers")
+                download_message = dbc.Alert(
+                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    color="success",
+                    dismissable=False
+                )
+                return is_open, download_message, send_file(file_path), {"display": "none"}
+
+            return is_open, "", None, download_btn_style
+        
+        # for published modal
+        @self.dash_app.callback(
+            [
+                Output("published-modal", "is_open"),
+                Output("published-modal-content", "children"),
+                Output("published-download-link", "data"),
+                Output("published-download-btn", "style")
+            ],
+            [
+                Input("open-published-modal", "n_clicks"),
+                Input("close-published-modal", "n_clicks"),
+                Input("published-download-btn", "n_clicks")
+            ],
+            [
+                State("published-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            if self.user_role == "02":
+                selected_programs = []
+
+            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
+            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": ["PUBLISHED"],  # Only get PUBLISHED status data
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+
+            df_filtered_data = pd.DataFrame(filtered_data)
+
+            if df_filtered_data.empty:
+                download_btn_style = {"display": "none"}
+                if trigger_id == "close-published-modal":
+                    return False, "", None, download_btn_style
+                return True, "No data records.", None, download_btn_style
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            # Apply renaming and select only the needed columns
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+
+            # Keep only the relevant columns in the correct order
+            final_columns = ["SDG", "Research Title", "Author(s)", "Program", "Keywords", "Research Type"]
+            df_filtered_data = df_filtered_data[final_columns]
+
+            # Generate the table
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            download_btn_style = {"display": "block"}
+
+            if trigger_id == "open-published-modal":
+                return True, table, None, download_btn_style
+
+            elif trigger_id == "close-published-modal":
+                return False, "", None, download_btn_style
+
+            elif trigger_id == "published-download-btn":
+                file_path = download_file(df_filtered_data, "published_papers")
+                download_message = dbc.Alert(
+                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    color="success",
+                    dismissable=False
+                )
+                return is_open, download_message, send_file(file_path), {"display": "none"}
+
+            return is_open, "", None, download_btn_style
+            
+        # for pullout modal
+        @self.dash_app.callback(
+            [
+                Output("pullout-modal", "is_open"),
+                Output("pullout-modal-content", "children"),
+                Output("pullout-download-link", "data"),
+                Output("pullout-download-btn", "style")
+            ],
+            [
+                Input("open-pullout-modal", "n_clicks"),
+                Input("close-pullout-modal", "n_clicks"),
+                Input("pullout-download-btn", "n_clicks")
+            ],
+            [
+                State("pullout-modal", "is_open"),
+                State("college", "value"),
+                State("program", "value"),
+                State("status", "value"),
+                State("years", "value"),
+                State("terms", "value")
+            ],
+            prevent_initial_call=True
+        )
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            ctx = dash.callback_context
+            trigger_id = ctx.triggered_id
+
+            if self.user_role == "02":
+                selected_programs = []
+
+            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
+            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": ["PULLOUT"],  # Only get PULLOUT status data
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role != "02":
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            filtered_data = get_data_for_modal_contents(**filter_kwargs)
+
+            df_filtered_data = pd.DataFrame(filtered_data)
+
+            if df_filtered_data.empty:
+                download_btn_style = {"display": "none"}
+                if trigger_id == "close-pullout-modal":
+                    return False, "", None, download_btn_style
+                return True, "No data records.", None, download_btn_style
+
+            selected_columns = {
+                "sdg": "SDG",
+                "title": "Research Title",
+                "concatenated_authors": "Author(s)",
+                "program_name": "Program",
+                "concatenated_keywords": "Keywords",
+                "research_type": "Research Type"
+            }
+
+            # Apply renaming and select only the needed columns
+            df_filtered_data = df_filtered_data.rename(columns=selected_columns)
+
+            # Keep only the relevant columns in the correct order
+            final_columns = ["SDG", "Research Title", "Author(s)", "Program", "Keywords", "Research Type"]
+            df_filtered_data = df_filtered_data[final_columns]
+
+            # Generate the table
+            table = dbc.Table.from_dataframe(df_filtered_data, striped=True, bordered=True, hover=True)
+            download_btn_style = {"display": "block"}
+
+            if trigger_id == "open-pullout-modal":
+                return True, table, None, download_btn_style
+
+            elif trigger_id == "close-pullout-modal":
+                return False, "", None, download_btn_style
+
+            elif trigger_id == "pullout-download-btn":
+                file_path = download_file(df_filtered_data, "pullout_papers")
+                download_message = dbc.Alert(
+                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    color="success",
+                    dismissable=False
+                )
+                return is_open, download_message, send_file(file_path), {"display": "none"}
+
+            return is_open, "", None, download_btn_style
