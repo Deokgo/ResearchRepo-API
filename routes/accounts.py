@@ -27,7 +27,7 @@ def get_all_users():
             UserProfile, UserProfile.researcher_id == Account.user_id
         ).outerjoin(
             Role, Role.role_id == Account.role_id
-        ).all()
+        ).filter(Account.role_id != '01').all()  # Exclude role_id == '01'
 
         # Processing the results
         data_list = []
