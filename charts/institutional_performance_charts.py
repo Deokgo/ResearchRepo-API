@@ -6,6 +6,7 @@ import pandas as pd
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
 import pandas as pd
 import plotly.express as px
+import random
 
 class ResearchOutputPlot:
     def __init__(self):
@@ -18,11 +19,22 @@ class ResearchOutputPlot:
     
     def get_program_colors(self, df):
         unique_programs = df['program_id'].unique()
-        available_colors = px.colors.qualitative.Set1  # Choose a color palette
+        available_colors = px.colors.qualitative.T10  # Colorblind-friendly palette
+        used_colors = set(self.program_colors.values())  # Track assigned colors
 
-        for i, program in enumerate(unique_programs):
+        for program in unique_programs:
             if program not in self.program_colors:
-                self.program_colors[program] = available_colors[i % len(available_colors)]
+                # Find an unused color from the palette
+                unused_colors = [color for color in available_colors if color not in used_colors]
+
+                if unused_colors:
+                    chosen_color = unused_colors.pop(0)  # Take the first unused color
+                else:
+                    # Generate a random distinct color if all predefined colors are used
+                    chosen_color = f"rgb({random.randint(0,255)},{random.randint(0,255)},{random.randint(0,255)})"
+
+                self.program_colors[program] = chosen_color
+                used_colors.add(chosen_color)  # Mark as used
     
     def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
         selected_colleges = ensure_list(selected_colleges)
@@ -162,7 +174,7 @@ class ResearchOutputPlot:
             color_map = self.program_colors
         elif user_id == "05":
             unique_values = status_count[group_col].unique()
-            color_map = {value: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] for i, value in enumerate(unique_values)}
+            color_map = self.program_colors
         else:
             color_map = college_colors if group_col == 'college_id' else self.program_colors
         
@@ -220,7 +232,7 @@ class ResearchOutputPlot:
         colors = (
             college_colors if group_by_col == 'college_id' else 
             self.program_colors if user_id in ["02", "04"] else 
-            {p: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)] for i, p in enumerate(pivot_df.columns)}
+            self.program_colors
         )
 
         for category in pivot_df.columns:

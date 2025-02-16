@@ -20,6 +20,9 @@ import datetime
 from pathlib import Path
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
 from charts.institutional_performance_charts import ResearchOutputPlot
+from dash import callback_context
+from dash.exceptions import PreventUpdate
+
 class Institutional_Performance_Dash:
     def __init__(self, flask_app, college=None, program=None):
         """
@@ -451,6 +454,22 @@ class Institutional_Performance_Dash:
         """
         Set up the callback functions for the dashboard.
         """
+        # Reset status, years, and terms
+        @self.dash_app.callback(
+            [
+                Output('status', 'value'),
+                Output('years', 'value'),
+                Output('terms', 'value')
+            ],
+            [Input('reset_button', 'n_clicks')],
+            prevent_initial_call=True
+        )
+        def reset_status_years_terms(n_clicks):
+            if not n_clicks:
+                raise PreventUpdate
+            print('RESET (status, years, terms)')
+            return [], self.default_years, []
+        
         @self.dash_app.callback(
             Output("dynamic-header", "children"),
             Input("url", "search"),
@@ -497,32 +516,59 @@ class Institutional_Performance_Dash:
                 Output('program-container', 'style'),
                 Output('program', 'options')
             ],
-            [Input("url", "search")],
+            [
+                Input("url", "search"),
+                Input("reset_button", "n_clicks")
+            ],
             prevent_initial_call=True
         )
-        def set_college_and_program(search):
+        def set_college_and_program(search, reset_clicks):
             college_style = {"display": "block"}
             program_style = {"display": "block"}
             program_options = []
+            
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+            trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
             if search:
                 params = parse_qs(search.lstrip("?"))
                 user_role = params.get("user-role", ["Guest"])[0]
                 college = params.get("college", [""])[0]
                 program = params.get("program", [""])[0]
+            else:
+                user_role = self.user_role  # Use previously stored value
+                college = self.college
+                program = self.program
+
+            if trigger == "reset_button":
+                if user_role == "02":
+                    return [], [], {"display": "block"}, {"display": "none"}, []
+                elif user_role == "04":
+                    self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
+                    program_options = [{'label': p, 'value': p} for p in self.default_programs]
+                    return self.college, [], {"display": "none"}, {"display": "block"}, program_options
+                elif user_role == "05":
+                    self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
+                    program_options = [{'label': p, 'value': p} for p in self.default_programs]
+                    return [], self.program, {"display": "none"}, {"display": "none"}, program_options
+                else:
+                    return [], [], {"display": "block"}, {"display": "block"}, []
 
             self.college = college
             self.program = program
             self.user_role = user_role
 
             if user_role == "02":
-                college = []  # UI should show nothing selected
-                program = []  # Reset programs
+                college = []  
+                program = []  
                 program_style = {"display": "none"}
 
             elif user_role == "04":
-                college = self.college  # Retain college selection
-                program = []  # Reset program selection
+                college = self.college  
+                program = []  
                 self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
                 program_options = [{'label': p, 'value': p} for p in self.default_programs]
                 college_style = {"display": "none"}
@@ -533,11 +579,6 @@ class Institutional_Performance_Dash:
                 college_style = {"display": "none"}
                 program_style = {"display": "none"}
 
-            self.selected_colleges = self.default_colleges if user_role == "02" else (college if isinstance(college, list) else [])
-            self.selected_programs = program if isinstance(program, list) else []
-
-            print(f'college: {college}\nprogram: {program}\nprogram_options: {program_options}')
-            
             return college, program, college_style, program_style, program_options
 
         @self.dash_app.callback(
@@ -562,8 +603,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = [] 
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -584,7 +625,7 @@ class Institutional_Performance_Dash:
             if selected_programs and self.user_role != "02":
                 filter_kwargs["selected_programs"] = selected_programs
             else:
-                filter_kwargs["selected_colleges"] = selected_colleges  
+                filter_kwargs["selected_colleges"] = selected_colleges 
 
             filtered_data = get_data_for_text_displays(**filter_kwargs)
 
@@ -900,8 +941,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = []
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -914,7 +955,7 @@ class Institutional_Performance_Dash:
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": ["READY"],  # Only get READY status data
+                "selected_status": selected_status,  
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -927,13 +968,14 @@ class Institutional_Performance_Dash:
             filtered_data = get_data_for_modal_contents(**filter_kwargs)
 
             df_filtered_data = pd.DataFrame(filtered_data)
+            df_filtered_data = df_filtered_data[df_filtered_data["status"] == "READY"] # Only get READY status data
 
             if df_filtered_data.empty:
                 download_btn_style = {"display": "none"}
                 if trigger_id == "close-ready-modal":
                     return False, "", None, download_btn_style
                 return True, "No data records.", None, download_btn_style
-
+            
             selected_columns = {
                 "sdg": "SDG",
                 "title": "Research Title",
@@ -1001,8 +1043,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = []
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -1015,7 +1057,7 @@ class Institutional_Performance_Dash:
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": ["SUBMITTED"],  # Only get SUBMITTED status data
+                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1028,6 +1070,7 @@ class Institutional_Performance_Dash:
             filtered_data = get_data_for_modal_contents(**filter_kwargs)
 
             df_filtered_data = pd.DataFrame(filtered_data)
+            df_filtered_data = df_filtered_data[df_filtered_data["status"] == "SUBMITTED"] # Only get SUBMITTED status data
 
             if df_filtered_data.empty:
                 download_btn_style = {"display": "none"}
@@ -1102,8 +1145,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = []
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -1116,7 +1159,7 @@ class Institutional_Performance_Dash:
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": ["ACCEPTED"],  # Only get ACCEPTED status data
+                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1129,6 +1172,7 @@ class Institutional_Performance_Dash:
             filtered_data = get_data_for_modal_contents(**filter_kwargs)
 
             df_filtered_data = pd.DataFrame(filtered_data)
+            df_filtered_data = df_filtered_data[df_filtered_data["status"] == "ACCEPTED"] # Only get ACCEPTED status data
 
             if df_filtered_data.empty:
                 download_btn_style = {"display": "none"}
@@ -1203,8 +1247,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = []
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -1217,7 +1261,7 @@ class Institutional_Performance_Dash:
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": ["PUBLISHED"],  # Only get PUBLISHED status data
+                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1230,6 +1274,7 @@ class Institutional_Performance_Dash:
             filtered_data = get_data_for_modal_contents(**filter_kwargs)
 
             df_filtered_data = pd.DataFrame(filtered_data)
+            df_filtered_data = df_filtered_data[df_filtered_data["status"] == "PUBLISHED"] # Only get PUBLLISHED status data
 
             if df_filtered_data.empty:
                 download_btn_style = {"display": "none"}
@@ -1304,8 +1349,8 @@ class Institutional_Performance_Dash:
             if self.user_role == "02":
                 selected_programs = []
 
-            selected_colleges = default_if_empty(selected_colleges, self.selected_colleges)
-            selected_programs = default_if_empty(selected_programs, self.selected_programs)
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
@@ -1318,7 +1363,7 @@ class Institutional_Performance_Dash:
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": ["PULLOUT"],  # Only get PULLOUT status data
+                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1331,6 +1376,7 @@ class Institutional_Performance_Dash:
             filtered_data = get_data_for_modal_contents(**filter_kwargs)
 
             df_filtered_data = pd.DataFrame(filtered_data)
+            df_filtered_data = df_filtered_data[df_filtered_data["status"] == "PULLOUT"] # Only get PULLOUT status data
 
             if df_filtered_data.empty:
                 download_btn_style = {"display": "none"}
