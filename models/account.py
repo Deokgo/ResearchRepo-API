@@ -26,6 +26,13 @@ class Account(BaseModel):
         primaryjoin="Account.user_id == UserProfile.researcher_id",
         cascade="all, delete-orphan"
     )
+    visitor = relationship(
+        'Visitor', 
+        backref=db.backref('account', lazy=True),
+        uselist=False, 
+        primaryjoin="Account.user_id == Visitor.visitor_id",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Account {self.user_id}>"

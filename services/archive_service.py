@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 import os
 import subprocess
-from models import db, Account
+from models import db, Account, Visitor
 from services.auth_services import log_audit_trail
 from flask import current_app
 from sqlalchemy import text
@@ -79,6 +79,12 @@ class AccountArchiver:
             archived_count = 0
             for account in accounts_to_archive:
                 try:
+                    # Delete visitor record first if it exists
+                    visitor = db.session.query(Visitor).filter_by(visitor_id=account.user_id).first()
+                    if visitor:
+                        db.session.delete(visitor)
+                    
+                    # Now delete the account
                     db.session.delete(account)
                     archived_count += 1
                 except Exception as e:
@@ -138,6 +144,9 @@ class AccountArchiver:
                 
                 CREATE TABLE public.profiles_to_archive AS 
                 SELECT * FROM user_profile WHERE researcher_id IN ({user_ids_str});
+
+                CREATE TABLE public.visitors_to_archive AS 
+                SELECT * FROM visitor WHERE visitor_id IN ({user_ids_str});
             """)
             
             db.session.execute(create_tables_sql)
@@ -162,6 +171,7 @@ class AccountArchiver:
                 '-d', database,
                 '-t', 'public.accounts_to_archive',
                 '-t', 'public.profiles_to_archive',
+                '-t', 'public.visitors_to_archive',
                 '--data-only',
                 '-a',
                 '--column-inserts',
@@ -177,6 +187,7 @@ class AccountArchiver:
             cleanup_sql = text("""
                 DROP TABLE IF EXISTS public.accounts_to_archive;
                 DROP TABLE IF EXISTS public.profiles_to_archive;
+                DROP TABLE IF EXISTS public.visitors_to_archive;
             """)
             db.session.execute(cleanup_sql)
             db.session.commit()
@@ -192,6 +203,7 @@ class AccountArchiver:
             # Replace table names with actual table names
             content = content.replace('INSERT INTO public.accounts_to_archive', 'INSERT INTO public.account')
             content = content.replace('INSERT INTO public.profiles_to_archive', 'INSERT INTO public.user_profile')
+            content = content.replace('INSERT INTO public.visitors_to_archive', 'INSERT INTO public.visitor')
             
             # Add transaction markers and write modified content
             with open(filename, 'w') as f:
@@ -209,6 +221,7 @@ class AccountArchiver:
             cleanup_sql = text("""
                 DROP TABLE IF EXISTS public.accounts_to_archive;
                 DROP TABLE IF EXISTS public.profiles_to_archive;
+                DROP TABLE IF EXISTS public.visitors_to_archive;
             """)
             db.session.execute(cleanup_sql)
             db.session.commit()
