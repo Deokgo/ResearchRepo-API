@@ -742,7 +742,7 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
         y="research_count",
         color="Research Area",
         title="Research Areas per SDG",
-        labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Count"},
+        labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Number of Research Papers"},
         template="plotly_white",
         height=250,
         width=550,
