@@ -43,7 +43,7 @@ class ResearchOutputPlot:
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
         
-        if user_id == "02":
+        if user_id in ["02", "03"]:
             filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
             df = pd.DataFrame(filtered_data_with_term)
             
@@ -109,13 +109,13 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
         
         # Determine the filtering parameters based on user_id
-        colleges, programs = (selected_colleges, None) if user_id == "02" else (None, selected_programs)
+        colleges, programs = (selected_colleges, None) if user_id in ["02", "03"] else (None, selected_programs)
         
         # Fetch data
         filtered_data_with_term = get_data_for_performance_overview(colleges, programs, selected_status, selected_years, selected_terms)
         df = pd.DataFrame(filtered_data_with_term)
         
-        if user_id == "02" and len(selected_colleges) == 1:
+        if user_id in ["02", "03"] and len(selected_colleges) == 1:
             detail_counts = df[df['college_id'] == selected_colleges[0]].groupby('program_id').size()
             self.get_program_colors(df)
             title, color_map = f'Research Output Distribution for {selected_colleges[0]}', self.program_colors
@@ -123,10 +123,10 @@ class ResearchOutputPlot:
             detail_counts = df[df['program_id'] == selected_programs[0]].groupby('year').size().reset_index(name='count')
             title, color_map = f"Research Output Distribution for {selected_programs[0]}", None
         else:
-            detail_counts = df.groupby('college_id' if user_id == "02" else 'program_id').size().reset_index(name='count')
-            title = 'Research Output Distribution by College' if user_id == "02" else 'Research Outputs per Program'
+            detail_counts = df.groupby('college_id' if user_id in ["02", "03"] else 'program_id').size().reset_index(name='count')
+            title = 'Research Output Distribution by College' if user_id in ["02", "03"] else 'Research Outputs per Program'
             self.get_program_colors(df)
-            color_map = self.program_colors if user_id != "02" else college_colors
+            color_map = self.program_colors if user_id not in ("02", "03") else college_colors
         
         # Create the pie chart
         fig_pie = px.pie(
@@ -155,7 +155,7 @@ class ResearchOutputPlot:
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
 
-        filter_college = selected_colleges if user_id == "02" else None
+        filter_college = selected_colleges if user_id in ["02", "03"] else None
         filter_program = selected_programs if user_id in ["04", "05"] else None
         
         df = pd.DataFrame(get_data_for_research_type_bar_plot(filter_college, filter_program, selected_status, selected_years, selected_terms))
@@ -163,13 +163,13 @@ class ResearchOutputPlot:
             return px.bar(title="No data available")
         
         fig = go.Figure()
-        group_col = 'college_id' if user_id == "02" and len(selected_colleges) > 1 else 'program_id'
+        group_col = 'college_id' if user_id in ["02", "03"] and len(selected_colleges) > 1 else 'program_id'
         title = "Comparison of Research Output Type Across " + ("Colleges" if group_col == 'college_id' else "Programs")
         
         status_count = df.groupby(['research_type', group_col]).size().reset_index(name='Count')
         pivot_df = status_count.pivot(index='research_type', columns=group_col, values='Count').fillna(0)
         
-        if user_id == "02" and len(selected_colleges) == 1:
+        if user_id in ["02", "03"] and len(selected_colleges) == 1:
             self.get_program_colors(df)
             color_map = self.program_colors
         elif user_id == "05":
@@ -205,6 +205,7 @@ class ResearchOutputPlot:
 
         data_params = {
             "02": (selected_colleges, None),
+            "03": (selected_colleges, None),
             "04": (None, selected_programs),
             "05": (None, selected_programs),
         }
@@ -223,7 +224,7 @@ class ResearchOutputPlot:
         status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
         fig = go.Figure()
 
-        group_by_col = 'college_id' if user_id == "02" and len(selected_colleges) > 1 else 'program_id'
+        group_by_col = 'college_id' if user_id in ["02", "03"] and len(selected_colleges) > 1 else 'program_id'
         title_suffix = "Colleges" if group_by_col == 'college_id' else "Programs"
 
         status_count = df.groupby(['status', group_by_col]).size().reset_index(name='Count')
@@ -261,18 +262,18 @@ class ResearchOutputPlot:
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
         
-        data_func_args = (selected_colleges, None) if user_id == "02" else (None, selected_programs)
+        data_func_args = (selected_colleges, None) if user_id in ["02", "03"] else (None, selected_programs)
         df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms))
         df = df[df['scopus'] != 'N/A']
         
         if df.empty:
             return px.bar(title="No data available")
         
-        if user_id == "02" and len(selected_colleges) == 1:
+        if user_id in ["02", "03"] and len(selected_colleges) == 1:
             x_axis, xaxis_title = 'program_id', 'Programs'
             title = f'Scopus vs. Non-Scopus per Program in {selected_colleges[0]}'
         else:
-            x_axis, xaxis_title = ('college_id', 'Colleges') if user_id == "02" else ('program_id', 'Programs')
+            x_axis, xaxis_title = ('college_id', 'Colleges') if user_id in ["02", "03"] else ('program_id', 'Programs')
             title = 'Scopus vs. Non-Scopus per College' if x_axis == 'college_id' else 'Scopus vs. Non-Scopus per Program'
         
         if user_id in ["04", "05"]:
@@ -302,7 +303,7 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
 
         # Determine filtering based on user_id
-        if user_id == "02":
+        if user_id in ["02", "03"]:
             filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
         else:
             filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
@@ -312,11 +313,11 @@ class ResearchOutputPlot:
         df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
         
         # Determine grouping
-        if user_id == "02" and len(selected_colleges) == 1:
+        if user_id in ["02", "03"] and len(selected_colleges) == 1:
             grouped_df = df.groupby(['journal', 'program_id']).size().reset_index(name='Count')
             x_axis, xaxis_title = 'program_id', 'Programs'
             title = f'Publication Types per Program in {selected_colleges[0]}'
-        elif user_id == "02":
+        elif user_id in ["02", "03"]:
             grouped_df = df.groupby(['journal', 'college_id']).size().reset_index(name='Count')
             x_axis, xaxis_title = 'college_id', 'Colleges'
             title = 'Publication Types per College'
@@ -350,12 +351,13 @@ class ResearchOutputPlot:
         
         user_filters = {
             "02": (selected_colleges, None),
+            "03": (selected_colleges, None),
             "04": (None, selected_programs),
             "05": (None, selected_programs)
         }
         
         if user_id not in user_filters:
-            return px.scatter(title="Invalid user ID")
+            return px.scatter(title="Invalid User ID")
         
         filtered_data = get_data_for_sdg(*user_filters[user_id], selected_status, selected_years, selected_terms)
         df = pd.DataFrame(filtered_data)
@@ -363,11 +365,11 @@ class ResearchOutputPlot:
         if df.empty:
             return px.scatter(title="No data available")
         
-        entity = 'program_id' if user_id != "02" or len(selected_colleges) == 1 else 'college_id'
+        entity = 'program_id' if user_id not in ("02", "03") or len(selected_colleges) == 1 else 'college_id'
         title = (f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
-                if user_id == "02" and len(selected_colleges) == 1
+                if user_id in ["02", "03"] and len(selected_colleges) == 1
                 else 'Distribution of SDG-Targeted Research Across Programs'
-                if user_id != "02" else 'Distribution of SDG-Targeted Research Across Colleges')
+                if user_id not in ("02", "03") else 'Distribution of SDG-Targeted Research Across Colleges')
         
         df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
         df_expanded['sdg'] = df_expanded['sdg'].str.strip()
@@ -417,7 +419,7 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
         
         # Determine filter parameters based on user_id
-        college_filter = selected_colleges if user_id == "02" else None
+        college_filter = selected_colleges if user_id in ["02", "03"] else None
         program_filter = selected_programs if user_id in ["04", "05"] else None
         
         # Fetch data
@@ -458,7 +460,7 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
 
         # Determine filtering criteria based on user_id
-        colleges = selected_colleges if user_id == "02" else None
+        colleges = selected_colleges if user_id in ["02", "03"] else None
         programs = selected_programs if user_id in ["04", "05"] else None
         
         # Fetch and process data
@@ -501,7 +503,7 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
 
         # Determine data filtering based on user_id
-        if user_id == "02":
+        if user_id in ["02", "03"]:
             filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
         else:  # Covers both user_id "04" and "05"
             filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
@@ -549,7 +551,7 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
 
         # Determine the filtering parameters based on user_id
-        if user_id == "02":
+        if user_id in ["02", "03"]:
             filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
         else:  # For user_id "04" and "05"
             filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)

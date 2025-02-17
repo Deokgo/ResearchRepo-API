@@ -485,8 +485,11 @@ class Institutional_Performance_Dash:
             view = ""
             style = None
 
-            if user_role == "02":
-                view = "RPCO Director"
+            if user_role in ["02", "03"]:
+                if user_role == "02":
+                    view = "RPCO Director"
+                elif user_role == "03":
+                    view = "Head Executive"
                 style = {"display": "block"}
                 college = ""
                 program = ""
@@ -544,7 +547,7 @@ class Institutional_Performance_Dash:
                 program = self.program
 
             if trigger == "reset_button":
-                if user_role == "02":
+                if user_role in ["02", "03"]:
                     return [], [], {"display": "block"}, {"display": "none"}, []
                 elif user_role == "04":
                     self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
@@ -561,7 +564,7 @@ class Institutional_Performance_Dash:
             self.program = program
             self.user_role = user_role
 
-            if user_role == "02":
+            if user_role in ["02", "03"]:
                 college = []  
                 program = []  
                 program_style = {"display": "none"}
@@ -600,7 +603,7 @@ class Institutional_Performance_Dash:
             ]
         )
         def refresh_text_buttons(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = [] 
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -622,7 +625,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges 
@@ -864,7 +867,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  
@@ -938,7 +941,7 @@ class Institutional_Performance_Dash:
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = []
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -960,7 +963,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  
@@ -1040,7 +1043,7 @@ class Institutional_Performance_Dash:
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = []
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1062,7 +1065,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  
@@ -1142,7 +1145,7 @@ class Institutional_Performance_Dash:
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = []
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1164,7 +1167,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  
@@ -1244,7 +1247,7 @@ class Institutional_Performance_Dash:
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = []
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1266,7 +1269,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  
@@ -1346,7 +1349,7 @@ class Institutional_Performance_Dash:
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
-            if self.user_role == "02":
+            if self.user_role in ["02", "03"]:
                 selected_programs = []
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1368,7 +1371,7 @@ class Institutional_Performance_Dash:
                 "selected_terms": selected_terms
             }
 
-            if selected_programs and self.user_role != "02":
+            if selected_programs and self.user_role not in ("02", "03"):
                 filter_kwargs["selected_programs"] = selected_programs
             else:
                 filter_kwargs["selected_colleges"] = selected_colleges  

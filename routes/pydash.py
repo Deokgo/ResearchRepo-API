@@ -181,7 +181,15 @@ def combined_dash():
                 "sdg": analytics_url,
                 "engagement": engage_url,
             }), 200
-
+        elif account_info.role_id == "03":
+            sample_url = f"{base_url}/institutional-performance/?user-role=03"
+            analytics_url = f"{base_url}/sdg-impact/?user-role=03"
+            engage_url = f"{base_url}/engage/?user-role=03"
+            return jsonify({
+                "overview": sample_url,
+                "sdg": analytics_url,
+                "engagement": engage_url,
+            }), 200
         elif account_info.role_id == "04":
             sample_url = f"{base_url}/institutional-performance/college/?{query_string}"
             analytics_url = f"{base_url}/sdg-impact/college/?{query_string}"
