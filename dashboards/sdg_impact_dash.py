@@ -9,7 +9,7 @@ from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
 from services.sdg_colors import sdg_colors
-from database.sdg_charts import create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization,generate_sdg_bipartite_graph
+from database.sdg_charts import create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization,generate_sdg_bipartite_graph,visualize_sdg_impact
 
 def default_if_empty(selected_values, default_values):
     return selected_values if selected_values else default_values
@@ -119,73 +119,138 @@ class SDG_Impact_Dash:
             ],
              className="mb-4",
         )
+        # Collage Section
         self.collage = dbc.Container([
             dbc.Row([
                 dbc.Col(
                     dbc.Card(
-                        dcc.Graph(id='sdg-time-series'),
+                        dcc.Loading(
+                            id='loading-sdg-time-series',
+                            type='circle',  # Choose the type of spinner (e.g., 'circle', 'dot', 'default')
+                            children=dcc.Graph(id='sdg-time-series')
+                        ),
                         body=True,
                         style={"width": "auto", "height": "auto"}
                     ),
                     width="auto", className='p-0'
-
                 ),
                 dbc.Col(
                     dbc.Card(
-                        dcc.Graph(id='sdg-pie'),
+                        dcc.Loading(
+                            id='loading-sdg-pie',
+                            type='circle', 
+                            children=dcc.Graph(id='sdg-pie')
+                        ),
                         body=True,
                         style={"width": "auto", "height": "auto"}
-                    ),width="auto", className='p-0'
+                    ),
+                    width="auto", className='p-0'
                 ),
-            ],className='g-0 d-flex'),  # Margin-bottom for spacing
+            ], className='g-0 d-flex'),  # Margin-bottom for spacing
 
             dbc.Row([
                 dbc.Col(
                     dbc.Card(
-                        dcc.Graph(id='sdg-research-type'),
+                        dcc.Loading(
+                            id='loading-sdg-research-type',
+                            type='circle',
+                            children=dcc.Graph(id='sdg-research-type')
+                        ),
                         body=True,
                         style={"width": "100%", "height": "auto"}
                     ),
                     width="auto", className='p-0'
                 ),
-            ],className='g-0 d-flex')
+            ], className='g-0 d-flex')
         ], fluid=True)  # Set container to fluid for responsiveness
 
 
+        # Map Section
         self.map = dbc.Container([
             dbc.Row([
                 dbc.Col([
-                    dbc.Card(dcc.Graph(id='local-vs-foreign'), body=True, style={"width": "100%", "height": "auto"}),
-                    dbc.Card(dcc.Graph(id='tree-map'), body=True, style={"width": "100%", "height": "auto"})
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-local-vs-foreign',
+                            type='circle',
+                            children=dcc.Graph(id='local-vs-foreign')
+                        ),
+                        body=True, 
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-tree-map',
+                            type='circle',
+                            children=dcc.Graph(id='tree-map')
+                        ),
+                        body=True, 
+                        style={"width": "100%", "height": "auto"}
+                    ),
                 ], width="auto", className='p-0'),
                 dbc.Col([
-                    dbc.Card(dcc.Graph(id='sdg-map'), body=True, style={"width": "100%", "height": "auto"}),
-                    dbc.Card(dcc.Graph(id='participation-graph'), body=True, style={"width": "100%", "height": "auto"})
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-sdg-map',
+                            type='circle',
+                            children=dcc.Graph(id='sdg-map')
+                        ),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-participation-graph',
+                            type='circle',
+                            children=dcc.Graph(id='participation-graph')
+                        ),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
                 ], width="auto", className='p-0')
             ], className='g-0 d-flex')
         ])
 
 
-        self.trend = html.Div([
-            CollageContainer([
-                dbc.Card(
-                    dcc.Graph(
-                        id='sdg-graph'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='word-cloud'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto", "marginRight":"5px"}
-                ),
-                dbc.Card(
-                    dcc.Graph(
-                        id='research-areas'
-                    ), body=True, style={"display": "inline-block", "width": "auto", "height": "auto"}
-                ),
-                
-            ], column_count=1)  # Adjust column count for layout
+        # Trend Section
+        self.trend = dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-word-cloud',
+                            type='circle',
+                            children=dcc.Graph(id='word-cloud')
+                        ),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-research-areas',
+                            type='circle',
+                            children=dcc.Graph(id='research-areas')
+                        ),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                ], width="auto", className='p-0'),
+                dbc.Col(
+                    dbc.Card(
+                        dcc.Loading(
+                            id='loading-sdg-graph',
+                            type='circle',
+                            children=dcc.Graph(id='sdg-graph')
+                        ),
+                        body=True,
+                        style={"width": "100%", "height": "auto"}
+                    ),
+                    width="auto", className='p-0'
+                )
+            ])
         ])
+
+
 
         sidebar = dbc.Col([  # Added array brackets
             html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
@@ -236,7 +301,6 @@ class SDG_Impact_Dash:
         def reset_filters(n_clicks):
             return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')], "ALL"
 
-        
         @self.dash_app.callback(
             Output("dynamic-header", "children"),
             Input("url", "search")  # Extracts the query string (e.g., "?user=John&role=Admin")
@@ -282,7 +346,7 @@ class SDG_Impact_Dash:
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return create_sdg_pie_chart(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            return visualize_sdg_impact(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
         @self.dash_app.callback(
             Output('sdg-research-type', 'figure'),
             [Input('college', 'value'), 
@@ -381,7 +445,7 @@ class SDG_Impact_Dash:
             selected_years = selected_years if selected_years else self.default_years
             return generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
 
-   
-   
-  
+
+
+
  

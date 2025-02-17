@@ -6,19 +6,14 @@ import pandas as pd
 
 
 def get_research_count(start_year, end_year, sdg_filter=None, status_filter=None, college_filter=None, program_filter=None):
-    """
-    Calls the get_research_count function in PostgreSQL.
-
-    :param start_year: Start school year (integer)
-    :param end_year: End school year (integer)
-    :param sdg_filter: List of SDG filters (list of strings)
-    :param status_filter: List of status filters (list of strings)
-    :param college_filter: Optional college filter (list of strings)
-    :param program_filter: Optional program filter (list of strings)
-    :return: List of dictionaries containing research count per SDG
-    """
     session = Session()
     try:
+        # Convert numpy arrays to lists if needed
+        if isinstance(status_filter, np.ndarray):
+            status_filter = status_filter.tolist()
+        if isinstance(college_filter, np.ndarray):
+            college_filter = college_filter.tolist()
+
         # Prepare the SQL query
         query = text("""
             SELECT * FROM get_research_count(:start_year, :end_year, :sdg_filter, :status_filter, :college_filter, :program_filter)
@@ -28,16 +23,19 @@ def get_research_count(start_year, end_year, sdg_filter=None, status_filter=None
         result = session.execute(query, {
             'start_year': start_year,
             'end_year': end_year,
-            'sdg_filter': sdg_filter if sdg_filter else None,
-            'status_filter': status_filter if status_filter else None,
-            'college_filter': college_filter if college_filter else None,
-            'program_filter': program_filter if program_filter else None
+            'sdg_filter': sdg_filter or None,
+            'status_filter': status_filter or None,
+            'college_filter': college_filter or None,
+            'program_filter': program_filter or None
         })
 
-        # Process the result into a list of dictionaries
         return [dict(row) for row in result.mappings()]
+    except Exception as e:
+        print(f"Error executing query: {e}")
+        return []
     finally:
         session.close()
+
 
 def get_research_percentage(start_year, end_year, sdg_filter=None, status_filter=None, college_filter=None, program_filter=None):
     """
@@ -375,5 +373,79 @@ def get_sdg_research(start_year, end_year, sdg_filter=None, status_filter=None, 
 
         return data
 
+    finally:
+        session.close()
+
+def count_sdg_impact(start_year, end_year, sdg_filter=None, status_filter=None, college_filter=None, program_filter=None):
+    """
+    Calls the count_sdg_impact function in PostgreSQL.
+
+    :param start_year: Start school year (integer)
+    :param end_year: End school year (integer)
+    :param sdg_filter: List of SDG filters (list of strings)
+    :param status_filter: List of status filters (list of strings)
+    :param college_filter: List of college filters (list of strings)
+    :param program_filter: List of program filters (list of strings)
+    :return: List of dictionaries containing research count per SDG
+    """
+    session = Session()
+    try:
+        # Normalize filters: If a filter is an empty list or None, convert it to None
+        sdg_filter = None if sdg_filter is None or len(sdg_filter) == 0 else sdg_filter
+        status_filter = None if status_filter is None or len(status_filter) == 0 else status_filter
+        college_filter = None if college_filter is None or len(college_filter) == 0 else college_filter
+        program_filter = None if program_filter is None or len(program_filter) == 0 else program_filter
+
+        # Prepare the SQL query
+        query = text("""
+            SELECT * FROM count_sdg_impact(:start_year, :end_year, :sdg_filter, :status_filter, :college_filter, :program_filter)
+        """)
+
+        # Execute the query with parameters
+        result = session.execute(query, {
+            'start_year': start_year,
+            'end_year': end_year,
+            'sdg_filter': sdg_filter,
+            'status_filter': status_filter,
+            'college_filter': college_filter,
+            'program_filter': program_filter
+        })
+
+        # Process the result into a list of dictionaries
+        return [dict(row) for row in result.mappings()]
+    finally:
+        session.close()
+
+def get_proceeding_research(start_year, end_year, sdg_filter=None, status_filter=None, college_filter=None, program_filter=None):
+    """
+    Calls the get_proceeding_research function in PostgreSQL.
+
+    :param start_year: Start school year (integer)
+    :param end_year: End school year (integer)
+    :param sdg_filter: List of SDG filters (list of strings, optional)
+    :param status_filter: List of status filters (list of strings, optional)
+    :param college_filter: List of college filters (list of strings, optional)
+    :param program_filter: List of program filters (list of strings, optional)
+    :return: List of dictionaries containing SDG, research ID, and country for proceedings
+    """
+    session = Session()
+    try:
+        # Prepare the SQL query
+        query = text("""
+            SELECT * FROM get_proceeding_research(:start_year, :end_year, :sdg_filter, :status_filter, :college_filter, :program_filter)
+        """)
+
+        # Execute the query with parameters
+        result = session.execute(query, {
+            'start_year': start_year,
+            'end_year': end_year,
+            'sdg_filter': sdg_filter if sdg_filter else None,
+            'status_filter': status_filter if status_filter else None,
+            'college_filter': college_filter if college_filter else None,
+            'program_filter': program_filter if program_filter else None
+        })
+
+        # Process the result into a list of dictionaries
+        return [dict(row) for row in result.mappings()]
     finally:
         session.close()
