@@ -18,6 +18,7 @@ import hashlib
 import time
 from sqlalchemy import create_engine
 from models import Account
+import json
 
 backup = Blueprint('backup', __name__)
 
@@ -40,6 +41,110 @@ def get_changed_files(repository_dir, last_backup_date):
             if os.path.getmtime(filepath) > last_backup_date.timestamp():
                 changed_files.append(filepath)
     return changed_files
+
+def calculate_backup_hash(backup_dir):
+    """Calculate SHA-256 hash of all backup files"""
+    sha256_hash = hashlib.sha256()
+    
+    # Get root backup directory if we're in a subdirectory
+    root_backup_dir = os.path.dirname(backup_dir) if os.path.basename(backup_dir) in ['database', 'files'] else backup_dir
+    
+    # Get all files in the backup directory and sort them for consistent ordering
+    all_files = []
+    for root, _, files in os.walk(root_backup_dir):
+        for file in files:
+            if file != 'integrity.json':  # Skip the integrity file itself
+                filepath = os.path.join(root, file)
+                all_files.append(filepath)
+    
+    # Sort files for consistent hashing
+    all_files.sort()
+    
+    # Calculate hash of all files
+    for filepath in all_files:
+        with open(filepath, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b''):
+                sha256_hash.update(chunk)
+    
+    return sha256_hash.hexdigest()
+
+def create_backup_hash(backup_id, backup_type, backup_dir):
+    """Create integrity.json with backup metadata and hash"""
+    manifest = {
+        'backup_id': backup_id,
+        'creation_date': datetime.now().isoformat(),
+        'backup_type': backup_type.value,
+        'files': {},
+        'backup_hash': calculate_backup_hash(backup_dir)
+    }
+    
+    # Add individual file information
+    for root, _, files in os.walk(backup_dir):
+        for file in files:
+            if file != 'integrity.json':  
+                filepath = os.path.join(root, file)
+                relpath = os.path.relpath(filepath, backup_dir)
+                with open(filepath, 'rb') as f:
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
+                manifest['files'][relpath] = file_hash
+    
+    # Write integrity file
+    manifest_path = os.path.join(backup_dir, 'integrity.json')  # Changed from manifest.json
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest, f, indent=2)
+    
+    return manifest
+
+def verify_backup_integrity(backup_dir):
+    """Verify backup integrity using integrity.json"""
+    print(f"Checking integrity for backup directory: {backup_dir}")
+    
+    # Get root backup directory if we're in a subdirectory
+    root_backup_dir = os.path.dirname(backup_dir) if os.path.basename(backup_dir) in ['database', 'files'] else backup_dir
+    manifest_path = os.path.join(root_backup_dir, 'integrity.json')
+    print(f"Looking for integrity file at: {manifest_path}")
+    
+    # Check if directory exists
+    if not os.path.exists(backup_dir):
+        raise Exception(f"Backup directory not found: {backup_dir}")
+    
+    # List contents of backup directory
+    print("Backup directory contents:")
+    for root, dirs, files in os.walk(backup_dir):
+        for file in files:
+            print(f"- {os.path.join(root, file)}")
+    
+    if not os.path.exists(manifest_path):
+        raise Exception(f"Backup integrity file not found at: {manifest_path}")
+    
+    print("Found integrity.json, reading contents...")
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
+    
+    print("Calculating current backup hash...")
+    current_hash = calculate_backup_hash(backup_dir)
+    print(f"Stored hash: {manifest['backup_hash']}")
+    print(f"Current hash: {current_hash}")
+    
+    if current_hash != manifest['backup_hash']:
+        raise Exception("Backup integrity check failed: Overall hash mismatch")
+    
+    print("Verifying individual files...")
+    # Verify individual files
+    for relpath, stored_hash in manifest['files'].items():
+        # Use the root backup directory for the full filepath
+        filepath = os.path.join(root_backup_dir, relpath)
+        if not os.path.exists(filepath):
+            raise Exception(f"File missing from backup: {relpath}")
+        
+        with open(filepath, 'rb') as f:
+            current_file_hash = hashlib.sha256(f.read()).hexdigest()
+        
+        if current_file_hash != stored_hash:
+            raise Exception(f"File integrity check failed: {relpath}")
+    
+    print("Integrity verification completed successfully")
+    return True
 
 @backup.route('/create/<backup_type>', methods=['POST'])
 @admin_required
@@ -231,7 +336,15 @@ def create_backup(backup_type):
                     f.write(f"backup_date={datetime.now().isoformat()}\n")
                     f.write(f"wal_file={latest_wal}\n")
 
-            # Calculate total size
+            # After creating the backup files but before creating the database record,
+            # generate and store the integrity information
+            try:
+                manifest = create_backup_hash(backup_id, backup_type, backup_dir)
+                print(f"Created integrity manifest for backup {backup_id}")
+            except Exception as e:
+                raise Exception(f"Failed to create integrity manifest: {str(e)}")
+
+            # Calculate total size (include integrity.json in the total)
             total_size = sum(
                 os.path.getsize(os.path.join(dirpath, filename))
                 for dirpath, dirnames, filenames in os.walk(backup_dir)
@@ -247,7 +360,7 @@ def create_backup(backup_type):
                 database_backup_location=db_backup_dir,
                 files_backup_location=files_backup_dir,
                 total_size=total_size,
-                parent_backup_id=parent_backup_id  # Add parent backup reference
+                parent_backup_id=parent_backup_id
             )
             db.session.add(backup)
             db.session.commit()
@@ -318,6 +431,15 @@ def restore_backup(backup_id):
             'files_backup_location': target_backup.files_backup_location,
             'backup_type': target_backup.backup_type
         }
+
+        # Verify backup integrity before proceeding with restore
+        try:
+            verify_backup_integrity(backup_info['database_backup_location'])
+            if os.path.exists(backup_info['files_backup_location']):
+                verify_backup_integrity(backup_info['files_backup_location'])
+            print("Backup integrity verified successfully")
+        except Exception as e:
+            raise Exception(f"Backup integrity check failed: {str(e)}")
 
         if target_backup.backup_type == BackupType.FULL.value:
             # --- SERVICE CONTROL: Stop PostgreSQL ---
@@ -910,14 +1032,54 @@ def restore_from_file():
             backup_path = os.path.join(temp_dir, 'backup.tar.gz')
             file.save(backup_path)
 
+            # Create a subdirectory for proper extraction
+            extract_dir = os.path.join(temp_dir, 'extract')
+            os.makedirs(extract_dir)
+
             # Extract the backup
             with tarfile.open(backup_path, 'r:gz') as tar:
-                tar.extractall(path=temp_dir)
+                # First, extract and read the integrity.json
+                for member in tar.getmembers():
+                    if member.name == 'integrity.json':
+                        tar.extract(member, extract_dir)
+                        break
+                
+                integrity_file = os.path.join(extract_dir, 'integrity.json')
+                if not os.path.exists(integrity_file):
+                    raise Exception("Invalid backup file: Missing integrity.json file")
+                
+                with open(integrity_file, 'r') as f:
+                    manifest = json.load(f)
+                stored_hash = manifest['backup_hash']
+                
+                # Now extract everything else
+                tar.extractall(path=extract_dir)
             
+            # Print directory structure for debugging
+            print("\nExtracted directory structure:")
+            for root, dirs, files in os.walk(extract_dir):
+                level = root.replace(extract_dir, '').count(os.sep)
+                indent = ' ' * 4 * level
+                print(f"{indent}{os.path.basename(root)}/")
+                subindent = ' ' * 4 * (level + 1)
+                for f in files:
+                    print(f"{subindent}{f}")
+
             # Verify backup structure
-            database_dir = os.path.join(temp_dir, 'database')
+            database_dir = os.path.join(extract_dir, 'database')
             if not os.path.exists(database_dir):
                 raise Exception("Invalid backup file: Missing database directory")
+            
+            # Calculate hash of extracted files
+            current_hash = calculate_backup_hash(extract_dir)
+            print(f"\nHash comparison:")
+            print(f"Stored hash:   {stored_hash}")
+            print(f"Current hash:  {current_hash}")
+            
+            if current_hash != stored_hash:
+                raise Exception("Backup integrity check failed: Hash mismatch")
+
+            print("Backup integrity verified successfully")
 
             # Stop PostgreSQL service
             print("Stopping PostgreSQL service...")
@@ -1018,7 +1180,6 @@ def restore_from_file():
                     shutil.copytree(files_dir, repository_dir)
 
                 return jsonify({'message': 'Backup restored successfully'}), 200
-
             except Exception as e:
                 # Restore original data on failure
                 if os.path.exists(original_data_backup):
@@ -1134,6 +1295,9 @@ def download_backup(backup_id):
         if not backup:
             return jsonify({'error': 'Backup not found'}), 404
 
+        # Get root backup directory
+        root_backup_dir = os.path.dirname(backup.database_backup_location)
+
         # Create a temporary file to store the backup
         with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as temp_file:
             with tarfile.open(temp_file.name, 'w:gz') as tar:
@@ -1144,6 +1308,10 @@ def download_backup(backup_id):
                 if os.path.exists(backup.files_backup_location):
                     tar.add(backup.files_backup_location, 
                            arcname=os.path.basename(backup.files_backup_location))
+                # Add integrity.json file
+                integrity_file = os.path.join(root_backup_dir, 'integrity.json')
+                if os.path.exists(integrity_file):
+                    tar.add(integrity_file, arcname='integrity.json')
 
         return send_file(
             temp_file.name,
