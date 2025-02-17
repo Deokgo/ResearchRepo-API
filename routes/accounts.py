@@ -138,8 +138,9 @@ def update_acc(user_id):
 def update_account(user_id):
     try:
         # Get the current user for audit trail
-        current_user = Account.query.get(get_jwt_identity())
+        current_user = Account.query.get(user_id)
         if not current_user:
+            print("Current user not found")
             return jsonify({"error": "Current user not found"}), 404
 
         data = request.json
