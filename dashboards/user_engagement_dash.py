@@ -174,8 +174,7 @@ class UserEngagementDash:
             [
                 dbc.ModalHeader(dbc.ModalTitle(id="modal-title")),  # Dynamic Title
                 dbc.ModalBody([
-                    html.Div(id="modal-body"),  # Dynamic KPI Description
-                    dcc.Graph(id="kpi-graph"),  # Dynamic Graph
+                    html.Div(id="modal-body")  # Dynamic KPI Description
                 ]),
                 dbc.ModalFooter(
                     dbc.Button("Close", id="close-modal", className="ms-auto", n_clicks=0)
@@ -726,6 +725,10 @@ class UserEngagementDash:
                 showarrow=False,
                 font={'size': 12, 'color': 'red'}
             )
+            fig.update_layout(
+            paper_bgcolor='white',  # Set the background to white
+            plot_bgcolor='white'    # Set the plot background to white
+        )
             return fig
 
         # Convert the result to a DataFrame
@@ -746,6 +749,26 @@ class UserEngagementDash:
                 showarrow=False,
                 font={'size': 12, 'color': 'red'}
             )
+            fig.update_layout(
+            paper_bgcolor='white',  # Set the background to white
+            plot_bgcolor='white'    # Set the plot background to white
+        )
+            return fig
+
+        # Check if all total_downloads values are 0
+        if df['total_downloads'].sum() == 0:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            fig.update_layout(
+            paper_bgcolor='white',  # Set the background to white
+            plot_bgcolor='white'    # Set the plot background to white
+        )
             return fig
 
         # Sort DataFrame by total downloads in descending order
@@ -775,6 +798,7 @@ class UserEngagementDash:
         )
 
         return fig
+
     
     def create_research_funnel(self,selected_colleges, start_date, end_date):
         """Generates a research-focused engagement funnel visualization using Plotly."""
@@ -863,12 +887,12 @@ class UserEngagementDash:
 
         # Create a table visualization
         fig = go.Figure(data=[go.Table(
-            header=dict(values=["User ID", "Distinct Research Views"]),
+            header=dict(values=["User ID", "Research Output Views"]),
             cells=dict(values=[df['user_id'], df['distinct_research_count']])
         )])
 
         fig.update_layout(
-            title="Top 10 Users by Distinct Research Views",
+            title="Top 10 Users by Research Output Views",
             title_x=0.5
         )
 
@@ -897,6 +921,11 @@ class UserEngagementDash:
 
             if user_role == "02":
                 view="RPCO Director"
+                style = {"display": "block"}
+                college = ""
+                program = ""
+            elif user_role == "03":
+                view="Head Executive"
                 style = {"display": "block"}
                 college = ""
                 program = ""
@@ -1025,8 +1054,7 @@ class UserEngagementDash:
         @self.dash_app.callback(
             [Output("kpi-modal", "is_open"), 
             Output("modal-title", "children"), 
-            Output("modal-body", "children"),
-            Output("kpi-graph", "figure")],  # Graph update
+            Output("modal-body", "children")],  # Graph update
             [Input("btn-kpi-total-views", "n_clicks"),
             Input("btn-kpi-unique-views", "n_clicks"),
             Input("btn-kpi-downloads", "n_clicks"),
@@ -1083,9 +1111,12 @@ class UserEngagementDash:
                 
             elif button_id == "btn-kpi-avg-views":
                 title = "Top 10 Users"
-                fig = self.top_10_users_engagement(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+                fig1 = self.top_10_users_engagement(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+                body = dbc.Row([ # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph1"), width="auto" ),  # Second column for the Graph
+                    ],justify="center")
             else:
                 title = "Unknown KPI"
                 body = "No details available for this metric."
             
-            return True, title, body, fig
+            return True, title, body
