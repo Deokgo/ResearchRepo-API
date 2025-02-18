@@ -228,3 +228,73 @@ def get_top_10_research_ids_by_downloads(start_date, end_date, college_ids=None)
         return top_downloads
     finally:
         session.close()
+
+def get_research_funnel_data(start_date, end_date, college_ids=None):
+    """Fetches research-focused engagement funnel data (Total Views, Unique Views, Downloads) within a date range, optionally filtering by college."""
+    
+    session = Session()
+    try:
+        # Convert numpy array to list (if applicable)
+        if isinstance(college_ids, np.ndarray):
+            college_ids = college_ids.tolist()
+
+        # Prepare the SQL function call
+        query = text("""
+            SELECT 
+                stage, 
+                total 
+            FROM get_research_funnel_data(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute query with parameters
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids
+        })
+
+        # Convert result to list of dictionaries
+        funnel_data = [dict(row) for row in result.mappings()]
+        return funnel_data
+
+    except Exception as e:
+        print(f"Error fetching research funnel data: {e}")
+        return []
+
+    finally:
+        session.close()
+
+def get_user_funnel_data(start_date, end_date, college_ids=None):
+    """Fetches user-focused engagement funnel data (Total Interactions, Unique Users, Downloads) within a date range, optionally filtering by college."""
+    
+    session = Session()
+    try:
+        # Convert numpy array to list (if applicable)
+        if isinstance(college_ids, np.ndarray):
+            college_ids = college_ids.tolist()
+
+        # Prepare the SQL function call
+        query = text("""
+            SELECT 
+                stage, 
+                total 
+            FROM get_user_funnel_data(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute query with parameters
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids
+        })
+
+        # Convert result to list of dictionaries
+        funnel_data = [dict(row) for row in result.mappings()]
+        return funnel_data
+
+    except Exception as e:
+        print(f"Error fetching user funnel data: {e}")
+        return []
+
+    finally:
+        session.close()

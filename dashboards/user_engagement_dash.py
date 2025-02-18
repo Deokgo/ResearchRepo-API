@@ -9,7 +9,7 @@ from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import view_manager,db_manager
 from datetime import datetime, timedelta
-from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week, get_engagement_summary
+from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_research_funnel_data,get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week, get_engagement_summary,get_user_funnel_data
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -78,36 +78,95 @@ class UserEngagementDash:
             ),
         ], className="mb-4", style={"display": "block"})
 
+        text_display = dbc.Container([
+            # First row (2 KPI Cards)
+            dbc.Row(
+                [
+                    dbc.Col(KPI_Card("Total Views", "0", id="kpi-total-views", icon="fas fa-eye", color="success"), width=2),
+                    dbc.Col(KPI_Card("Unique Views", "0", id="kpi-unique-views", icon="fas fa-user-check", color="primary"), width=2),
+                    dbc.Col(KPI_Card("Downloads", "0", id="kpi-downloads", icon="fas fa-download", color="info"), width=2),
+                    dbc.Col(KPI_Card("Avg Views per User", "0", id="kpi-avg-views", icon="fas fa-chart-line", color="warning"), width=2),
+                ],
+                className="g-3",
+                justify="center"
+            )
+        ], className="p-0")
+
 
         self.collage = html.Div([
-            CollageContainer([
-                dbc.Card(
-                    dcc.Graph(
-                        id='college_line_plot',
-                        config={'responsive': True},  # Ensure the graph is responsive
-                        style={
-                            "height": "90%",  # Apply scaling to height (scale = 0.9)
-                            "width": "90%",   # Apply scaling to width (scale = 0.9)
-                            "maxHeight": "350px",  # Optional: limit max height if needed
-                            "maxWidth": "100%"    # Optional: limit max width if needed
-                        }
-                    ), body=True, style={"display": "inline-block", "width": "100%", "height": "auto"}),
-                dbc.Card(
-                    dcc.Graph(
-                        id='funnel-chart'
-                    ), body=True, style={"display": "inline-block", "width": "50%", "height": "auto","margin-right":"5px"}),
-                dbc.Card(
-                    dcc.Graph(
-                        id='active-days'
-                    ), body=True, style={"display": "inline-block", "width": "45%", "height": "auto", "margin-right":"5px"}),
-            ], column_count=1)  # Adjust column count for layout
-        ], style={
-        "display": "flex",
-        "justify-content": "center",  # Center horizontally
-        "margin": "5px",
-        "width": "100%",
-        "height": "100%",  # Ensure it takes full height
-    })
+            dbc.Container(
+                children=[
+                    # Upper row with the college line plot and KPI cards
+                    dbc.Row(
+                        [
+                            # College Line Plot
+                            dbc.Col(
+                                dbc.Card(
+                                    dcc.Graph(
+                                        id='college_line_plot',
+                                        config={'responsive': True},  # Ensure the graph is responsive
+                                        style={
+                                            "height": "90%",  # Apply scaling to height (scale = 0.9)
+                                            "width": "90%",   # Apply scaling to width (scale = 0.9)
+                                            "maxHeight": "350px",  # Optional: limit max height if needed
+                                            "maxWidth": "100%"    # Optional: limit max width if needed
+                                        }
+                                    ),
+                                    body=True
+                                ),
+                                width="auto",  # Adjust to 50% width to align with KPI cards
+                                className='p-0'  # Remove padding
+                            )
+                        ],
+                        className="g-0",  # Remove gutter space between columns
+                        justify="center"
+                    ),
+                    # Lower row with the funnel-chart and active-days
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                dbc.Card(
+                                    dbc.Tabs([
+                                        dbc.Tab(
+                                            dcc.Graph(id='user-funnel-chart'),
+                                            label="User Funnel"
+                                        ),
+                                        dbc.Tab(
+                                            dcc.Graph(id='research-funnel-chart'),
+                                            label="Research Funnel"
+                                        )
+                                    ])
+                                ),
+                                width="auto",
+                                className='p-2',
+                                style={"margin-right": "5px"}
+                            ),
+                            dbc.Col(
+                                dbc.Card(
+                                    dcc.Graph(
+                                        id='active-days'
+                                    )
+                                ),
+                                width="auto",  # Automatically adjust width
+                                className='p-2',  # Remove padding
+                                style={"margin-left": "5px"}
+                            )
+                        ],
+                        className="g-0",
+                        justify="center"
+                    )
+                ],
+                style={
+                    "display": "flex",
+                    "flex-direction": "column",  # Stack the rows vertically
+                    "justify-content": "center",  # Center horizontally
+                    "margin": "5px",
+                    "width": "100%",
+                    "height": "100%"  # Ensure it takes full height
+                }
+            )
+        ])
+
 
         # Define the modal component
         # Modal Component (Content updates dynamically)
@@ -128,20 +187,8 @@ class UserEngagementDash:
         )
 
         
-        text_display = dbc.Container([
-            dbc.Row(
-                [
-                    dbc.Col(KPI_Card("Total Views", "0", id="kpi-total-views", icon="fas fa-eye", color="success"), width="auto"),
-                dbc.Col(KPI_Card("Unique Views", "0", id="kpi-unique-views", icon="fas fa-user-check", color="primary"), width="auto"),
-                dbc.Col(KPI_Card("Downloads", "0", id="kpi-downloads", icon="fas fa-download", color="info"), width="auto"),
-                dbc.Col(KPI_Card("Avg Views per User", "0", id="kpi-avg-views", icon="fas fa-chart-line", color="warning"), width="auto"),
-                dbc.Col(KPI_Card("Conversion Rate", "0%", id="kpi-conversion-rate", icon="fas fa-percentage", color="danger"), width="auto")
-                ],
-                className="g-3",
-                justify="center",
-                style={"padding-top": "0", "padding-bottom": "0"}
-            ),
-        ], className="p-0", style={"padding-top": "0", "padding-bottom": "0"})
+        
+
 
 
         sidebar = dbc.Col([  # Added array brackets
@@ -156,20 +203,21 @@ class UserEngagementDash:
             html.Div(id="dynamic-header"),
             dbc.Row([text_display], style={"flex": "1"}),
             modal,
-            dcc.Loading(
-                        id="loading-sdg-chart3",
-                        type="circle",
-                        children=[
-                            self.collage,
-                        ]
-                    ),
+            self.collage
         ], width=10, className="p-3", style={"marginLeft": "16.67%"})
 
         self.dash_app.layout = dbc.Container([
             dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
             dbc.Row([sidebar, 
                      main_content], className="g-0")
-        ], fluid=True)
+        ], fluid=True,style={
+            "paddingBottom": "0px",
+            "marginBottom": "0px",
+            "overflow": "hidden",
+            "height": "100vh",
+            "width": "100vw",
+            "display": "flex",
+            "flexDirection": "column"})
 
     def get_date_range(self,selected_range):
         end_date = datetime.now()
@@ -244,7 +292,7 @@ class UserEngagementDash:
         fig.update_layout(
             autosize=True,  # Allow the figure to automatically resize
             margin=dict(l=40, r=40, t=40, b=40),  # Adjust margins for better presentation
-            height=300,  # Set a fixed height for the figure
+            height=230,  # Set a fixed height for the figure
             width=1200,  # Use a fixed pixel width (e.g., 800px)
             # Adjust legend position below the graph
             legend=dict(
@@ -319,16 +367,77 @@ class UserEngagementDash:
         
         # Update layout to make the funnel smaller
         fig.update_layout(
-            height=250,  # Set a smaller height for the funnel chart
+            height=200,  # Set a smaller height for the funnel chart
             width=600,   # Set a smaller width for the funnel chart
             title_x=0.5,  # Center the title
             title_y=0.95,  # Move title slightly up
-            margin=dict(l=50, r=50, t=50, b=50),  # Adjust margins for a smaller layout
+            margin=dict(l=5, r=5, t=30, b=5),  # Adjust margins for a smaller layout
             showlegend=False  # Hide legend as it is unnecessary for funnel charts
         )
 
 
         return fig
+    
+    def create_user_funnel(self,selected_colleges, start_date, end_date):
+        """Generates a user-focused engagement funnel visualization using Plotly."""
+        
+        # Ensure selected_colleges is a list
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]
+
+        # Fetch funnel data
+        funnel_data = get_user_funnel_data(start_date, end_date, college_ids=selected_colleges)
+
+        if not funnel_data:
+            print("Debug: User funnel data is empty or could not be fetched.")
+            return go.Figure()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(funnel_data)
+
+        # Check if necessary columns exist
+        if not all(col in df.columns for col in ['stage', 'total']):
+            print("Debug: Missing necessary columns in user funnel data.")
+            return go.Figure()
+
+        # Map stages to metric names
+        stage_mapping = {
+            'Total User Interactions': 'total_views',
+            'Total Unique Users Viewed': 'total_unique_views',
+            'Total Users Downloaded': 'total_downloads'
+        }
+
+        df['Metric'] = df['stage'].map(stage_mapping)
+        df = df.dropna(subset=['Metric'])
+
+        # Set correct order
+        df['Metric'] = pd.Categorical(df['Metric'], 
+                                    categories=['total_views', 'total_unique_views', 'total_downloads'], 
+                                    ordered=True)
+        df = df.sort_values('Metric')
+
+        # Create funnel chart
+        fig = px.funnel(df, 
+                        x='total', 
+                        y='Metric', 
+                        orientation='h',  
+                        title='User Engagement Funnel: Views, Unique Views, Downloads',
+                        labels={'Metric': 'Stage', 'total': 'Count'})
+        
+        # Update layout
+        fig.update_layout(
+            height=200,
+            width=600,
+            title_x=0.5,
+            title_y=0.95,
+            margin=dict(l=5, r=5, t=30, b=5),
+            showlegend=False
+        )
+
+        return fig
+
     
     def create_area_chart(self, selected_colleges, start_date, end_date):
 
@@ -384,11 +493,11 @@ class UserEngagementDash:
         fig.update_layout(title='Most Active Days of the Week', template='plotly_white')
         # Update layout to make the funnel smaller
         fig.update_layout(
-            height=250,  # Set a smaller height for the funnel chart
+            height=230,  # Set a smaller height for the funnel chart
             width=600,   # Set a smaller width for the funnel chart
             title_x=0.5,  # Center the title
             title_y=0.95,  # Move title slightly up
-            margin=dict(l=50, r=50, t=50, b=50),  # Adjust margins for a smaller layout
+            margin=dict(l=5, r=5, t=30, b=5),  # Adjust margins for a smaller layout
             showlegend=False  # Hide legend as it is unnecessary for funnel charts
         )
 
@@ -557,6 +666,66 @@ class UserEngagementDash:
         )
 
         return fig
+    
+    def create_research_funnel(self,selected_colleges, start_date, end_date):
+        """Generates a research-focused engagement funnel visualization using Plotly."""
+        
+        # Ensure selected_colleges is a list
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]
+
+        # Fetch funnel data
+        funnel_data = get_research_funnel_data(start_date, end_date, college_ids=selected_colleges)
+
+        if not funnel_data:
+            print("Debug: Research funnel data is empty or could not be fetched.")
+            return go.Figure()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(funnel_data)
+
+        # Check if necessary columns exist
+        if not all(col in df.columns for col in ['stage', 'total']):
+            print("Debug: Missing necessary columns in research funnel data.")
+            return go.Figure()
+
+        # Map stages to metric names
+        stage_mapping = {
+            'Total Research Papers Viewed': 'total_views',
+            'Total Unique Research Papers Viewed': 'total_unique_views',
+            'Total Research Papers Downloaded': 'total_downloads'
+        }
+
+        df['Metric'] = df['stage'].map(stage_mapping)
+        df = df.dropna(subset=['Metric'])
+
+        # Set correct order
+        df['Metric'] = pd.Categorical(df['Metric'], 
+                                    categories=['total_views', 'total_unique_views', 'total_downloads'], 
+                                    ordered=True)
+        df = df.sort_values('Metric')
+
+        # Create funnel chart
+        fig = px.funnel(df, 
+                        x='total', 
+                        y='Metric', 
+                        orientation='h',  
+                        title='Research Engagement Funnel: Views, Unique Views, Downloads',
+                        labels={'Metric': 'Stage', 'total': 'Count'})
+        
+        # Update layout
+        fig.update_layout(
+            height=200,
+            width=600,
+            title_x=0.5,
+            title_y=0.95,
+            margin=dict(l=5, r=5, t=30, b=5),
+            showlegend=False
+        )
+
+        return fig
 
     def add_callbacks(self):
         # Callback for reset button
@@ -598,8 +767,7 @@ class UserEngagementDash:
                 Output("kpi-total-views", "children"),
                 Output("kpi-unique-views", "children"),
                 Output("kpi-downloads", "children"),
-                Output("kpi-avg-views", "children"),
-                Output("kpi-conversion-rate", "children"),
+                Output("kpi-avg-views", "children")
             ],
             [
                 Input("data-refresh-interval", "n_intervals"),
@@ -650,8 +818,7 @@ class UserEngagementDash:
                 [ html.H5(f"{total_views}", className="mb-0")],
                 [ html.H5(f"{total_unique_views}", className="mb-0")],
                 [ html.H5(f"{total_downloads}", className="mb-0")],
-                [ html.H5(f"{ave_views}", className="mb-0")],
-                [ html.H5(f"{conversion_rate}%", className="mb-0")]
+                [ html.H5(f"{ave_views}", className="mb-0")]
             )
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
@@ -668,7 +835,7 @@ class UserEngagementDash:
             return self.update_line_plot(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
         
         @self.dash_app.callback(
-            Output('funnel-chart', 'figure'),
+            Output('user-funnel-chart', 'figure'),
             [
                 Input('college', 'value'),
                 Input('date-range-dropdown', 'value')
@@ -677,7 +844,19 @@ class UserEngagementDash:
         def update_linechart(selected_colleges,selected_range):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             start,end = self.get_date_range(selected_range)
-            return self.create_conversion_funnel(selected_colleges, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+            return self.create_user_funnel(selected_colleges, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+        
+        @self.dash_app.callback(
+            Output('research-funnel-chart', 'figure'),
+            [
+                Input('college', 'value'),
+                Input('date-range-dropdown', 'value')
+            ]
+        )
+        def update_linechart(selected_colleges,selected_range):
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            start,end = self.get_date_range(selected_range)
+            return self.create_research_funnel(selected_colleges, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
         
         @self.dash_app.callback(
             Output('active-days', 'figure'),
