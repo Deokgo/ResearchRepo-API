@@ -9,7 +9,7 @@ from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import view_manager,db_manager
 from datetime import datetime, timedelta
-from database.engagement_queries import get_engagement_over_time,get_top_10_research_ids_by_downloads, get_research_funnel_data,get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week, get_engagement_summary,get_user_funnel_data
+from database.engagement_queries import get_user_engagement_summary,get_top_10_users_by_unique_views,get_engagement_over_time,get_top_10_research_ids_by_downloads, get_research_funnel_data,get_top_10_research_ids_by_views, get_funnel_data, get_engagement_by_day_of_week, get_engagement_summary,get_user_funnel_data, get_top_10_users_by_engagement, get_top_10_users_by_downloads
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -85,7 +85,7 @@ class UserEngagementDash:
                     dbc.Col(KPI_Card("Total Views", "0", id="kpi-total-views", icon="fas fa-eye", color="success"), width=2),
                     dbc.Col(KPI_Card("Unique Views", "0", id="kpi-unique-views", icon="fas fa-user-check", color="primary"), width=2),
                     dbc.Col(KPI_Card("Downloads", "0", id="kpi-downloads", icon="fas fa-download", color="info"), width=2),
-                    dbc.Col(KPI_Card("Avg Views per User", "0", id="kpi-avg-views", icon="fas fa-chart-line", color="warning"), width=2),
+                    dbc.Col(KPI_Card("Active Users", "0", id="kpi-avg-views", icon="fas fa-user-group", color="warning"), width=2),
                 ],
                 className="g-3",
                 justify="center"
@@ -174,7 +174,7 @@ class UserEngagementDash:
             [
                 dbc.ModalHeader(dbc.ModalTitle(id="modal-title")),  # Dynamic Title
                 dbc.ModalBody([
-                    html.P(id="modal-body"),  # Dynamic KPI Description
+                    html.Div(id="modal-body"),  # Dynamic KPI Description
                     dcc.Graph(id="kpi-graph"),  # Dynamic Graph
                 ]),
                 dbc.ModalFooter(
@@ -183,7 +183,7 @@ class UserEngagementDash:
             ],
             id="kpi-modal",
             is_open=False,  # Start closed
-            size="lg",  # Large modal for better graph view
+            size="xl",  # Large modal for better graph view
         )
 
         
@@ -504,6 +504,8 @@ class UserEngagementDash:
         return fig
     
     def top_10_research_views(self, selected_colleges, start_date, end_date, view_type='total_unique_views'):
+        """Fetches the top 10 research outputs by views and creates a table."""
+
         # Ensure selected_colleges is a standard Python list or array
         if isinstance(selected_colleges, np.ndarray):
             selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
@@ -534,8 +536,8 @@ class UserEngagementDash:
         df = pd.DataFrame(top_views_data)
 
         # Check if the DataFrame has the expected columns
-        if 'research_id' not in df.columns or 'total_value' not in df.columns or 'previous_value' not in df.columns or 'change_status' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'research_id', 'total_value', 'previous_value', and 'change_status'.")
+        if 'research_id' not in df.columns or 'total_value' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'research_id' and 'total_value'.")
 
         # Ensure the DataFrame is not empty
         if df.empty:
@@ -552,27 +554,19 @@ class UserEngagementDash:
 
         # Sort DataFrame by total views in descending order
         df = df.sort_values(by='total_value', ascending=False)
-        print(df)
-        
+
         # Assign ranks with ties having the same rank
         df['Rank'] = df['total_value'].rank(method='min', ascending=False).astype(int)
-
-        # Map change_status values to corresponding arrows
-        change_arrows = df['change_status'].map({
-            'increasing': '↑', 
-            'decreasing': '↓', 
-            'no change': '−'
-        })
 
         # Create table
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=["Rank", "Research ID", "Total Views", "Previous Views", "Change Status"],
+                values=["Rank", "Research ID", "Total Views"],
                 fill_color='lightgray',
                 align='center'
             ),
             cells=dict(
-                values=[df['Rank'], df['research_id'], df['total_value'], df['previous_value'], change_arrows],
+                values=[df['Rank'], df['research_id'], df['total_value']],
                 fill_color='white',
                 align='center'
             )
@@ -580,6 +574,128 @@ class UserEngagementDash:
 
         fig.update_layout(
             title=f"Top 10 Research Outputs by {view_type.replace('_', ' ').title()}",
+            title_x=0.5
+        )
+
+        return fig
+    
+    def top_10_users_download(self, selected_colleges, start_date, end_date):
+        """Generates a table visualization for the top 10 users by downloads."""
+        
+        # Ensure selected_colleges is a standard Python list or array
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]  # Ensure single college is in a list
+
+        # Check if selected_colleges is empty
+        if not selected_colleges:
+            raise ValueError("No colleges selected.")
+
+        # Call get_top_10_users_by_downloads to get the top 10 users by download
+        top_users_data = get_top_10_users_by_downloads(start_date, end_date, selected_colleges)
+        
+        # Check if the data is empty
+        if not top_users_data:
+            print("Debug: No data available to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Convert the result to a DataFrame
+        df = pd.DataFrame(top_users_data)
+
+        # Check if the DataFrame has the expected columns
+        if 'user_id' not in df.columns or 'total_downloads' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'user_id' and 'total_downloads'.")
+
+        # Ensure the DataFrame is not empty
+        if df.empty:
+            print("Debug: No valid data in the DataFrame to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Create a table visualization of the data using Plotly
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=["User ID", "Total Downloads"]),
+            cells=dict(values=[df['user_id'], df['total_downloads']])
+        )])
+
+        fig.update_layout(
+            title="Top 10 Active Users by Downloads",
+            title_x=0.5
+        )
+
+        return fig
+    
+    def top_10_users_engagement(self, selected_colleges, start_date, end_date):
+        # Ensure selected_colleges is a standard Python list or array
+        if isinstance(selected_colleges, np.ndarray):
+            selected_colleges = selected_colleges.tolist()  # Convert NumPy array to list
+        elif isinstance(selected_colleges, str):
+            selected_colleges = [selected_colleges]  # Ensure single college is in a list
+
+        # Check if selected_colleges is empty
+        if not selected_colleges:
+            raise ValueError("No colleges selected.")
+
+        # Call get_top_10_users_by_engagement to get the top 10 users by engagement
+        top_users_data = get_top_10_users_by_engagement(start_date, end_date, selected_colleges)
+        
+        # Check if the data is empty
+        if not top_users_data:
+            print("Debug: No data available to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Convert the result to a DataFrame
+        df = pd.DataFrame(top_users_data)
+
+        # Check if the DataFrame has the expected columns
+        if 'user_id' not in df.columns or 'total_views' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'user_id' and 'total_views'.")
+
+        # Ensure the DataFrame is not empty
+        if df.empty:
+            print("Debug: No valid data in the DataFrame to display.")
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Create a table visualization of the data using Plotly
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=["User ID", "Total Views"]),
+            cells=dict(values=[df['user_id'], df['total_views']])
+        )])
+
+        fig.update_layout(
+            title="Top 10 Active Users by Engagement",
             title_x=0.5
         )
 
@@ -639,22 +755,15 @@ class UserEngagementDash:
         # Assign ranks with ties having the same rank
         df['Rank'] = df['total_downloads'].rank(method='min', ascending=False).astype(int)
 
-        # Map trend values to corresponding arrows
-        trend_arrows = df['trend'].map({
-            'Increasing': '↑', 
-            'Decreasing': '↓', 
-            'No Change': '−'
-        })
-
         # Create table
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=["Rank", "Research ID", "Total Downloads", "Previous Downloads", "Trend"],
+                values=["Rank", "Research ID", "Total Downloads"],
                 fill_color='lightgray',
                 align='center'
             ),
             cells=dict(
-                values=[df['Rank'], df['research_id'], df['total_downloads'], df['previous_total_downloads'], trend_arrows],
+                values=[df['Rank'], df['research_id'], df['total_downloads']],
                 fill_color='white',
                 align='center'
             )
@@ -723,6 +832,44 @@ class UserEngagementDash:
             title_y=0.95,
             margin=dict(l=5, r=5, t=30, b=5),
             showlegend=False
+        )
+
+        return fig
+    
+    def create_top_10_users_by_unique_views_chart(self, start_date, end_date, college_ids=None):
+        """Fetches the top 10 users by distinct research views and creates a table."""
+
+        # Get top 10 users by distinct research views using the previously created function
+        top_users_data = get_top_10_users_by_unique_views(start_date, end_date, college_ids)
+
+        # Check if the data is empty
+        if not top_users_data:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available for the selected colleges and date range.",
+                xref='paper', yref='paper',
+                x=0.5, y=0.5,
+                showarrow=False,
+                font={'size': 12, 'color': 'red'}
+            )
+            return fig
+
+        # Convert the list of dictionaries to a pandas DataFrame for easier manipulation
+        df = pd.DataFrame(top_users_data)
+
+        # Check if the DataFrame contains the expected columns
+        if 'user_id' not in df.columns or 'distinct_research_count' not in df.columns:
+            raise ValueError("The data does not contain the expected columns: 'user_id' and 'distinct_research_count'.")
+
+        # Create a table visualization
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=["User ID", "Distinct Research Views"]),
+            cells=dict(values=[df['user_id'], df['distinct_research_count']])
+        )])
+
+        fig.update_layout(
+            title="Top 10 Users by Distinct Research Views",
+            title_x=0.5
         )
 
         return fig
@@ -799,17 +946,21 @@ class UserEngagementDash:
 
             # Fetch engagement data
             engagement_data = get_engagement_summary(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'), selected_colleges)
-            
+            users_data = get_user_engagement_summary(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'), selected_colleges)
+            if not users_data:
+                active_users=0
+            else:
+                active_users = len(set(item["user_id"] for item in users_data))  
+
             # If no data is returned, set default values
             if not engagement_data:
-                total_views = total_unique_views = total_downloads = ave_views = conversion_rate = 0
+                total_views = total_unique_views = total_downloads = 0
             else:
                 total_views = sum(item["total_views"] for item in engagement_data)
                 total_unique_views = sum(item["total_unique_views"] for item in engagement_data)
                 total_downloads = sum(item["total_downloads"] for item in engagement_data)
                 
-                ave_views = round(total_views / total_unique_views, 2) if total_unique_views else 0
-                conversion_rate = round((total_downloads / total_unique_views) * 100, 2) if total_unique_views else 0
+
 
             print(f"📊 Total Views: {total_views}, Unique Views: {total_unique_views}, Downloads: {total_downloads}")
 
@@ -818,7 +969,7 @@ class UserEngagementDash:
                 [ html.H5(f"{total_views}", className="mb-0")],
                 [ html.H5(f"{total_unique_views}", className="mb-0")],
                 [ html.H5(f"{total_downloads}", className="mb-0")],
-                [ html.H5(f"{ave_views}", className="mb-0")]
+                [ html.H5(f"{active_users}", className="mb-0")]
             )
         @self.dash_app.callback(
             Output('college_line_plot', 'figure'),
@@ -879,6 +1030,7 @@ class UserEngagementDash:
             [Input("btn-kpi-total-views", "n_clicks"),
             Input("btn-kpi-unique-views", "n_clicks"),
             Input("btn-kpi-downloads", "n_clicks"),
+            Input("btn-kpi-avg-views", "n_clicks"),
             Input("close-modal", "n_clicks")],  # Close button
             [State('college', 'value'), 
             State('date-range-dropdown', 'value')],  # Additional filter parameters
@@ -904,17 +1056,34 @@ class UserEngagementDash:
             title, body, fig = "", "", go.Figure()
             
             if button_id == "btn-kpi-total-views":
+                fig1 = self.top_10_research_views(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),view_type='total_views')
+                body = dbc.Row([ # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph1"), width="auto" ),  # Second column for the Graph
+                    ],justify="center")
                 title = "Top 10 Research Outputs (Overall Views)"
-                fig = self.top_10_research_views(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),view_type='total_views')
+               
 
             elif button_id == "btn-kpi-downloads":
+                fig1 = self.top_10_users_download(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+                fig2 = self.top_10_research_downloads(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+                body = dbc.Row([
+                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width=6),  # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width=6),  # Second column for the Graph
+                    ],justify="center")
                 title = "Top 10 Research Outputs (Downloads)"
-                fig = self.top_10_research_downloads(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
 
             elif button_id == "btn-kpi-unique-views":
+                fig2 = self.top_10_research_views(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),view_type='total_unique_views')
+                fig1 = self.create_top_10_users_by_unique_views_chart(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),selected_colleges)
+                body = dbc.Row([
+                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width=6),  # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width=6),  # Second column for the Graph
+                    ],justify="center")
                 title = "Top 10 Research Outputs (Unique Views)"
-                fig = self.top_10_research_views(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),view_type='total_unique_views')
-
+                
+            elif button_id == "btn-kpi-avg-views":
+                title = "Top 10 Users"
+                fig = self.top_10_users_engagement(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
             else:
                 title = "Unknown KPI"
                 body = "No details available for this metric."

@@ -318,6 +318,10 @@ class SDG_Impact_Dash:
                 view="RPCO Director"    
                 college=""
                 program=""
+            elif user_role =="03":
+                view="Head Executive"    
+                college=""
+                program=""
             else:
                 view="Unknown"
             return DashboardHeader(left_text=program, title=f"SDG IMPACT DASHBOARD {college}", right_text=view)

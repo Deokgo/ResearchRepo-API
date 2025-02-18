@@ -44,14 +44,8 @@ def get_engagement_summary(start_date, end_date, college_filter=None):
     try:
         # Prepare the SQL query
         query = text("""
-            SELECT 
-                engagement_date,
-                total_views,
-                total_unique_views,
-                total_downloads,
-                ave_views,
-                conversion_rate_percentage
-            FROM get_engagement_summary(:start_date, :end_date, :college_filter)
+            SELECT * 
+            FROM get_engagement_kpi(:start_date, :end_date, :college_filter)
         """
         )
 
@@ -63,6 +57,36 @@ def get_engagement_summary(start_date, end_date, college_filter=None):
         })
 
         # Process the result into a list of dictionaries
+        return [dict(row) for row in result.mappings()]
+    finally:
+        session.close()
+
+def get_engagement_kpi(start_date, end_date, college_filter=None):
+    """
+    Fetches engagement KPI summary between given dates, with an optional college filter.
+    
+    :param start_date: Start date for filtering engagement data
+    :param end_date: End date for filtering engagement data
+    :param college_filter: Optional college filter (list of colleges)
+    :return: List of dictionaries containing engagement KPI summary
+    """
+    session = Session()
+    
+    try:
+        # Prepare the SQL query to call the function
+        query = text("""
+            SELECT * 
+            FROM get_engagement_kpi(:start_date, :end_date, :college_filter)
+        """)
+
+        # Execute the query with the parameters
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_filter': college_filter if college_filter is not None else None
+        })
+
+        # Return the result as a list of dictionaries
         return [dict(row) for row in result.mappings()]
     finally:
         session.close()
@@ -228,6 +252,35 @@ def get_top_10_research_ids_by_downloads(start_date, end_date, college_ids=None)
         return top_downloads
     finally:
         session.close()
+def get_top_10_users_by_engagement(start_date, end_date, college_ids=None):
+    """Fetches the top 10 users by engagement within a date range, optionally filtering by college."""
+
+    # Ensure college_ids is passed as a list or None
+    if isinstance(college_ids, np.ndarray):  # If it's a numpy array, convert it to a list
+        college_ids = college_ids.tolist()
+
+    session = Session()
+    try:
+        # Execute the query with parameters
+        query = text("""
+            SELECT 
+                user_id, 
+                total_views
+            FROM get_top_10_users_by_engagement(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute the query, passing the list directly (not formatted as a string)
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids  # Passing the list of college IDs
+        })
+
+        # Extract the results as a list of dictionaries
+        top_users = [dict(row) for row in result.mappings()]
+        return top_users
+    finally:
+        session.close()
 
 def get_research_funnel_data(start_date, end_date, college_ids=None):
     """Fetches research-focused engagement funnel data (Total Views, Unique Views, Downloads) within a date range, optionally filtering by college."""
@@ -298,3 +351,129 @@ def get_user_funnel_data(start_date, end_date, college_ids=None):
 
     finally:
         session.close()
+
+def get_top_10_users_by_engagement(start_date, end_date, college_ids=None):
+    """Fetches the top 10 users by engagement (total views) within a date range, optionally filtering by college."""
+    
+    # Ensure college_ids is passed as a list or None
+    if isinstance(college_ids, np.ndarray):  # If it's a numpy array, convert it to a list
+        college_ids = college_ids.tolist()
+
+    session = Session()
+    try:
+        # Prepare the query to call the get_top_10_users_by_engagement SQL function
+        query = text("""
+            SELECT 
+                user_id, 
+                total_views
+            FROM get_top_10_users_by_engagement(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute the query, passing the list directly (not formatted as a string)
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids  # Passing the list of college IDs
+        })
+
+        # Extract the results as a list of dictionaries
+        top_users = [dict(row) for row in result.mappings()]
+        return top_users
+
+    finally:
+        session.close()
+
+def get_top_10_users_by_downloads(start_date, end_date, college_ids=None):
+    """Fetches the top 10 users by downloads within a date range, optionally filtering by college."""
+    
+    # Ensure college_ids is passed as a list or None
+    if isinstance(college_ids, np.ndarray):  # If it's a numpy array, convert it to a list
+        college_ids = college_ids.tolist()
+
+    session = Session()  # Assuming you have a session created through SQLAlchemy
+    try:
+        # Prepare the query to call the get_top_10_users_by_downloads SQL function
+        query = text("""
+            SELECT 
+                user_id, 
+                total_downloads
+            FROM get_top_10_users_by_downloads(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute the query, passing the list directly (not formatted as a string)
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids  # Passing the list of college IDs
+        })
+
+        # Extract the results as a list of dictionaries
+        top_users = [dict(row) for row in result.mappings()]
+        return top_users
+
+    finally:
+        session.close()
+
+def get_top_10_users_by_unique_views(start_date, end_date, college_ids=None):
+    """Fetches the top 10 users by distinct research views within a date range, optionally filtering by college."""
+
+    # Ensure college_ids is passed as a list or None
+    if isinstance(college_ids, np.ndarray):  # If it's a numpy array, convert it to a list
+        college_ids = college_ids.tolist()
+
+    session = Session()  # Assuming you have a session created through SQLAlchemy
+    try:
+        # Prepare the query to call the get_top_10_users_by_unique_views SQL function
+        query = text("""
+            SELECT 
+                user_id, 
+                distinct_research_count
+            FROM get_top_10_users_by_unique_views(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute the query, passing the list directly (not formatted as a string)
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids  # Passing the list of college IDs
+        })
+
+        # Extract the results as a list of dictionaries
+        top_users = [dict(row) for row in result.mappings()]
+        return top_users
+
+    finally:
+        session.close()
+
+def get_user_engagement_summary(start_date, end_date, college_ids=None):
+    """Fetches the user engagement summary within a date range, optionally filtering by college."""
+
+    # Ensure college_ids is passed as a list or None
+    if isinstance(college_ids, np.ndarray):  # If it's a numpy array, convert it to a list
+        college_ids = college_ids.tolist()
+
+    session = Session()  # Assuming you have a session created through SQLAlchemy
+    try:
+        # Prepare the query to call the get_user_engagement_summary SQL function
+        query = text("""
+            SELECT 
+                engagement_day, 
+                user_id, 
+                total_engagements
+            FROM get_user_engagement_summary(:start_date, :end_date, :college_ids)
+        """)
+
+        # Execute the query, passing the list of college IDs (if provided)
+        result = session.execute(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+            'college_ids': college_ids  # Passing the list of college IDs or None
+        })
+
+        # Extract the results as a list of dictionaries
+        engagement_summary = [dict(row) for row in result.mappings()]
+        return engagement_summary
+
+    finally:
+        session.close()
+
