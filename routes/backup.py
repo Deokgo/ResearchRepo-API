@@ -13,12 +13,15 @@ import tempfile
 import lzma
 from sqlalchemy import text
 from enum import Enum
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt_identity, create_access_token
 import hashlib
 import time
 from sqlalchemy import create_engine
 from models import Account
 import json
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from flask.cli import with_appcontext
 
 backup = Blueprint('backup', __name__)
 
@@ -1186,7 +1189,7 @@ def restore_from_file():
                     if os.path.exists(pgdata):
                         shutil.rmtree(pgdata)
                     shutil.copytree(original_data_backup, pgdata)
-                    subprocess.run('net start postgresql-x64-16', shell=True)
+                    subprocess.run('net start postgresql-x64-16', shell=True, check=True)
                 raise
 
     except Exception as e:
@@ -1322,4 +1325,156 @@ def download_backup(backup_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+
+def schedule_backups():
+    """Setup automated backup schedules"""
+    # Remove any existing jobs first
+    scheduler.remove_all_jobs()
+    
+    # Schedule full backup every Sunday at midnight
+    scheduler.add_job(
+        func=create_automated_full_backup,
+        trigger=CronTrigger(
+            day_of_week='sun',
+            hour=0,
+            minute=0
+        ),
+        id='full_backup_job',
+        name='Weekly Full Backup',
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # Schedule incremental backup every day at midnight except Sunday
+    scheduler.add_job(
+        func=create_automated_incremental_backup,
+        trigger=CronTrigger(
+            # day_of_week='mon-sat',
+            hour=14,
+            minute=27
+        ),
+        id='incremental_backup_job',
+        name='Daily Incremental Backup',
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # Start the scheduler if it's not already running
+    if not scheduler.running:
+        scheduler.start()
+        print("Backup scheduler started")
+
+def create_automated_full_backup():
+    """Create automated full backup"""
+    try:
+        print(f"Starting automated full backup at {datetime.now()}")
+        # Get the application instance
+        from server import app  # Import here to avoid circular import
+        
+        # Move everything inside the app context
+        with app.app_context():
+            # Get admin user inside app context
+            admin_user = Account.query.filter_by(role_id="01").first()
+            if not admin_user:
+                print("No admin user found in database")
+                return
+                
+            # Create an admin token with the actual admin user's ID
+            admin_token = create_access_token(
+                identity=admin_user.user_id,  # Use actual admin user ID
+                additional_claims={
+                    "is_admin": True,
+                    "role": "admin",
+                    "role_name": "admin",
+                    "role_id": "01"
+                }
+            )
+            
+            with app.test_request_context() as ctx:
+                ctx.request.headers = {
+                    "Authorization": f"Bearer {admin_token}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Pass the backup type as a string value
+                backup_type = BackupType.FULL.value
+                response = create_backup(backup_type)
+                
+                if hasattr(response, 'get_json'):
+                    response_data = response.get_json()
+                    status_code = response.status_code
+                elif isinstance(response, tuple):
+                    response_data, status_code = response
+                else:
+                    print(f"Unexpected response type: {type(response)}")
+                    return
+                
+                if status_code == 200:
+                    backup_id = response_data.get('backup_id')
+                    print(f"Automated full backup completed successfully. Backup ID: {backup_id}")
+                else:
+                    print(f"Backup failed with status code {status_code}: {response_data}")
+    except Exception as e:
+        print(f"Automated full backup failed: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
+
+def create_automated_incremental_backup():
+    """Create automated incremental backup"""
+    try:
+        print(f"Starting automated incremental backup at {datetime.now()}")
+        # Get the application instance
+        from server import app  # Import here to avoid circular import
+        
+        # Move everything inside the app context
+        with app.app_context():
+            # Get admin user inside app context
+            admin_user = Account.query.filter_by(role_id="01").first()
+            if not admin_user:
+                print("No admin user found in database")
+                return
+                
+            # Create an admin token with the actual admin user's ID
+            admin_token = create_access_token(
+                identity=admin_user.user_id,  # Use actual admin user ID
+                additional_claims={
+                    "is_admin": True,
+                    "role": "admin",
+                    "role_name": "admin",
+                    "role_id": "01"
+                }
+            )
+            
+            with app.test_request_context() as ctx:
+                ctx.request.headers = {
+                    "Authorization": f"Bearer {admin_token}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Pass the backup type as a string value
+                backup_type = BackupType.INCREMENTAL.value
+                response = create_backup(backup_type)
+                
+                if hasattr(response, 'get_json'):
+                    response_data = response.get_json()
+                    status_code = response.status_code
+                elif isinstance(response, tuple):
+                    response_data, status_code = response
+                else:
+                    print(f"Unexpected response type: {type(response)}")
+                    return
+                
+                if status_code == 200:
+                    backup_id = response_data.get('backup_id')
+                    print(f"Automated incremental backup completed successfully. Backup ID: {backup_id}")
+                else:
+                    print(f"Backup failed with status code {status_code}: {response_data}")
+    except Exception as e:
+        print(f"Automated incremental backup failed: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
+
+# Initialize the scheduler when the module loads
+schedule_backups()
 
