@@ -178,6 +178,9 @@ def get_user_details():
         return jsonify({
             "user_id": user.user_id,
             "role": user.role.role_id,
+            "role_name": user.role.role_name,
+            "first_name": user_profile.first_name,
+            "last_name": user_profile.last_name,
             "college": user_profile.college_id if user_profile else None,
             "program": user_profile.program_id if user_profile else None
         }), 200
