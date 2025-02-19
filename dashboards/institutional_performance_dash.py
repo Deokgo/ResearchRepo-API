@@ -14,7 +14,6 @@ from components.KPI_Card import KPI_Card
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
 from charts.institutional_performance_charts import ResearchOutputPlot
 from dash.exceptions import PreventUpdate
-from datetime import datetime
 
 class Institutional_Performance_Dash:
     def __init__(self, flask_app, college=None, program=None):
@@ -476,23 +475,22 @@ class Institutional_Performance_Dash:
                 program = params.get("program", [""])[0]
 
             style = None
-            today_date = f'As of {str(datetime.today().strftime("%B %d, %Y"))}'
 
             if user_role in ["02", "03"]:
                 style = {"display": "block"}
                 college = ""
                 program = ""
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
             elif user_role == "04":
                 style = {"display": "none"}
                 self.college = college
                 self.program = program
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
             elif user_role == "05":
                 style = {"display": "none"}
                 self.college = college
                 self.program = program
-                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
+                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
 
             return header
         

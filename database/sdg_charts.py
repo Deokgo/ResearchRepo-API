@@ -35,14 +35,15 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
     
     print("Selected SDG:", sdg_dropdown_value)
 
-    # Ensure selected_colleges and selected_status are lists
     selected_colleges = selected_colleges.tolist() if isinstance(selected_colleges, np.ndarray) else [selected_colleges]
     selected_status = selected_status.tolist() if isinstance(selected_status, np.ndarray) else [selected_status]
 
-    # Fetch research data
+    min_year = db_manager.get_min_value('year')
+    max_year = max(selected_years)  # Ensure the graph extends to the max selected year
+
     research_data = get_research_count(
         start_year=min(selected_years),
-        end_year=max(selected_years),
+        end_year=max_year,
         sdg_filter=[sdg_dropdown_value] if sdg_dropdown_value != "ALL" else None,
         status_filter=selected_status,
         college_filter=selected_colleges
@@ -50,33 +51,57 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
 
     print("Query Parameters:", {
         "Start Year": min(selected_years),
-        "End Year": max(selected_years),
+        "End Year": max_year,
         "SDG Filter": sdg_dropdown_value,
         "Status Filter": selected_status,
         "College Filter": selected_colleges
     })
 
-    # Convert data to DataFrame
     df = pd.DataFrame(research_data)
     print("Unique SDGs in Data:", df['sdg'].unique() if not df.empty else "No data")
 
     if df.empty:
-        return px.line(title="No data available for the selected parameters.")
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Research Output Over Time",
+            template="plotly_white",
+            height=350, width=650,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     df.rename(columns={'research_count': 'Count', 'sdg': 'sdg', 'school_year': 'school_year', 'college_id': 'College'}, inplace=True)
     df.sort_values(by='school_year', inplace=True)
 
+    # Generate all years from (min_year - 1) to max_year
+    all_years = list(range(min_year - 1, max_year + 1))
+    sdg_list = df['sdg'].unique()
+
+    # Create a DataFrame with all SDGs and all years filled with 0
+    full_range_df = pd.DataFrame([(year, sdg, 0) for year in all_years for sdg in sdg_list], columns=['school_year', 'sdg', 'Count'])
+
+    # Merge original data, ensuring missing values are filled with 0
+    df = pd.merge(full_range_df, df, on=['school_year', 'sdg'], how='left')
+    df['Count'] = df['Count_y'].fillna(df['Count_x']).fillna(0).astype(int)
+    df = df[['school_year', 'sdg', 'Count']]  # Keep only necessary columns
+
     # Define color map and category orders
     if sdg_dropdown_value == "ALL":
-        # Provide a valid color map and category orders when SDG is "ALL"
         color_map = sdg_colors
         category_orders = {'sdg': all_sdgs}
     else:
-        # Use predefined sdg_colors when filtering by specific SDG
         color_map = sdg_colors
-        category_orders = None  # No need to specify category orders for a single SDG filter
+        category_orders = None
 
-    # Create plot
     fig = px.line(
         df,
         x='school_year',
@@ -97,6 +122,8 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
     )
 
     return fig
+
+
 
 
 
@@ -214,6 +241,26 @@ def create_sdg_research_chart(selected_colleges, selected_status, selected_years
     # Convert to DataFrame
     df = pd.DataFrame(research_data)
 
+    if df.empty:
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Research Type Distribution by SDG",
+            template="plotly_white",
+            height=150, width=1200,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
+
     # Ensure SDG and Research Type are categorical (for correct ordering)
     df['research_type_name'] = pd.Categorical(df['research_type_name'], categories=types, ordered=True)
     df['sdg'] = pd.Categorical(df['sdg'], categories=all_sdgs, ordered=True)  # Order SDGs correctly
@@ -296,7 +343,24 @@ def create_geographical_heatmap(selected_colleges, selected_status, selected_yea
         df = pd.DataFrame(df)
 
     if df.empty:
-        return None  # No data available
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Geographical Distribution of Research Outputs",
+            template="plotly_white",
+            height=300, width=800,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Aggregate by country
     df_country = df.groupby('country', as_index=False)['research_count'].sum()
@@ -365,7 +429,24 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
         df = pd.DataFrame(df)
 
     if df.empty:
-        return None  # No data available
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Top Research Conference Locations",
+            template="plotly_white",
+            height=350, width=350,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Aggregate research count by country and city
     df_grouped = df.groupby(['country', 'city'], as_index=False)['research_count'].sum()
@@ -388,7 +469,7 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
         values='research_count',
         color='research_count',
         color_continuous_scale='Viridis',
-        title="Conference Venue Treemap",
+        title="Top Research Conference Locations",
         labels={'research_count': 'Count'}
     )
 
@@ -432,6 +513,26 @@ def create_conference_participation_bar_chart(selected_colleges, selected_status
     # Ensure df is a DataFrame
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
+
+    if df.empty:
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Conference Participation",
+            template="plotly_white",
+            height=200, width=800,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Determine grouping based on filters
     if sdg_dropdown_value != "ALL":
@@ -516,7 +617,24 @@ def create_local_vs_foreign_donut_chart(selected_colleges, selected_status, sele
         df = pd.DataFrame(df, columns=['sdg', 'research_id', 'country'])
 
     if df.empty:
-        return None  # No data available
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="Local vs. Foreign Research Proceedings",
+            template="plotly_white",
+            height=150, width=350,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Define local countries (e.g., Philippines)
     local_countries = ['Philippines']  # Modify or expand as needed
@@ -606,7 +724,24 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
 
     # Check if DataFrame is empty
     if df.empty:
-        return go.Figure().update_layout(title="No Data Available")
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title=f"Common Topics for {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
+            template="plotly_white",
+            height=250, width=550,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Ensure necessary columns exist
     required_columns = ["title", "abstract", "keywords"]
@@ -683,7 +818,7 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
     Displays top 5 research areas per SDG if 'ALL' is selected, 
     or top 10 research areas per SDG if a specific SDG is selected.
     """
-    
+
     # Convert arrays to lists if needed
     def convert_to_python_list(value):
         return value.tolist() if isinstance(value, np.ndarray) else value
@@ -698,18 +833,40 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
     elif isinstance(selected_years, np.ndarray) and selected_years.size == 1:
         selected_years = int(selected_years.item())  # Extract scalar if it's a single-value array
 
+    # Ensure valid year range
+    start_year = selected_years[0] if selected_years else None
+    end_year = selected_years[-1] if selected_years else None
+
     # Fetch data
     df = get_research_area_data(
-        start_year=selected_years[0] if isinstance(selected_years, list) and len(selected_years) > 0 else None,
-        end_year=selected_years[-1] if isinstance(selected_years, list) and len(selected_years) > 0 else None,
+        start_year=start_year,
+        end_year=end_year,
         sdg_filter=[sdg_dropdown_value] if sdg_dropdown_value != "ALL" else None,
-        status_filter=selected_status,
-        college_filter=selected_colleges
+        status_filter=selected_status if selected_status else None,
+        college_filter=selected_colleges if selected_colleges else None
     )
 
     if df.empty:
         print("No data available for the selected filters.")
-        return None
+
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title=f"Top Research Areas for {sdg_dropdown_value}",
+            template="plotly_white",
+            height=250, width=550,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=0, r=0, t=40, b=0)
+        )
+        return fig
 
     # Convert research count to integer
     df["research_count"] = df["research_count"].astype(int)
@@ -718,22 +875,50 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
     all_sdgs = [f'SDG {i}' for i in range(1, 18)]  # SDG 1 to SDG 17
     df["sdg"] = pd.Categorical(df["sdg"], categories=all_sdgs, ordered=True)
 
-    # Rename column
+    # Rename column for consistency
     df = df.rename(columns={"research_area_name": "Research Area"})
 
     # Aggregate research areas
     df_grouped = df.groupby(["sdg", "Research Area"])["research_count"].sum().reset_index()
 
-    # Get top 5 research areas per SDG if "ALL" is selected, else top 10 for selected SDG
+    # Get top research areas per SDG
     if sdg_dropdown_value == "ALL":
-        df_grouped = df_grouped.sort_values("research_count", ascending=False)  # Sort by research count
-        top_research_areas = df_grouped.groupby("sdg").head(5)  # Get top 5 per SDG
-        x_axis = "sdg"  # X-axis is SDG
+        top_n = 5
+        chart_title = "Top 5 Research Areas per SDG"
+        df_grouped = df_grouped.sort_values("research_count", ascending=False)
+        top_research_areas = df_grouped.groupby("sdg").head(top_n)
+        x_axis = "sdg"
     else:
-        # Get top 10 research areas per selected SDG
-        df_grouped = df_grouped.sort_values("research_count", ascending=False)  # Sort by research count
-        top_research_areas = df_grouped.groupby("sdg").head(10)  # Get top 10 for selected SDG
-        x_axis = "Research Area"  # X-axis is Research Area
+        top_n = 10
+        chart_title = f"Top 10 Research Areas for {sdg_dropdown_value}"
+        
+        # Ensure SDG filtering only applies when needed
+        filtered_df = df_grouped[df_grouped["sdg"] == sdg_dropdown_value]
+        
+        if filtered_df.empty:
+            print(f"No research areas found for {sdg_dropdown_value}. Returning empty chart.")
+
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                template="plotly_white",
+                height=250, width=550,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=0, r=0, t=40, b=0)
+            )
+            return fig
+
+        filtered_df = filtered_df.sort_values("research_count", ascending=False)
+        top_research_areas = filtered_df.groupby("sdg").head(top_n)
+        x_axis = "Research Area"
 
     # Create stacked bar chart
     fig = px.bar(
@@ -741,7 +926,7 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
         x=x_axis,
         y="research_count",
         color="Research Area",
-        title="Research Areas per SDG",
+        title=chart_title,  # Dynamic title
         labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Number of Research Papers"},
         template="plotly_white",
         height=250,
@@ -751,16 +936,14 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
 
     # Update layout
     fig.update_layout(
-        xaxis_title="Research Area" if sdg_dropdown_value != "ALL" else "SDGs",  # Set x-axis title accordingly
+        xaxis_title="Research Area" if sdg_dropdown_value != "ALL" else "SDGs",
         yaxis_title="Count",
-        barmode="stack",  # Stacked bars
+        barmode="stack",
         margin=dict(l=0, r=0, t=40, b=0),
-        showlegend=False  # Remove legends
+        showlegend=False
     )
 
     return fig
-
-
 
 def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
     """
@@ -795,6 +978,25 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
 
     # Convert to DataFrame
     df = pd.DataFrame(research_data)
+    if df.empty:
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="SDG Research Impact",
+            template="plotly_white",
+            height=350, width=520,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Rename columns
     df.rename(columns={'research_count': 'Count', 'sdg': 'SDG', 'college_id': 'College', 'program_id': 'Program'}, inplace=True)
@@ -807,7 +1009,7 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
         sdg_df = pd.DataFrame({'SDG': all_sdgs})
         df = sdg_df.merge(df, on="SDG", how="left").fillna(0)
         y_axis = "SDG"
-        title = "Total SDG Research Impact"
+        title = "SDG Research Impact"
     else:
         if len(selected_colleges) == 1:
             # Aggregate research counts per Program if only one college is selected
@@ -844,6 +1046,22 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
 
     return fig
 
+def get_gradient_color(degree, min_degree, max_degree):
+    if max_degree == min_degree:
+        return "rgb(173, 216, 230)"  # Default to light blue-indigo if all nodes have the same degree
+
+    # Normalize degree to range 0-1
+    ratio = (degree - min_degree) / (max_degree - min_degree)
+
+    # Transition from Light Blue-Indigo (173, 216, 230) to Deep Blue-Indigo (0, 0, 139)
+    red = int(173 - (173 * ratio))   # Red decreases from 173 to 0
+    green = int(216 - (216 * ratio)) # Green decreases from 216 to 0
+    blue = int(230 - (91 * ratio))   # Blue decreases from 230 to 139
+
+    return f"rgb({red}, {green}, {blue})"
+
+
+
 def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
     """
     Generates a bipartite graph showing relationships between SDGs based on shared research.
@@ -874,7 +1092,24 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
     df = pd.DataFrame(data, columns=["sdg", "research_id"])
 
     if df.empty:
-        return None  # No data available
+        # Return a blank figure with centered text
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=20, color="gray")
+        )
+        fig.update_layout(
+            title="SDG Research Collaboration Network",
+            template="plotly_white",
+            height=530, width=600,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        return fig
 
     # Create an undirected graph
     G = nx.Graph()
@@ -905,27 +1140,6 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
     
     min_degree = min(degrees.values()) if degrees else 1  # Lowest number of connections
     max_degree = max(degrees.values()) if degrees else 1  # Highest number of connections
-
-    # Function to scale color from Yellow → Orange → Green
-    def get_gradient_color(degree, min_degree, max_degree):
-        if max_degree == min_degree:
-            return "rgb(255, 165, 0)"  # Default orange if all nodes have the same degree
-
-        # Normalize degree to range 0-1
-        ratio = (degree - min_degree) / (max_degree - min_degree)
-
-        if ratio < 0.5:
-            # Transition from Yellow (255,255,0) to Orange (255,165,0)
-            red = 255
-            green = int(255 - (90 * (ratio / 0.5)))  # Green decreases from 255 to 165
-            blue = 0
-        else:
-            # Transition from Orange (255,165,0) to Green (0,128,0)
-            red = int(255 - (255 * ((ratio - 0.5) / 0.5)))  # Red decreases from 255 to 0
-            green = int(165 + (63 * ((ratio - 0.5) / 0.5)))  # Green increases from 165 to 128
-            blue = 0
-
-        return f"rgb({red}, {green}, {blue})"
 
     # Determine node colors
     node_colors = {}
@@ -988,7 +1202,7 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
     # Create the final figure
     fig = go.Figure(data=[edge_trace, node_trace])
     fig.update_layout(
-        title="SDG Research Bipartite Graph",
+        title="SDG Research Collaboration Network",
         showlegend=False,
         margin=dict(l=0, r=0, t=40, b=0),
         height=530, 

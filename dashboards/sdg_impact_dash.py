@@ -324,7 +324,7 @@ class SDG_Impact_Dash:
                 program=""
             else:
                 view="Unknown"
-            return DashboardHeader(left_text=program, title=f"SDG IMPACT DASHBOARD {college}", right_text=view)
+            return DashboardHeader(left_text=college, title=f"SDG IMPACT DASHBOARD ")
     
         @self.dash_app.callback(
             Output('sdg-time-series', 'figure'),                

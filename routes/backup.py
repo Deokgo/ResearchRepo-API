@@ -564,6 +564,12 @@ def restore_backup(backup_id):
                             with tarfile.open(wal_backup_file, "r:gz") as tar:
                                 tar.extractall(path=pg_wal_dir)
 
+                        print("Setting proper permissions before pg_resetwal")
+                        for root, dirs, files in os.walk(pgdata):
+                            for d in dirs:
+                                os.chmod(os.path.join(root, d), 0o700)
+                            for f in files:
+                                os.chmod(os.path.join(root, f), 0o600)
                         # Run pg_resetwal to reset the WAL
                         pg_resetwal_exe = os.path.join(
                             pg_bin, 

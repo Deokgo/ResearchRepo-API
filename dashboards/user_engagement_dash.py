@@ -936,7 +936,7 @@ class UserEngagementDash:
                 self.program = program
             else:
                 view="Unknown"
-            return DashboardHeader(left_text=f"{college}", title=f"USER ENGAGEMENT DASHBOARD", right_text=view), college, style
+            return DashboardHeader(left_text=f"{college}", title=f"USER ENGAGEMENT DASHBOARD"), college, style
 
         @self.dash_app.callback(
             [

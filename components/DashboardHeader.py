@@ -1,7 +1,8 @@
 import dash_bootstrap_components as dbc
 import dash_html_components as html
+from datetime import datetime
 
-def DashboardHeader(left_text=None, title=None, right_text=None):
+def DashboardHeader(left_text=None, title=None):
     return dbc.Row([
         # Left Section
         dbc.Col(
@@ -50,7 +51,7 @@ def DashboardHeader(left_text=None, title=None, right_text=None):
 
         # Right Section
         dbc.Col(
-            html.P(right_text if right_text else html.Span("\u00A0"), 
+            html.P(f"as of {datetime.now():%B %d, %Y %I:%M %p}", 
                    style={
                        "color": "#6c757d",
                        "fontSize": "16px",
