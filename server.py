@@ -14,6 +14,8 @@ import json
 from urllib.parse import urlparse
 from models import Account
 
+
+
 def initialize_redis(app):
     """Initialize Redis and attach it to the app."""
     redis_client = redis.StrictRedis(
@@ -133,6 +135,7 @@ app.register_blueprint(backup, url_prefix='/backup')
 from dashboards.main_dashboard import create_main_dashboard
 from dashboards.main_dash import MainDashboard
 from knowledgegraph.knowledgegraph import create_kg_area
+from knowledgegraph.keywordskg import create_research_network
 from knowledgegraph.collectionkg import collection_kg
 from dashboards.college_dash import CollegeDashApp
 from dashboards.program_dash import ProgDashApp
@@ -156,6 +159,7 @@ def create_dash_apps(app):
             MainDashboard(app)
             create_main_dashboard(app)
             create_kg_area(app)
+            create_research_network(app)
             collection_kg(app)
             CollegeDashApp(app)
             ProgDashApp(app)
