@@ -1,27 +1,20 @@
 import dash
-from dash import Dash, html, dcc, dash_table
+from dash import Dash, html, dcc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 from . import db_manager
-import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
-import numpy as np
-from database.institutional_performance_queries import get_data_for_performance_overview, get_data_for_research_type_bar_plot, get_data_for_research_status_bar_plot, get_data_for_scopus_section, get_data_for_jounal_section, get_data_for_sdg, get_data_for_modal_contents, get_data_for_text_displays
-from urllib.parse import parse_qs, urlparse
+from database.institutional_performance_queries import get_data_for_modal_contents, get_data_for_text_displays
+from urllib.parse import parse_qs
 from components.DashboardHeader import DashboardHeader
 from components.Tabs import Tabs
-import io
 import pandas as pd
-from dash.dcc import send_data_frame, send_file
+from dash.dcc import send_file
 from components.KPI_Card import KPI_Card
-import os
-import datetime
-from pathlib import Path
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
 from charts.institutional_performance_charts import ResearchOutputPlot
-from dash import callback_context
 from dash.exceptions import PreventUpdate
+from datetime import datetime
 
 class Institutional_Performance_Dash:
     def __init__(self, flask_app, college=None, program=None):
@@ -219,8 +212,8 @@ class Institutional_Performance_Dash:
                         id='nonscopus_scopus_tabs',
                         value='line',
                         children=[
-                            dcc.Tab(label='Line Chart', value='line', style={"font-size": "10px"}),
-                            dcc.Tab(label='Pie Chart', value='pie', style={"font-size": "12px"})
+                            dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "10px"}),
+                            dcc.Tab(label='Percentage Distribution', value='pie', style={"font-size": "12px"})
                         ],
                         style={"font-size": "14px"}  # Adjust overall font size of tabs
                     ),
@@ -267,8 +260,8 @@ class Institutional_Performance_Dash:
                     id='proceeding_conference_tabs',
                     value='line',  # Default view is the line chart
                     children=[
-                        dcc.Tab(label='Line Chart', value='line', style={"font-size": "10px"}),
-                        dcc.Tab(label='Pie Chart', value='pie', style={"font-size": "12px"})
+                        dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "10px"}),
+                        dcc.Tab(label='Percentage Distribution', value='pie', style={"font-size": "12px"})
                     ],
                     style={"font-size": "14px"}  # Adjust overall font size of tabs
                 ),
@@ -482,32 +475,24 @@ class Institutional_Performance_Dash:
                 college = params.get("college", [""])[0]
                 program = params.get("program", [""])[0]
 
-            view = ""
             style = None
+            today_date = f'As of {str(datetime.today().strftime("%B %d, %Y"))}'
 
             if user_role in ["02", "03"]:
-                if user_role == "02":
-                    view = "RPCO Director"
-                elif user_role == "03":
-                    view = "Head Executive"
                 style = {"display": "block"}
                 college = ""
                 program = ""
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=view)
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
             elif user_role == "04":
-                view = "College Dean"
                 style = {"display": "none"}
                 self.college = college
                 self.program = program
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=view)
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
             elif user_role == "05":
-                view = "Program Chair"
                 style = {"display": "none"}
                 self.college = college
                 self.program = program
-                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=view)
-            else:
-                view = "Unknown"
+                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD", right_text=today_date)
 
             return header
         
@@ -665,7 +650,7 @@ class Institutional_Performance_Dash:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+            return self.plot_instance.update_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
         
         @self.dash_app.callback(
             Output('college_pie_chart', 'figure'),
@@ -794,7 +779,7 @@ class Institutional_Performance_Dash:
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             if tab == 'line':
-                return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+                return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
             else:
                 return self.plot_instance.scopus_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
             
@@ -817,7 +802,7 @@ class Institutional_Performance_Dash:
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             if tab == 'line':
-                return self.plot_instance.publication_format_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
+                return self.plot_instance.publication_format_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
             else:
                 return self.plot_instance.publication_format_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
             

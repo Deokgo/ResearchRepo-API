@@ -11,11 +11,7 @@ import random
 class ResearchOutputPlot:
     def __init__(self):
         self.program_colors = {}
-        self.all_sdgs = [
-            'SDG 1', 'SDG 2', 'SDG 3', 'SDG 4', 'SDG 5', 'SDG 6', 'SDG 7', 
-            'SDG 8', 'SDG 9', 'SDG 10', 'SDG 11', 'SDG 12', 'SDG 13', 
-            'SDG 14', 'SDG 15', 'SDG 16', 'SDG 17'
-        ]
+        self.all_sdgs = [f"SDG {i}" for i in range(1, 18)]  # Ensuring correct order
     
     def get_program_colors(self, df):
         unique_programs = df['program_id'].unique()
@@ -36,7 +32,7 @@ class ResearchOutputPlot:
                 self.program_colors[program] = chosen_color
                 used_colors.add(chosen_color)  # Mark as used
     
-    def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
@@ -48,12 +44,14 @@ class ResearchOutputPlot:
             df = pd.DataFrame(filtered_data_with_term)
             
             if len(selected_colleges) == 1:
+                label = {'program_id': 'Programs'}
                 grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
                 color_column = 'program_id'
                 title = f'Number of Research Outputs for {selected_colleges[0]}'
-                self.get_program_colors(grouped_df)  # Ensure this method returns a dictionary
+                self.get_program_colors(grouped_df)
                 color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
             else:
+                label = {'college_id': 'Colleges'}
                 grouped_df = df.groupby(['college_id', 'year']).size().reset_index(name='TitleCount')
                 color_column = 'college_id'
                 title = 'Number of Research Outputs per College'
@@ -64,10 +62,12 @@ class ResearchOutputPlot:
             df = pd.DataFrame(filtered_data_with_term)
             
             if len(selected_programs) == 1:
+                label = {'program_id': 'Program(s)'}
                 grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
                 color_column = 'program_id'
                 title = f'Number of Research Outputs for {selected_programs[0]}'
             else:
+                label = {'program_id': 'Program(s)'}
                 df = df[df['program_id'].isin(selected_programs)]
                 grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
                 color_column = 'program_id'
@@ -76,9 +76,21 @@ class ResearchOutputPlot:
             self.get_program_colors(df)
             color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
 
-        # Debugging: Print color map type
-        print("color_discrete_map:", color_discrete_map)
-        print("Type of color_discrete_map:", type(color_discrete_map))
+        # Dynamically determine the first available year and add year[0] - 1 if applicable
+        if not grouped_df.empty:
+            first_year = default_years[0]
+
+            if first_year in selected_years:
+                previous_year = first_year - 1
+
+                # Get unique categories (colleges/programs)
+                categories = grouped_df[color_column].unique()
+
+                # Create missing rows with count 0
+                missing_rows = pd.DataFrame({color_column: categories, 'year': previous_year, 'TitleCount': 0})
+
+                # Append to the dataframe
+                grouped_df = pd.concat([missing_rows, grouped_df], ignore_index=True)
 
         fig_line = px.line(
             grouped_df,
@@ -86,7 +98,8 @@ class ResearchOutputPlot:
             y='TitleCount',
             color=color_column,
             markers=True,
-            color_discrete_map=color_discrete_map
+            color_discrete_map=color_discrete_map,
+            labels=label
         )
         
         fig_line.update_layout(
@@ -164,8 +177,14 @@ class ResearchOutputPlot:
         
         fig = go.Figure()
         group_col = 'college_id' if user_id in ["02", "03"] and len(selected_colleges) > 1 else 'program_id'
-        title = "Comparison of Research Output Type Across " + ("Colleges" if group_col == 'college_id' else "Programs")
         
+        if len(selected_programs) == 1:
+            title = f"Comparison of Research Output Type in {selected_programs[0]}"
+        elif len(selected_colleges) == 1:
+            title = f"Comparison of Research Output Type Across Programs in {selected_colleges[0]}"
+        else:
+            title = "Comparison of Research Output Type Across " + ("Colleges" if group_col == 'college_id' else "Programs")
+
         status_count = df.groupby(['research_type', group_col]).size().reset_index(name='Count')
         pivot_df = status_count.pivot(index='research_type', columns=group_col, values='Count').fillna(0)
         
@@ -225,7 +244,13 @@ class ResearchOutputPlot:
         fig = go.Figure()
 
         group_by_col = 'college_id' if user_id in ["02", "03"] and len(selected_colleges) > 1 else 'program_id'
-        title_suffix = "Colleges" if group_by_col == 'college_id' else "Programs"
+        
+        if len(selected_programs) == 1:
+            title_suffix = f'in {selected_programs[0]}'
+        elif len(selected_colleges) == 1:
+            title_suffix = f"Across Programs in {selected_colleges[0]}"
+        else:
+            title_suffix = "Across Colleges" if group_by_col == 'college_id' else "Across Programs"
 
         status_count = df.groupby(['status', group_by_col]).size().reset_index(name='Count')
         pivot_df = status_count.pivot(index='status', columns=group_by_col, values='Count').fillna(0)
@@ -246,7 +271,7 @@ class ResearchOutputPlot:
 
         fig.update_layout(
             barmode='group',
-            title=dict(text=f"Comparison of Research Status Across {title_suffix}", font=dict(size=12)),
+            title=dict(text=f"Comparison of Research Status {title_suffix}", font=dict(size=12)),
             xaxis_title="Research Status",
             yaxis_title="Research Outputs",
             xaxis=dict(tickvals=status_order, ticktext=status_order, categoryorder='array', categoryarray=status_order),
@@ -366,11 +391,14 @@ class ResearchOutputPlot:
             return px.scatter(title="No data available")
         
         entity = 'program_id' if user_id not in ("02", "03") or len(selected_colleges) == 1 else 'college_id'
-        title = (f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
+        title = (f'Distribution of SDG-Targeted Research in {selected_programs[0]}' 
+                if len(selected_programs) == 1 
+                else f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
                 if user_id in ["02", "03"] and len(selected_colleges) == 1
-                else 'Distribution of SDG-Targeted Research Across Programs'
-                if user_id not in ("02", "03") else 'Distribution of SDG-Targeted Research Across Colleges')
-        
+                else f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
+                if user_id not in ("02", "03") 
+                else 'Distribution of SDG-Targeted Research Across Colleges')
+                
         df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
         df_expanded['sdg'] = df_expanded['sdg'].str.strip()
         df_expanded.drop(columns=['level_1'], inplace=True)
@@ -386,7 +414,7 @@ class ResearchOutputPlot:
         for value in sdg_count[entity].unique():
             entity_data = sdg_count[sdg_count[entity] == value]
             fig.add_trace(go.Scatter(
-                x=entity_data['sdg'],
+                x=[int(sdg.split(" ")[1]) for sdg in entity_data['sdg']],  # Ensure x values are numeric
                 y=entity_data[entity],
                 mode='markers',
                 marker=dict(
@@ -398,20 +426,29 @@ class ResearchOutputPlot:
                 ),
                 name=value
             ))
-        
+
         fig.update_layout(
             xaxis_title='SDG Targeted',
             yaxis_title='Programs' if entity == 'program_id' else 'Colleges',
             title=title,
-            xaxis=dict(tickvals=self.all_sdgs, ticktext=self.all_sdgs),
+            xaxis=dict(
+                categoryorder="array",
+                categoryarray=["SDG " + str(i) for i in range(1, 18)],  # Ensuring SDG 1 to 17 in order
+                tickvals=list(range(1, 18)),
+                ticktext=["SDG " + str(i) for i in range(1, 18)]
+            ),
             yaxis=dict(autorange="reversed"),
             showlegend=True,
+            legend=dict(
+                itemsizing="constant",  # Ensures uniform marker sizes in the legend
+            ),
+            legend_tracegroupgap=5,
             height=300 if user_id == "05" else None
         )
         
         return fig
 
-    def scopus_line_graph(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def scopus_line_graph(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
@@ -430,7 +467,23 @@ class ResearchOutputPlot:
         # Group and ensure numeric types
         grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
         grouped_df[['year', 'Count']] = grouped_df[['year', 'Count']].astype(int)
-        
+
+        # Ensure the first year - 1 exists with count 0 if the first year is in selected_years
+        if not grouped_df.empty:
+            first_year = default_years[0]
+            
+            if first_year in selected_years:
+                previous_year = first_year - 1
+                
+                # Get unique scopus categories
+                scopus_categories = grouped_df['scopus'].unique()
+                
+                # Create missing rows
+                missing_rows = pd.DataFrame({'scopus': scopus_categories, 'year': previous_year, 'Count': 0})
+                
+                # Append to the dataframe
+                grouped_df = pd.concat([missing_rows, grouped_df], ignore_index=True)
+
         # Create the line chart
         fig_line = px.line(
             grouped_df, x='year', y='Count', color='scopus',
@@ -495,7 +548,7 @@ class ResearchOutputPlot:
         
         return fig_pie
     
-    def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
@@ -515,6 +568,22 @@ class ResearchOutputPlot:
         # Group data by 'journal' and 'year'
         grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
         grouped_df[['year', 'Count']] = grouped_df[['year', 'Count']].astype(int)
+
+        # Ensure the first year - 1 exists with count 0 if the first year is in selected_years
+        if not grouped_df.empty:
+            first_year = default_years[0]
+            
+            if first_year in selected_years:
+                previous_year = first_year - 1
+
+                # Get unique journal categories
+                journal_categories = grouped_df['journal'].unique()
+
+                # Create missing rows
+                missing_rows = pd.DataFrame({'journal': journal_categories, 'year': previous_year, 'Count': 0})
+
+                # Append to the dataframe
+                grouped_df = pd.concat([missing_rows, grouped_df], ignore_index=True)
 
         # Create the line chart with markers
         fig_line = px.line(
