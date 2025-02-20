@@ -315,18 +315,28 @@ class Institutional_Performance_Dash:
             dcc.Download(id="pullout-download-link"), # For download feature (modal content)
             dbc.Container([
                 dbc.Row([
-                    # Sidebar controls
                     dbc.Col(
                         controls,
-                        width={"size": 2, "order": 1},  # Adjust width for sidebar
-                        style={"height": "100%", "padding": "0", "overflow-y": "auto"}
+                        width={"size": 2, "order": 1},
+                        style={"height": "100vh", "padding": "0", "overflow": "hidden"}
                     ),
-                    # Main Contents
                     dbc.Col(
                         html.Div([
-                            html.Div(id="dynamic-header", style={"margin-bottom": "20px"}),  # Adjust margin-bottom
+                            html.Div(id="dynamic-header", style={"margin-bottom": "20px", "padding-top": "10px"}),
                             text_display,
-                            
+                            html.Div(
+                                id="dashboard-tabs",
+                                children=Tabs(
+                                    tabs_data=[
+                                        ("Performance Overview", html.Div(main_dash, style={"height": "100%", "padding": "5px"})),
+                                        ("Research Statuses and Types", html.Div(sub_dash1, style={"height": "100%", "padding": "5px"})),
+                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={"height": "100%", "padding": "5px"})),
+                                        ("SDG Distribution", html.Div(sub_dash3, style={"height": "100%", "padding": "5px"})),
+                                        ("Publication Types", html.Div(sub_dash4, style={"height": "100%", "padding": "5px"}))
+                                    ]
+                                ),
+                                style={"height": "calc(100vh - 50px)", "overflow": "hidden"}
+                            ),
                             # Modals for each button
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Research Output(s)")),
@@ -393,48 +403,17 @@ class Institutional_Performance_Dash:
                                     ])
                                 )     
                             ], id="pullout-modal", scrollable=True, is_open=False, size="xl"),
-
-                            # Tabs
-                            html.Div(
-                                id="dashboard-tabs",
-                                children=Tabs(
-                                    tabs_data=[
-                                        ("Performance Overview", html.Div(main_dash, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
-                                        ("Research Statuses and Types", html.Div(sub_dash1, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
-                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
-                                        ("SDG Distribution", html.Div(sub_dash3, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'})),
-                                        ("Publication Types", html.Div(sub_dash4, style={'border': '1px solid #e8e9eb', 'padding': '10px', 'margin-top': '20px'}))
-                                    ]
-                                ),
-                                style={"margin-top": "20px"}  # Adds space before the tabs
-                            ),
                         ], style={
-                            "height": "100%",
                             "display": "flex",
                             "flex-direction": "column",
-                            "overflow-x": "hidden",
-                            "overflow-y": "auto",
-                            "padding": "20px",
-                            "margin-top": "20px"  # Move content lower
+                            "height": "100vh",
+                            "padding": "10px",
+                            "overflow": "hidden"
                         }),
                         width={"size": 10, "order": 2},
-                        style={
-                            "height": "100%",
-                            "display": "flex",
-                            "flex-direction": "column"
-                        }
                     ),
-                ], style={
-                    "height": "100vh",
-                    "display": "flex",
-                    "flex-wrap": "nowrap",
-                    "align-items": "flex-start",  # Aligns content lower
-                }),
-            ], fluid=True, style={
-                "height": "100vh",
-                "margin": "0",
-                "padding": "0",
-            }),
+                ], style={"height": "100vh", "display": "flex", "flex-wrap": "nowrap"}),
+            ], fluid=True, style={"height": "100vh", "margin": "0", "padding": "0", "overflow": "hidden"}),
         ], style={
             "height": "100vh",
             "margin": "0",
