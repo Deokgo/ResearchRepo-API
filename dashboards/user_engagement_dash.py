@@ -129,17 +129,16 @@ class UserEngagementDash:
                                     dbc.Tabs([
                                         dbc.Tab(
                                             dcc.Graph(id='user-funnel-chart'),
-                                            label="User Funnel"
+                                            label="User Activity"
                                         ),
                                         dbc.Tab(
                                             dcc.Graph(id='research-funnel-chart'),
-                                            label="Research Funnel"
+                                            label="Research Outputs Activity"
                                         )
                                     ])
                                 ),
-                                width="auto",
-                                className='p-2',
-                                style={"margin-right": "5px"}
+                                width="auto",  # Adjust to 50% width to align with KPI cards
+                                className='p-0' 
                             ),
                             dbc.Col(
                                 dbc.Card(
@@ -147,9 +146,8 @@ class UserEngagementDash:
                                         id='active-days'
                                     )
                                 ),
-                                width="auto",  # Automatically adjust width
-                                className='p-2',  # Remove padding
-                                style={"margin-left": "5px"}
+                                width="auto",  # Adjust to 50% width to align with KPI cards
+                                className='p-0' 
                             )
                         ],
                         className="g-0",
@@ -182,7 +180,7 @@ class UserEngagementDash:
             ],
             id="kpi-modal",
             is_open=False,  # Start closed
-            size="xl",  # Large modal for better graph view
+            size = "xl" # Large modal for better graph view
         )
 
         
@@ -244,21 +242,27 @@ class UserEngagementDash:
         # Assuming get_engagement_over_time returns a list of tuples [(date, total_views, total_unique_views, total_downloads), ...]
         engagement_data = get_engagement_over_time(start_date, end_date, selected_colleges)
 
-        if not engagement_data:
-            print("Debug: Engagement data is empty.")
-            return px.line(title='Views and Downloads Over Time').update_layout(
-                annotations=[{
-                    'text': "No data available to chart for the selected colleges and date range.",
-                    'xref': 'paper', 'yref': 'paper',
-                    'x': 0.5, 'y': 0.5,
-                    'showarrow': False,
-                    'font': {'size': 16, 'color': 'red'}
-                }]
-            )
-
         # Convert data to DataFrame
         df = pd.DataFrame(engagement_data, columns=['engagement_date', 'total_views', 'total_unique_views', 'total_downloads'])
-
+        if df.empty:
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                title="User Engagement Over Time (Views, Downloads, Unique Views)",
+                template="plotly_white",
+                height=230, width=1200,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=30, b=10)
+            )
+            return fig        
 
         # Ensure 'engagement_date' is in datetime format
         df['engagement_date'] = pd.to_datetime(df['engagement_date'], errors='coerce')
@@ -389,12 +393,29 @@ class UserEngagementDash:
         # Fetch funnel data
         funnel_data = get_user_funnel_data(start_date, end_date, college_ids=selected_colleges)
 
-        if not funnel_data:
-            print("Debug: User funnel data is empty or could not be fetched.")
-            return go.Figure()
 
         # Convert to DataFrame
         df = pd.DataFrame(funnel_data)
+
+        if df.empty:
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                title="User Activity: Interaction Breakdown",
+                template="plotly_white",
+                height=200, width=600,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=30, b=10)
+            )
+            return fig  
 
         # Check if necessary columns exist
         if not all(col in df.columns for col in ['stage', 'total']):
@@ -422,7 +443,7 @@ class UserEngagementDash:
                         x='total', 
                         y='Metric', 
                         orientation='h',  
-                        title='User Engagement Funnel: Views, Unique Views, Downloads',
+                        title='User Activity: Interaction Breakdown',
                         labels={'Metric': 'Stage', 'total': 'Count'})
         
         # Update layout
@@ -449,13 +470,27 @@ class UserEngagementDash:
         engagement_data = get_engagement_by_day_of_week(start_date, end_date, selected_colleges)
         print(engagement_data)
         
-        if not engagement_data:
-            print("Debug: Engagement data is empty.")
-            return go.Figure()
-        
         # Convert to DataFrame
         df = pd.DataFrame(engagement_data)
-        print("this is the df:", df)
+        if df.empty:
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                title="Most Active Days of the Week",
+                template="plotly_white",
+                height=230, width=600,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig  
         
         # Strip any leading or trailing spaces from 'day_of_week'
         df['day_of_week'] = df['day_of_week'].str.strip()
@@ -518,39 +553,29 @@ class UserEngagementDash:
         # Call get_top_10_research_ids_by_views to get the top 10 research IDs by views
         top_views_data = get_top_10_research_ids_by_views(start_date, end_date, selected_colleges, view_type)
         
-        # Check if the data is empty
-        if not top_views_data:
-            print("Debug: No data available to display.")
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            return fig
-
         # Convert the result to a DataFrame
         df = pd.DataFrame(top_views_data)
 
-        # Check if the DataFrame has the expected columns
-        if 'research_id' not in df.columns or 'total_value' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'research_id' and 'total_value'.")
 
-        # Ensure the DataFrame is not empty
-        if df.empty:
-            print("Debug: No valid data in the DataFrame to display.")
+        if df.empty or df['total_value'].sum() == 0:
+            # Return a blank figure with centered text
             fig = go.Figure()
             fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
+                text="No data available",
                 x=0.5, y=0.5,
+                xref="paper", yref="paper",
                 showarrow=False,
-                font={'size': 12, 'color': 'red'}
+                font=dict(size=20, color="gray")
             )
-            return fig
-
+            fig.update_layout(
+                title=f"Top 10 Research Outputs by {view_type.replace('_', ' ').title()}",
+                template="plotly_white",
+                height=200, width=600,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig 
         # Sort DataFrame by total views in descending order
         df = df.sort_values(by='total_value', ascending=False)
 
@@ -560,20 +585,20 @@ class UserEngagementDash:
         # Create table
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=["Rank", "Research ID", "Total Views"],
+                values=["Research ID", "Total Views"],
                 fill_color='lightgray',
                 align='center'
             ),
             cells=dict(
-                values=[df['Rank'], df['research_id'], df['total_value']],
-                fill_color='white',
+                values=[df['research_id'], df['total_value']],
                 align='center'
             )
         )])
 
         fig.update_layout(
             title=f"Top 10 Research Outputs by {view_type.replace('_', ' ').title()}",
-            title_x=0.5
+            title_x=0.5,
+            height=500, width=500  # Added height and width to table layout
         )
 
         return fig
@@ -594,48 +619,40 @@ class UserEngagementDash:
         # Call get_top_10_users_by_downloads to get the top 10 users by download
         top_users_data = get_top_10_users_by_downloads(start_date, end_date, selected_colleges)
         
-        # Check if the data is empty
-        if not top_users_data:
-            print("Debug: No data available to display.")
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            return fig
 
         # Convert the result to a DataFrame
         df = pd.DataFrame(top_users_data)
 
-        # Check if the DataFrame has the expected columns
-        if 'user_id' not in df.columns or 'total_downloads' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'user_id' and 'total_downloads'.")
-
-        # Ensure the DataFrame is not empty
-        if df.empty:
-            print("Debug: No valid data in the DataFrame to display.")
+        if df.empty or df['total_downloads'].sum() == 0:
+            # Return a blank figure with centered text
             fig = go.Figure()
             fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
+                text="No data available",
                 x=0.5, y=0.5,
+                xref="paper", yref="paper",
                 showarrow=False,
-                font={'size': 12, 'color': 'red'}
+                font=dict(size=20, color="gray")
             )
-            return fig
+            fig.update_layout(
+                title="Top 10 Active Users by Downloads",
+                template="plotly_white",
+                height=200, width=400,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig  
 
         # Create a table visualization of the data using Plotly
         fig = go.Figure(data=[go.Table(
-            header=dict(values=["User ID", "Total Downloads"]),
+            header=dict(values=["User", "Total Downloads"]),
             cells=dict(values=[df['user_id'], df['total_downloads']])
         )])
 
         fig.update_layout(
             title="Top 10 Active Users by Downloads",
-            title_x=0.5
+            title_x=0.5,
+            height=500, width=500  # Added height and width to table layout
         )
 
         return fig
@@ -654,48 +671,46 @@ class UserEngagementDash:
         # Call get_top_10_users_by_engagement to get the top 10 users by engagement
         top_users_data = get_top_10_users_by_engagement(start_date, end_date, selected_colleges)
         
-        # Check if the data is empty
-        if not top_users_data:
-            print("Debug: No data available to display.")
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            return fig
 
         # Convert the result to a DataFrame
         df = pd.DataFrame(top_users_data)
 
-        # Check if the DataFrame has the expected columns
-        if 'user_id' not in df.columns or 'total_views' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'user_id' and 'total_views'.")
 
-        # Ensure the DataFrame is not empty
-        if df.empty:
-            print("Debug: No valid data in the DataFrame to display.")
+        if df.empty or df['total_views'].sum() == 0:
+            # Return a blank figure with centered text
             fig = go.Figure()
             fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
+                text="No data available",
                 x=0.5, y=0.5,
+                xref="paper", yref="paper",
                 showarrow=False,
-                font={'size': 12, 'color': 'red'}
+                font=dict(size=20, color="gray")
             )
-            return fig
-
+            fig.update_layout(
+                title="Top 10 Active Users by Engagement",
+                template="plotly_white",
+                height=200, width=500,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig  
         # Create a table visualization of the data using Plotly
         fig = go.Figure(data=[go.Table(
-            header=dict(values=["User ID", "Total Views"]),
-            cells=dict(values=[df['user_id'], df['total_views']])
+            header=dict(
+                values=["User", "Total Total Views"],
+                fill_color='lightgray',
+                align='center'
+            ),
+            cells=dict(
+                values=[df['user_id'], df['total_views']],
+                align='center')
         )])
 
         fig.update_layout(
             title="Top 10 Active Users by Engagement",
-            title_x=0.5
+            title_x=0.5,
+            height=500, width=500  # Added height and width to table layout
         )
 
         return fig
@@ -714,62 +729,31 @@ class UserEngagementDash:
         # Call get_top_10_research_ids_by_downloads to get the top 10 research IDs by downloads
         top_downloads_data = get_top_10_research_ids_by_downloads(start_date, end_date, selected_colleges)
         
-        # Check if the data is empty
-        if not top_downloads_data:
-            print("Debug: No data available to display.")
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            fig.update_layout(
-            paper_bgcolor='white',  # Set the background to white
-            plot_bgcolor='white'    # Set the plot background to white
-        )
-            return fig
 
         # Convert the result to a DataFrame
         df = pd.DataFrame(top_downloads_data)
 
-        # Check if the DataFrame has the expected columns
-        if 'research_id' not in df.columns or 'total_downloads' not in df.columns or 'previous_total_downloads' not in df.columns or 'trend' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'research_id', 'total_downloads', 'previous_total_downloads', and 'trend'.")
-
-        # Ensure the DataFrame is not empty
-        if df.empty:
-            print("Debug: No valid data in the DataFrame to display.")
+        if df.empty or df['total_downloads'].sum() == 0:
+            # Return a blank figure with centered text
             fig = go.Figure()
             fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
+                text="No data available",
                 x=0.5, y=0.5,
+                xref="paper", yref="paper",
                 showarrow=False,
-                font={'size': 12, 'color': 'red'}
+                font=dict(size=20, color="gray")
             )
             fig.update_layout(
-            paper_bgcolor='white',  # Set the background to white
-            plot_bgcolor='white'    # Set the plot background to white
-        )
-            return fig
+                title="Top 10 Research Outputs by Downloads",
+                template="plotly_white",
+                height=230, width=600,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig  
 
-        # Check if all total_downloads values are 0
-        if df['total_downloads'].sum() == 0:
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            fig.update_layout(
-            paper_bgcolor='white',  # Set the background to white
-            plot_bgcolor='white'    # Set the plot background to white
-        )
-            return fig
+
 
         # Sort DataFrame by total downloads in descending order
         df = df.sort_values(by='total_downloads', ascending=False)
@@ -781,12 +765,12 @@ class UserEngagementDash:
         # Create table
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=["Rank", "Research ID", "Total Downloads"],
+                values=["Research Title", "Total Downloads"],
                 fill_color='lightgray',
                 align='center'
             ),
             cells=dict(
-                values=[df['Rank'], df['research_id'], df['total_downloads']],
+                values=[df['research_id'], df['total_downloads']],
                 fill_color='white',
                 align='center'
             )
@@ -794,7 +778,8 @@ class UserEngagementDash:
 
         fig.update_layout(
             title="Top 10 Research Outputs by Downloads",
-            title_x=0.5
+            title_x=0.5,
+            height=500, width=500  # Added height and width to table layout
         )
 
         return fig
@@ -811,13 +796,28 @@ class UserEngagementDash:
 
         # Fetch funnel data
         funnel_data = get_research_funnel_data(start_date, end_date, college_ids=selected_colleges)
-
-        if not funnel_data:
-            print("Debug: Research funnel data is empty or could not be fetched.")
-            return go.Figure()
-
         # Convert to DataFrame
         df = pd.DataFrame(funnel_data)
+
+        if df.empty:
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                title="Research Activity: Interaction Breakdown",
+                template="plotly_white",
+                height=200, width=600,
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=30, b=10)
+            )
+            return fig  
 
         # Check if necessary columns exist
         if not all(col in df.columns for col in ['stage', 'total']):
@@ -845,7 +845,7 @@ class UserEngagementDash:
                         x='total', 
                         y='Metric', 
                         orientation='h',  
-                        title='Research Engagement Funnel: Views, Unique Views, Downloads',
+                        title='Research Activity: Interaction Breakdown',
                         labels={'Metric': 'Stage', 'total': 'Count'})
         
         # Update layout
@@ -866,37 +866,50 @@ class UserEngagementDash:
         # Get top 10 users by distinct research views using the previously created function
         top_users_data = get_top_10_users_by_unique_views(start_date, end_date, college_ids)
 
-        # Check if the data is empty
-        if not top_users_data:
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No data available for the selected colleges and date range.",
-                xref='paper', yref='paper',
-                x=0.5, y=0.5,
-                showarrow=False,
-                font={'size': 12, 'color': 'red'}
-            )
-            return fig
-
         # Convert the list of dictionaries to a pandas DataFrame for easier manipulation
         df = pd.DataFrame(top_users_data)
 
-        # Check if the DataFrame contains the expected columns
-        if 'user_id' not in df.columns or 'distinct_research_count' not in df.columns:
-            raise ValueError("The data does not contain the expected columns: 'user_id' and 'distinct_research_count'.")
+        if df.empty or df['distinct_research_count'].sum() == 0:
+            # Return a blank figure with centered text
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=20, color="gray")
+            )
+            fig.update_layout(
+                title="Top 10 Users by Research Output Views",
+                template="plotly_white",
+                height=300, width=500,  # Adjusted height and width
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+            return fig  
 
         # Create a table visualization
         fig = go.Figure(data=[go.Table(
-            header=dict(values=["User ID", "Research Output Views"]),
-            cells=dict(values=[df['user_id'], df['distinct_research_count']])
+            header=dict(
+                values=["User", "Research Output Views"],
+                fill_color="lightgray",
+                align="center"
+            ),
+            cells=dict(
+                values=[df['full_name'], df['distinct_research_count']],
+                align="left"
+            )
         )])
 
         fig.update_layout(
             title="Top 10 Users by Research Output Views",
-            title_x=0.5
+            title_x=0.5,
+            height=500, width=500  # Added height and width to table layout
         )
 
         return fig
+
 
     def add_callbacks(self):
         # Callback for reset button
@@ -1095,8 +1108,8 @@ class UserEngagementDash:
                 fig1 = self.top_10_users_download(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
                 fig2 = self.top_10_research_downloads(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
                 body = dbc.Row([
-                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width=6),  # First column for KPI Description
-                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width=6),  # Second column for the Graph
+                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width="auto"),  # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width="auto"),  # Second column for the Graph
                     ],justify="center")
                 title = "Top 10 Research Outputs (Downloads)"
 
@@ -1104,8 +1117,8 @@ class UserEngagementDash:
                 fig2 = self.top_10_research_views(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),view_type='total_unique_views')
                 fig1 = self.create_top_10_users_by_unique_views_chart(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'),selected_colleges)
                 body = dbc.Row([
-                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width=6),  # First column for KPI Description
-                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width=6),  # Second column for the Graph
+                        dbc.Col(dcc.Graph(figure=fig2, id="kpi-graph2"), width="auto"),  # First column for KPI Description
+                        dbc.Col(dcc.Graph(figure=fig1, id="kpi-graph3"), width="auto"),  # Second column for the Graph
                     ],justify="center")
                 title = "Top 10 Research Outputs (Unique Views)"
                 

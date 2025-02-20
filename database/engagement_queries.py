@@ -426,7 +426,7 @@ def get_top_10_users_by_unique_views(start_date, end_date, college_ids=None):
         # Prepare the query to call the get_top_10_users_by_unique_views SQL function
         query = text("""
             SELECT 
-                user_id, 
+                full_name, 
                 distinct_research_count
             FROM get_top_10_users_by_unique_views(:start_date, :end_date, :college_ids)
         """)
