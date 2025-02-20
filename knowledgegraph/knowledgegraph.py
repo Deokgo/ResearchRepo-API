@@ -713,7 +713,7 @@ def create_kg_area(flask_app):
                             if G.nodes[study]['college'] in selected_colleges
                         }
                     
-                    # Get areas connected to filtered studies
+                    # Get areas connected to filtered studies with connection counts
                     area_connections = defaultdict(int)
                     
                     for study in sdg_studies:
@@ -721,22 +721,39 @@ def create_kg_area(flask_app):
                             if G.nodes[neighbor]['type'] == 'area':
                                 area_connections[neighbor] += 1
 
-                    # Initially show all areas (use minimum threshold)
-                    min_connections = min(area_connections.values()) if area_connections else 1
+                    # Calculate default threshold for initial view
+                    if area_connections:
+                        connection_counts = list(area_connections.values())
+                        min_conn = min(connection_counts)
+                        max_conn = min(max(connection_counts), 10)
+                        default_threshold = min_conn + (max_conn - min_conn) // 2
+                    else:
+                        default_threshold = 1
+
+                    # Apply threshold immediately
                     areas_with_studies = {
                         area for area, count in area_connections.items()
-                        if count >= min_connections
+                        if count >= default_threshold
                     }
                     
                     nodes_to_show.update(areas_with_studies)
-                    nodes_to_show.update(sdg_studies)
+                    
+                    # Only show studies connected to visible areas
+                    filtered_studies = {
+                        study for study in sdg_studies
+                        if any(area in areas_with_studies 
+                              for area in G.neighbors(study) 
+                              if G.nodes[area]['type'] == 'area')
+                    }
+                    
+                    nodes_to_show.update(filtered_studies)
                     
                     edges_to_show = [e for e in G.edges() 
                                    if e[0] in nodes_to_show and e[1] in nodes_to_show]
                     
                     show_studies = True
                     new_title = f'<br>Research Areas and Studies for {clicked_id}'
-                    
+
                 filtered_nodes = list(nodes_to_show)
 
                 # Update all build_traces calls to include the new parameters:
@@ -938,7 +955,7 @@ def create_kg_area(flask_app):
          Output('threshold-slider', 'marks')],
         [Input('knowledge-graph', 'clickData'),
          Input('knowledge-graph', 'figure'),
-         Input('apply-filters', 'n_clicks')],  # Add apply-filters as an input
+         Input('apply-filters', 'n_clicks')],
         [State('year-slider', 'value'),
          State('college-dropdown', 'value'),
          State('threshold-slider', 'value')]
@@ -1007,9 +1024,8 @@ def create_kg_area(flask_app):
         )
         
         if is_new_sdg_view:
-            # Only set to average when first entering SDG view
-            avg_conn = int(np.ceil(np.mean(connection_counts)))
-            default_value = avg_conn
+            # Set default value to middle of range
+            default_value = min_conn + (max_conn - min_conn) // 2
         else:
             # Maintain user's selected threshold
             default_value = current_threshold if current_threshold is not None else min_conn

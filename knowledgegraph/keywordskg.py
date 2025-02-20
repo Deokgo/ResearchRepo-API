@@ -6,6 +6,7 @@ import networkx as nx
 from collections import defaultdict, Counter
 import pandas as pd
 from . import db_manager
+import numpy as np
 
 # Define color for keywords (Distinct Purple)
 keyword_color = '#8A2BE2'
@@ -75,6 +76,12 @@ def create_research_network(flask_app):
             'fontWeight': 'bold',
             'marginBottom': '16px',
             'display': 'block'
+        },
+        'threshold_container': {
+            'fontSize': '5px',
+            'color': '#08397C',
+            'marginTop': '20px',
+            'marginBottom': '30px',
         }
     }
 
@@ -89,6 +96,25 @@ def create_research_network(flask_app):
         color_code = row['color_code']
         if college_id and color_code:
             palette_dict[college_id] = color_code
+
+    # Calculate initial threshold range from complete dataset
+    initial_keyword_counts = defaultdict(int)
+    for _, row in df.iterrows():
+        if pd.notnull(row['concatenated_keywords']):
+            keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+            for keyword in keywords:  # Update counts one keyword at a time
+                initial_keyword_counts[keyword] += 1
+
+    min_threshold = 2
+    max_threshold = max(initial_keyword_counts.values())
+    
+    # Create initial marks
+    if max_threshold > 10:
+        step = max(1, max_threshold // 8)
+        initial_marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
+        initial_marks[max_threshold] = f'{max_threshold} uses'
+    else:
+        initial_marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
 
     # Define layout with filters
     dash_app.layout = html.Div([
@@ -124,6 +150,21 @@ def create_research_network(flask_app):
                 ], style=styles['dropdown_container']),
             ]),
 
+            # Add threshold slider
+            html.Div([
+                html.Label('Keyword Usage Threshold:', style=styles['label']),
+                html.Div([
+                    dcc.Slider(
+                        id='threshold-slider',
+                        min=min_threshold,
+                        max=max_threshold,
+                        value=min_threshold,
+                        marks=initial_marks,
+                        step=None
+                    )
+                ], style=styles['threshold_container']),
+            ]),
+
             html.Button(
                 'Apply Filters',
                 id='apply-filters',
@@ -142,14 +183,99 @@ def create_research_network(flask_app):
     ], style=styles['main_container'])
 
     @dash_app.callback(
+        [Output('threshold-slider', 'min'),
+         Output('threshold-slider', 'max'),
+         Output('threshold-slider', 'value'),
+         Output('threshold-slider', 'marks')],
+        [Input('apply-filters', 'n_clicks')],  # Only trigger on apply button click
+        [State('college-dropdown', 'value'),
+         State('year-slider', 'value'),
+         State('threshold-slider', 'value')]
+    )
+    def update_threshold_range(n_clicks, selected_colleges, year_range, current_threshold):
+        # Don't update on initial load
+        if n_clicks is None:
+            # Get initial counts from complete dataset
+            initial_counts = defaultdict(int)
+            for _, row in df.iterrows():
+                if pd.notnull(row['concatenated_keywords']):
+                    keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+                    for keyword in keywords:
+                        initial_counts[keyword] += 1
+            
+            min_threshold = 2
+            max_threshold = max(initial_counts.values())
+            avg_count = int(np.ceil(np.mean(list(initial_counts.values()))))
+            default_value = max(min_threshold, avg_count)
+            
+            if max_threshold > 10:
+                step = max(1, max_threshold // 8)
+                marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
+                marks[max_threshold] = f'{max_threshold} uses'
+            else:
+                marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
+                
+            return min_threshold, max_threshold, default_value, marks
+
+        # Filter data based on selected colleges and years
+        filtered_df = df.copy()
+        
+        if year_range:
+            filtered_df = filtered_df[
+                (filtered_df['year'] >= year_range[0]) & 
+                (filtered_df['year'] <= year_range[1])
+            ]
+        
+        if selected_colleges:
+            filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
+
+        # Count keyword usage
+        keyword_counts = defaultdict(int)
+        for _, row in filtered_df.iterrows():
+            if pd.notnull(row['concatenated_keywords']):
+                keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+                for keyword in keywords:
+                    keyword_counts[keyword] += 1
+
+        if not keyword_counts:
+            return 2, 5, 2, {i: f'{i} uses' for i in range(2, 6)}
+
+        # Calculate threshold values based on filtered data
+        min_threshold = 2
+        max_threshold = max(keyword_counts.values())
+        avg_count = int(np.ceil(np.mean(list(keyword_counts.values()))))
+        
+        # Use ceiling average as default value if no current threshold exists
+        if current_threshold is None:
+            default_value = max(min_threshold, avg_count)
+        else:
+            # Ensure current threshold doesn't exceed new max threshold
+            default_value = min(max_threshold, max(min_threshold, current_threshold))
+
+        # Create marks with reasonable intervals
+        if max_threshold > 10:
+            step = max(1, max_threshold // 8)
+            marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
+            marks[max_threshold] = f'{max_threshold} uses'
+        else:
+            marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
+        
+        return min_threshold, max_threshold, default_value, marks
+
+    @dash_app.callback(
         [Output('research-network-graph', 'figure'),
          Output('clicked-node', 'data')],
         [Input('apply-filters', 'n_clicks'),
          Input('research-network-graph', 'clickData')],
         [State('year-slider', 'value'),
-         State('college-dropdown', 'value')]
+         State('college-dropdown', 'value'),
+         State('threshold-slider', 'value'),
+         State('clicked-node', 'data')]
     )
-    def update_graph(n_clicks, clickData, year_range, selected_colleges):
+    def update_graph(n_clicks, clickData, year_range, selected_colleges, threshold, previous_clicked):
+        # Use the threshold value directly without modifying it
+        threshold = max(2, threshold if threshold is not None else 2)
+        
         global palette_dict
         ctx = dash.callback_context
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -157,7 +283,12 @@ def create_research_network(flask_app):
         # Handle click events
         clicked_node = None
         if triggered_input == 'research-network-graph' and clickData:
-            clicked_node = clickData['points'][0]['text']
+            current_clicked = clickData['points'][0]['text']
+            # If clicking the same node, unselect it
+            if current_clicked == previous_clicked:
+                clicked_node = None
+            else:
+                clicked_node = current_clicked
 
         # Filter data based on year range and selected colleges
         filtered_df = df.copy()
@@ -171,13 +302,24 @@ def create_research_network(flask_app):
         if selected_colleges:
             filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
 
-        # Process filtered data
+        # Process filtered data with threshold
         dept_metadata = defaultdict(lambda: {
             'papers': set(),
             'keywords': Counter(),
             'college': None
         })
 
+        # Count total keyword usage
+        keyword_usage = Counter()
+        for _, row in filtered_df.iterrows():
+            if pd.notnull(row['concatenated_keywords']):
+                keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+                keyword_usage.update(keywords)
+
+        # Only keep keywords that meet the threshold
+        valid_keywords = {k for k, count in keyword_usage.items() if count >= threshold}
+
+        # Process departments with filtered keywords
         for _, row in filtered_df.iterrows():
             program = row['program_name']
             college = row['college_id']
@@ -191,7 +333,9 @@ def create_research_network(flask_app):
 
             if pd.notnull(row['concatenated_keywords']):
                 keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-                dept_metadata[program]['keywords'].update(keywords)
+                # Only include keywords that meet the threshold
+                filtered_keywords = [k for k in keywords if k in valid_keywords]
+                dept_metadata[program]['keywords'].update(filtered_keywords)
 
         # Build network with filtered data
         G = build_keyword_network(dept_metadata)
@@ -264,8 +408,11 @@ def build_network_traces(G, clicked_node):
     pos = global_pos
     highlighted_nodes = set()
     highlighted_edges = []
-
-    if clicked_node and clicked_node in G:
+    
+    # Determine if we're in highlight mode
+    highlight_mode = clicked_node and clicked_node in G
+    
+    if highlight_mode:
         highlighted_nodes.add(clicked_node)
         for neighbor in G.neighbors(clicked_node):
             highlighted_nodes.add(neighbor)
@@ -275,49 +422,77 @@ def build_network_traces(G, clicked_node):
     keyword_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'keyword']
     program_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'program']
 
+    # Filter nodes based on highlight mode
+    if highlight_mode:
+        keyword_nodes = [n for n in keyword_nodes if n in highlighted_nodes]
+        program_nodes = [n for n in program_nodes if n in highlighted_nodes]
+
     # Create edge traces
     edge_x, edge_y = [], []
-    edge_highlight_x, edge_highlight_y = [], []
     
-    for edge in G.edges():
+    # Only show highlighted edges in highlight mode
+    edges_to_show = highlighted_edges if highlight_mode else G.edges()
+    
+    for edge in edges_to_show:
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
-        if edge in highlighted_edges or (edge[1], edge[0]) in highlighted_edges:
-            edge_highlight_x.extend([x0, x1, None])
-            edge_highlight_y.extend([y0, y1, None])
-        else:
-            edge_x.extend([x0, x1, None])
-            edge_y.extend([y0, y1, None])
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
 
-    # Create program node hovertext with keyword counts
+    # Create program node hovertext with connected keyword counts
     program_hovertext = []
+    program_display = []  # New list for display text
     for node in program_nodes:
+        connected_keywords = len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'keyword'])
         if clicked_node and clicked_node in keyword_nodes and G.has_edge(node, clicked_node):
             count = G[node][clicked_node]['weight']
-            program_hovertext.append(f"{node} (used {count} times)")
+            program_hovertext.append(f"{node}\n(connected to {connected_keywords} keywords)\n(used '{clicked_node}' {count} times)")
         else:
-            program_hovertext.append(node)
+            program_hovertext.append(f"{node}\n(connected to {connected_keywords} keywords)")
+        program_display.append(node)  # Only show the name
 
-    # Create keyword node hovertext with usage counts in programs
+    # Create keyword node hovertext with connected program counts
     keyword_hovertext = []
+    keyword_display = []  # New list for display text
     for node in keyword_nodes:
+        connected_programs = len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program'])
         if clicked_node and clicked_node in program_nodes and G.has_edge(clicked_node, node):
             count = G[clicked_node][node]['weight']
-            keyword_hovertext.append(f"{node} (used {count} times)")
+            keyword_hovertext.append(f"{node}\n(used in {connected_programs} programs)\n(used {count} times in '{clicked_node}')")
         else:
-            keyword_hovertext.append(node)
+            keyword_hovertext.append(f"{node}\n(used in {connected_programs} programs)")
+        keyword_display.append(node)  # Only show the name
+
+    # Define size ranges for nodes
+    keyword_size_range = (20, 30)  # Min and max sizes for keywords
+    program_size = 20  # Fixed size for programs
+
+    # Get connection counts for scaling
+    keyword_counts = [len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program']) 
+                     for node in keyword_nodes]
+    max_connections = max(keyword_counts) if keyword_counts else 1
 
     # Create traces
     traces = [
-        go.Scatter(x=edge_x, y=edge_y, line=dict(width=1, color='#888'), mode='lines', hoverinfo='none'),
-        go.Scatter(x=edge_highlight_x, y=edge_highlight_y, line=dict(width=2, color='#FF5733'), mode='lines', hoverinfo='none'),
+        go.Scatter(
+            x=edge_x, 
+            y=edge_y, 
+            line=dict(width=1, color='rgba(200, 200, 200, 0.3)' if not highlight_mode else 'rgba(255, 87, 51, 0.6)'), 
+            mode='lines', 
+            hoverinfo='none'
+        ),
         go.Scatter(
             x=[pos[node][0] for node in program_nodes],
             y=[pos[node][1] for node in program_nodes],
             mode='markers+text',
-            text=program_hovertext,
+            text=program_display,
+            hovertext=program_hovertext,
             textposition="bottom center",
-            marker=dict(size=15, color=[palette_dict.get(G.nodes[node]['college'], '#000000') for node in program_nodes], symbol='circle'),
+            marker=dict(
+                size=program_size,
+                color=[palette_dict.get(G.nodes[node]['college'], '#000000') for node in program_nodes],
+                symbol='circle'
+            ),
             name='Programs',
             hoverinfo='text'
         ),
@@ -325,9 +500,20 @@ def build_network_traces(G, clicked_node):
             x=[pos[node][0] for node in keyword_nodes],
             y=[pos[node][1] for node in keyword_nodes],
             mode='markers+text',
-            text=keyword_hovertext,
+            text=keyword_display,
+            hovertext=keyword_hovertext,
             textposition="bottom center",
-            marker=dict(size=15, color=keyword_color, symbol='diamond'),
+            marker=dict(
+                # Scale node size based on number of connections
+                size=[
+                    keyword_size_range[0] + 
+                    (len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program']) / max_connections) 
+                    * (keyword_size_range[1] - keyword_size_range[0])
+                    for node in keyword_nodes
+                ],
+                color=keyword_color,
+                symbol='diamond'
+            ),
             name='Keywords',
             hoverinfo='text'
         )
