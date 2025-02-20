@@ -266,12 +266,29 @@ def create_kg_area(flask_app):
                 node_labels.append(node)
                 customdata.append({'type': 'sdg', 'id': node})
             elif node_type == 'area':
-                count = node_connections[node]
+                # Find the current SDG node (should be the only SDG in filtered_nodes)
+                current_sdg = next((n for n in filtered_nodes if G.nodes[n]['type'] == 'sdg'), None)
+                
+                # Get studies connected to both this area and the current SDG
+                area_studies = set(n for n in G.neighbors(node) if G.nodes[n]['type'] == 'study')
+                sdg_studies = set(n for n in G.neighbors(current_sdg) if G.nodes[n]['type'] == 'study') if current_sdg else set()
+                common_studies = area_studies.intersection(sdg_studies)
+                
+                # Apply additional filters
+                filtered_studies = set()
+                for study in common_studies:
+                    if year_range and not (year_range[0] <= G.nodes[study]['year'] <= year_range[1]):
+                        continue
+                    if selected_colleges and G.nodes[study]['college'] not in selected_colleges:
+                        continue
+                    filtered_studies.add(study)
+                
+                count = len(filtered_studies)
                 size = area_size_range[0] + (count / max_connections) * (area_size_range[1] - area_size_range[0])
-                node_size.append(size)
+                node_size.append(max(size, area_size_range[0]))
                 node_color.append('#0A438F')
-                hover_text.append(f"<b>Research Area:</b> {node}<br><b>Studies:</b> {count}")
-                node_labels.append(f"{node}" if show_labels else "")
+                hover_text.append(f"Research Area: {node}<br>Studies: {count}")
+                node_labels.append(node if show_labels else '')
                 customdata.append({'type': 'area', 'id': node})
             else:  # Study nodes
                 connected_sdgs = [n for n in G.neighbors(node) if G.nodes[n]['type'] == 'sdg']
@@ -434,6 +451,21 @@ def create_kg_area(flask_app):
                     ], style=styles['dropdown_container']),
                 ]),
 
+                # Add threshold slider
+                html.Div([
+                    html.Label('Connection Threshold:', style=styles['label']),
+                    html.Div([
+                        dcc.Slider(
+                            id='threshold-slider',
+                            min=0,
+                            max=1,
+                            value=0.5,  # Default value of 0.5 (50%)
+                            marks={i/10: f'{i*10}%' for i in range(11)},
+                            step=0.1
+                        )
+                    ], style=styles['slider_container']),
+                ], id='threshold-container', style={'display': 'none'}),  # Hidden by default
+
                 html.Button(
                     'Apply Filters',
                     id='apply-filters',
@@ -484,60 +516,86 @@ def create_kg_area(flask_app):
          Input('knowledge-graph', 'clickData')],
         [State('year-slider', 'value'),
          State('college-dropdown', 'value'),
+         State('threshold-slider', 'value'),
          State('knowledge-graph', 'figure'),
          State('parent-sdg-store', 'data')]
     )
-    def update_graph(n_clicks, clickData, year_range, selected_colleges, current_figure, parent_sdg):
+    def update_graph(n_clicks, clickData, year_range, selected_colleges, threshold, current_figure, parent_sdg):
         ctx = dash.callback_context
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
+        current_title = current_figure.get('layout', {}).get('title', {}).get('text', '')
         show_studies = False
         show_labels = True
-        new_title = '<br>Research Studies Knowledge Graph (SDG View)'
 
-        # Initialize filtered_nodes with all SDG nodes
+        # Initialize with all SDG nodes for the overview
         filtered_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
         nodes_to_show = filtered_nodes
         edges_to_show = []
+        new_title = '<br>Research Studies Knowledge Graph (SDG View)'
 
-        # Apply filters when the button is clicked
-        if triggered_input == 'apply-filters':
-            # Filter studies by year
-            if year_range:
-                year_filtered_studies = {
-                    node for node in G.nodes()
-                    if G.nodes[node]['type'] == 'study' and
-                    year_range[0] <= G.nodes[node]['year'] <= year_range[1]
+        # If we're in a specific SDG view and applying filters, maintain that view
+        if "Research Areas and Studies for SDG" in current_title and triggered_input == 'apply-filters':
+            current_sdg = parent_sdg  # Get the current SDG from store
+            if current_sdg:
+                # Show filtered areas and studies for this SDG
+                nodes_to_show = {current_sdg}
+                
+                # Get filtered studies directly connected to this SDG
+                sdg_studies = set(n for n in G.neighbors(current_sdg) 
+                                if G.nodes[n]['type'] == 'study')
+                
+                if year_range:
+                    sdg_studies = {
+                        study for study in sdg_studies
+                        if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
+                    }
+                
+                if selected_colleges:
+                    sdg_studies = {
+                        study for study in sdg_studies
+                        if G.nodes[study]['college'] in selected_colleges
+                    }
+                
+                # Get areas connected to filtered studies
+                area_connections = defaultdict(int)
+                
+                for study in sdg_studies:
+                    for neighbor in G.neighbors(study):
+                        if G.nodes[neighbor]['type'] == 'area':
+                            area_connections[neighbor] += 1
+
+                # Filter areas based on absolute threshold count
+                areas_with_studies = {
+                    area for area, count in area_connections.items()
+                    if count >= int(threshold)  # Convert threshold to int to ensure proper comparison
                 }
-
-            # Filter by college if selected
-            if selected_colleges:
+                
+                # Only include studies that are connected to the filtered areas
                 filtered_studies = {
-                    node for node in year_filtered_studies
-                    if G.nodes[node]['college'] in selected_colleges
+                    study for study in sdg_studies
+                    if any(area in areas_with_studies 
+                          for area in G.neighbors(study) 
+                          if G.nodes[area]['type'] == 'area')
                 }
-            else:
-                filtered_studies = year_filtered_studies
+                
+                nodes_to_show.update(areas_with_studies)
+                nodes_to_show.update(filtered_studies)
+                
+                edges_to_show = [e for e in G.edges() 
+                               if e[0] in nodes_to_show and e[1] in nodes_to_show]
+                
+                show_studies = True
+                new_title = f'<br>Research Areas and Studies for {current_sdg}'
+                if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
+                    filter_desc = []
+                    if selected_colleges:
+                        filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
+                    if year_range != [df['year'].min(), df['year'].max()]:
+                        filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
+                    new_title += f" ({' | '.join(filter_desc)})"
 
-            filtered_sdgs = {
-                node for node in G.nodes()
-                if G.nodes[node]['type'] == 'sdg' and
-                any(neighbor in filtered_studies for neighbor in G.neighbors(node))
-            }
-            nodes_to_show = filtered_sdgs
-
-            # LABEL
-            # Update the title based on filters
-            filter_desc = []
-            if selected_colleges:
-                filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-            if year_range != [df['year'].min(), df['year'].max()]:
-                filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
-            
-            new_title = "<br>Research Studies Knowledge Graph (SDG View)"
-            if filter_desc:
-                new_title += f" ({' | '.join(filter_desc)})"
-
-        elif clickData and 'points' in clickData and clickData['points'][0].get('customdata'):
+        # Handle click events
+        elif triggered_input == 'knowledge-graph' and clickData:
             point_data = clickData['points'][0]['customdata']
             clicked_type = point_data.get('type')
             clicked_id = point_data.get('id')
@@ -593,13 +651,11 @@ def create_kg_area(flask_app):
                                     if G.nodes[n]['type'] == 'study')
                     
                     if year_range:
-                        # Apply year filter
                         sdg_studies = {
                             study for study in sdg_studies
                             if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
                         }
                     
-                    # Apply college filter if selected
                     if selected_colleges:
                         sdg_studies = {
                             study for study in sdg_studies
@@ -607,11 +663,19 @@ def create_kg_area(flask_app):
                         }
                     
                     # Get areas connected to filtered studies
-                    areas_with_studies = set()
+                    area_connections = defaultdict(int)
+                    
                     for study in sdg_studies:
                         for neighbor in G.neighbors(study):
                             if G.nodes[neighbor]['type'] == 'area':
-                                areas_with_studies.add(neighbor)
+                                area_connections[neighbor] += 1
+
+                    # Initially show all areas (use minimum threshold)
+                    min_connections = min(area_connections.values()) if area_connections else 1
+                    areas_with_studies = {
+                        area for area, count in area_connections.items()
+                        if count >= min_connections
+                    }
                     
                     nodes_to_show.update(areas_with_studies)
                     nodes_to_show.update(sdg_studies)
@@ -621,13 +685,6 @@ def create_kg_area(flask_app):
                     
                     show_studies = True
                     new_title = f'<br>Research Areas and Studies for {clicked_id}'
-                    if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
-                        filter_desc = []
-                        if selected_colleges:
-                            filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-                        if year_range != [df['year'].min(), df['year'].max()]:
-                            filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
-                        new_title += f" ({' | '.join(filter_desc)})"
                     
                 filtered_nodes = list(nodes_to_show)
 
@@ -767,7 +824,7 @@ def create_kg_area(flask_app):
                     'action': 'redirect'
                 }, parent_sdg
 
-         # Update all build_traces calls to include the new parameters:
+        # Build traces and return figure
         edge_trace, node_trace = build_traces(
             nodes_to_show, 
             edges_to_show, 
@@ -778,7 +835,7 @@ def create_kg_area(flask_app):
             selected_colleges=selected_colleges
         )
 
-        new_figure = {
+        return {
             'data': [edge_trace, node_trace],
             'layout': go.Layout(
                 title=new_title,
@@ -791,9 +848,7 @@ def create_kg_area(flask_app):
                 transition=dict(duration=500),
                 dragmode='pan'
             )
-        }
-
-        return new_figure, None, parent_sdg
+        }, None, parent_sdg
 
     # Add clientside callback to handle redirects
     dash_app.clientside_callback(
@@ -811,5 +866,72 @@ def create_kg_area(flask_app):
         Output('knowledge-graph', 'id'),  # Dummy output
         Input('click-store', 'data')
     )
+
+    @dash_app.callback(
+        Output('threshold-container', 'style'),
+        [Input('knowledge-graph', 'figure')]
+    )
+    def toggle_threshold_visibility(figure):
+        # Show threshold slider only when in SDG view
+        if figure and 'title' in figure['layout']:
+            title = figure['layout']['title']['text']
+            if "Research Areas and Studies for SDG" in title:
+                return {'display': 'block'}
+        return {'display': 'none'}
+
+    # Add a new callback to update the threshold slider range
+    @dash_app.callback(
+        [Output('threshold-slider', 'min'),
+         Output('threshold-slider', 'max'),
+         Output('threshold-slider', 'value'),
+         Output('threshold-slider', 'marks')],
+        [Input('knowledge-graph', 'clickData')],
+        [State('year-slider', 'value'),
+         State('college-dropdown', 'value')]
+    )
+    def update_threshold_range(clickData, year_range, selected_colleges):
+        if not clickData:
+            return 0, 10, 5, {i: f"{i} connections" for i in range(0, 11, 1)}
+        
+        clicked_node = clickData['points'][0]['text']
+        if G.nodes[clicked_node]['type'] != 'sdg':
+            return 0, 10, 5, {i: f"{i} connections" for i in range(0, 11, 1)}
+
+        # Get studies for this SDG
+        sdg_studies = set(n for n in G.neighbors(clicked_node) 
+                         if G.nodes[n]['type'] == 'study')
+        
+        # Apply filters
+        if year_range:
+            sdg_studies = {
+                study for study in sdg_studies
+                if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
+            }
+        
+        if selected_colleges:
+            sdg_studies = {
+                study for study in sdg_studies
+                if G.nodes[study]['college'] in selected_colleges
+            }
+
+        # Count area connections
+        area_connections = defaultdict(int)
+        for study in sdg_studies:
+            for neighbor in G.neighbors(study):
+                if G.nodes[neighbor]['type'] == 'area':
+                    area_connections[neighbor] += 1
+
+        if not area_connections:
+            return 0, 10, 5, {i: f"{i} connections" for i in range(0, 11, 1)}
+
+        connection_counts = list(area_connections.values())
+        min_conn = min(connection_counts)
+        max_conn = max(connection_counts)
+        mean_conn = int(sum(connection_counts) / len(connection_counts))
+        
+        # Create marks with connection counts
+        marks = {i: f"{i} connections" for i in range(min_conn, max_conn + 1)}
+        
+        return min_conn, max_conn, mean_conn, marks
 
     return dash_app
