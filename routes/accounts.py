@@ -501,15 +501,17 @@ def check_email():
 @jwt_required()
 def archive_accounts():
     try:
+        """
         data = request.json
         archive_type = data.get('archive_type')
         days = data.get('days', 180)  # Default to 180 days if not specified
         
         if archive_type not in ['INACTIVE', 'DEACTIVATED','ALL']:
             return jsonify({"error": "Invalid archive type"}), 400
+        """
             
         archiver = AccountArchiver()
-        result = archiver.archive_accounts(archive_type, days)
+        result = archiver.archive_accounts()
         
         return jsonify(result), 200
         

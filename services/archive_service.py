@@ -13,7 +13,7 @@ class AccountArchiver:
         self.archive_dir = 'archives/accounts'
         os.makedirs(self.archive_dir, exist_ok=True)
 
-    def archive_accounts(self, archive_type, days):
+    def archive_accounts(self):
         """
         Archive accounts based on specified criteria:
         - INACTIVE: no login for X days or never logged in since creation
@@ -26,65 +26,36 @@ class AccountArchiver:
             if not current_user:
                 return {"error": "Current user not found"}, 404
 
-            # Store user info
             user_info = {
                 'email': current_user.email,
                 'role_name': current_user.role.role_name
             }
 
             current_date = datetime.utcnow()
+            two_years_ago = current_date - timedelta(days=2 * 365)
             accounts_to_archive = []
 
-            if archive_type in ["INACTIVE", "ALL"]:
-                # Get accounts that haven't logged in for X days
-                inactive_with_login = Account.query.filter(
-                    Account.last_login.isnot(None),
-                    Account.last_login <= current_date - timedelta(days=days)
-                ).all()
-                
-                # Get accounts that have never logged in and were created X days ago
-                never_logged_in = Account.query.filter(
-                    Account.last_login.is_(None),
-                    Account.created_at <= current_date - timedelta(days=days)
-                ).all()
-                
-                accounts_to_archive.extend(inactive_with_login)
-                accounts_to_archive.extend(never_logged_in)
-
-            if archive_type in ["DEACTIVATED", "ALL"]:
-                deactivated_accounts = Account.query.filter(
-                    Account.acc_status == 'DEACTIVATED',
-                    Account.updated_at <= current_date - timedelta(days=days)
-                ).all()
-                # Avoid duplicates if an account is both inactive and deactivated
-                deactivated_ids = {acc.user_id for acc in accounts_to_archive}
-                accounts_to_archive.extend([acc for acc in deactivated_accounts 
-                                         if acc.user_id not in deactivated_ids])
-
-            if not accounts_to_archive:
-                return {"message": "No accounts to archive", "count": 0}
+            accounts_to_archive = Account.query.filter(
+                Account.acc_status == 'INACTIVE',
+                Account.last_login <= two_years_ago
+            ).all()
 
             # Create archive files
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            archive_name = f'{archive_type.lower()}_accounts_{timestamp}'
-            
-            # Export to SQL dump
+            timestamp = current_date.strftime('%Y%m%d_%H%M%S')
+            archive_name = f'inactive_accounts_{timestamp}'
             sql_filename = os.path.join(self.archive_dir, f'{archive_name}.sql')
-            backup_success = self._export_to_sql_dump(accounts_to_archive, sql_filename)
 
+            backup_success = self._export_to_sql_dump(accounts_to_archive, sql_filename)
             if not backup_success:
                 return {"error": "Failed to create SQL backup"}, 500
 
-            # Delete accounts and count
+            # Delete accounts
             archived_count = 0
             for account in accounts_to_archive:
                 try:
-                    # Delete visitor record first if it exists
                     visitor = db.session.query(Visitor).filter_by(visitor_id=account.user_id).first()
                     if visitor:
                         db.session.delete(visitor)
-                    
-                    # Now delete the account
                     db.session.delete(account)
                     archived_count += 1
                 except Exception as e:
@@ -96,9 +67,9 @@ class AccountArchiver:
                     email=user_info['email'],
                     role=user_info['role_name'],
                     table_name="Account",
-                    record_id=None,  
+                    record_id=None,
                     operation="ARCHIVE",
-                    action_desc=f"Archived {archived_count} accounts ({archive_type} archive, {days} days threshold). Exported to {archive_name}"
+                    action_desc=f"Archived {archived_count} inactive accounts (2-year threshold). Exported to {archive_name}"
                 )
 
             db.session.commit()
