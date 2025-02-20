@@ -11,6 +11,7 @@ import numpy as np
 
 # Enable dragging feature
 dragmode = 'pan'  # Allows users to move the graph freely
+from services.sdg_colors import sdg_colors
 
 def create_kg_area(flask_app):
     df = db_manager.get_all_data()
@@ -258,8 +259,10 @@ def create_kg_area(flask_app):
                 count = node_connections[node]
                 size = sdg_size_range[0] + (count / max_connections) * (sdg_size_range[1] - sdg_size_range[0])
                 node_size.append(max(size, sdg_size_range[0]))
-                node_color.append('#FF4500')
-                hover_text.append(f"<b>SDG:</b> {node}<br><b>Studies:</b> {count}")
+                # Format the node name to match sdg_colors dictionary keys
+                sdg_key = f"SDG {node.split(' ')[1]}"  # Convert "SDG1" to "SDG 1"
+                node_color.append(sdg_colors.get(sdg_key, '#FF4500'))  # Use color from sdg_colors
+                hover_text.append(f"SDG: {node}<br>{count} studies")
                 node_labels.append(node)
                 customdata.append({'type': 'sdg', 'id': node})
             elif node_type == 'area':
