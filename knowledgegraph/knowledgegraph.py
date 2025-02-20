@@ -9,6 +9,9 @@ from . import db_manager
 import pandas as pd
 import numpy as np
 
+# Enable dragging feature
+dragmode = 'pan'  # Allows users to move the graph freely
+
 def create_kg_area(flask_app):
     df = db_manager.get_all_data()
     G = nx.Graph()
@@ -17,15 +20,7 @@ def create_kg_area(flask_app):
     area_to_studies = defaultdict(list)
 
     # Define color palette
-    palette_dict = {
-        'CAS':'#141cff', 
-        'CCIS':'#04a417', 
-        'CHS':'#c2c2c2', 
-        'MITL':'#bb0c0c',
-        'ETYCB':'#e9e107',
-        'SDG': '#FF4500',  # Orange-red for SDG nodes
-        'area': '#0A438F'  # Keep existing area color
-    }
+    palette_dict = {}
 
     # Build the graph
     for index, row in df.iterrows():
@@ -34,9 +29,13 @@ def create_kg_area(flask_app):
         area_list = row['concatenated_areas'].split(';') if pd.notnull(row['concatenated_areas']) else []
         sdg_list = row['sdg'].split(';') if pd.notnull(row['sdg']) else []
         college_id = row['college_id']
+        color_code = row['color_code']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
         year = row['year']
+
+        if college_id not in palette_dict:
+            palette_dict[college_id] = color_code
 
         # Add study node
         G.add_node(research_id, type='study', research=research_id, title=study,
@@ -174,6 +173,7 @@ def create_kg_area(flask_app):
     fixed_pos = {node: (coords[0] * scaling_factor, coords[1] * scaling_factor) 
                 for node, coords in pos.items()}
 
+    
     def build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=True, show_studies=False, year_range=None, selected_colleges=None):
         # Calculate connections for both SDGs and areas
         node_connections = defaultdict(int)
@@ -258,31 +258,31 @@ def create_kg_area(flask_app):
                 count = node_connections[node]
                 size = sdg_size_range[0] + (count / max_connections) * (sdg_size_range[1] - sdg_size_range[0])
                 node_size.append(max(size, sdg_size_range[0]))
-                node_color.append(palette_dict['SDG'])
-                hover_text.append(f"SDG: {node}<br>{count} studies")
+                node_color.append('#FF4500')
+                hover_text.append(f"<b>SDG:</b> {node}<br><b>Studies:</b> {count}")
                 node_labels.append(node)
                 customdata.append({'type': 'sdg', 'id': node})
             elif node_type == 'area':
                 count = node_connections[node]
                 size = area_size_range[0] + (count / max_connections) * (area_size_range[1] - area_size_range[0])
                 node_size.append(size)
-                node_color.append(palette_dict['area'])
-                hover_text.append(f"Research Area: {node}<br>{count} studies")
+                node_color.append('#0A438F')
+                hover_text.append(f"<b>Research Area:</b> {node}<br><b>Studies:</b> {count}")
                 node_labels.append(f"{node}" if show_labels else "")
                 customdata.append({'type': 'area', 'id': node})
             else:  # Study nodes
-                connected_sdgs = [n for n in G.neighbors(node) 
-                                if G.nodes[n]['type'] == 'sdg']
-                connected_areas = [n for n in G.neighbors(node) 
-                                    if G.nodes[n]['type'] == 'area']
+                connected_sdgs = [n for n in G.neighbors(node) if G.nodes[n]['type'] == 'sdg']
+                connected_areas = [n for n in G.neighbors(node) if G.nodes[n]['type'] == 'area']
                 
-                hover_text.append(f"Title: {G.nodes[node]['title']}<br>"
-                                f"College: {G.nodes[node]['college']}<br>"
-                                f"Program: {G.nodes[node]['program']}<br>"
-                                f"Authors: {G.nodes[node]['authors']}<br>"
-                                f"Year: {G.nodes[node]['year']}<br>"
-                                f"SDGs: {', '.join(connected_sdgs)}<br>"
-                                f"Research Areas: {', '.join(connected_areas)}")
+                hover_text.append(
+                    f"<b>Title:</b> {G.nodes[node]['title']}<br>"
+                    f"<b>College:</b> {G.nodes[node]['college']}<br>"
+                    f"<b>Program:</b> {G.nodes[node]['program']}<br>"
+                    f"<b>Authors:</b> {G.nodes[node]['authors']}<br>"
+                    f"<b>Year:</b> {G.nodes[node]['year']}<br>"
+                    f"<b>SDGs:</b> {', '.join(connected_sdgs)}<br>"
+                    f"<b>Research Areas:</b> {', '.join(connected_areas)}"
+                )
                 node_color.append(palette_dict.get(G.nodes[node]['college'], 'grey'))
                 node_size.append(study_size)
                 node_labels.append("")
@@ -338,8 +338,9 @@ def create_kg_area(flask_app):
     # Define styles as Python dictionaries
     styles = {
         'filter_container': {
-            'width': '30%',
-            'padding': '25px',
+            'width': '25%',
+            'height': '100%',
+            'padding': '20px',
             'border': "1px solid #0A438F",
             'borderRadius': '14px',
             'margin': '15px'
@@ -375,7 +376,8 @@ def create_kg_area(flask_app):
             'padding': '10px',
             'borderRadius': '4px',
             'border': 'none',
-            'cursor': 'pointer'
+            'cursor': 'pointer',
+            'borderRadius': '100px'
         },
         'label': {
             'marginBottom': '10px',
@@ -450,9 +452,10 @@ def create_kg_area(flask_app):
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=25),
-                        xaxis=dict(showgrid=False, zeroline=False),
-                        yaxis=dict(showgrid=False, zeroline=False),
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         transition=dict(duration=500),
+                        dragmode=dragmode
                     )
                 },
                 style={
