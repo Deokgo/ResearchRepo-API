@@ -585,7 +585,7 @@ class UserEngagementDash:
         # Create table
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=["Research ID", "Total Views"],
+                values=["Research Title", "Total Views"],
                 fill_color='lightgray',
                 align='center'
             ),
@@ -898,7 +898,7 @@ class UserEngagementDash:
             ),
             cells=dict(
                 values=[df['full_name'], df['distinct_research_count']],
-                align="left"
+                align="center"
             )
         )])
 
