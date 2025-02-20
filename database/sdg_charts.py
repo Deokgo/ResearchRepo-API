@@ -16,6 +16,7 @@ from io import BytesIO
 import dash_html_components as html
 import plotly.graph_objects as go
 import networkx as nx
+from dashboards.usable_methods import get_gradient_color
 
 # Download necessary NLTK datasets
 nltk.download("stopwords")
@@ -37,12 +38,10 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
 
     selected_colleges = selected_colleges.tolist() if isinstance(selected_colleges, np.ndarray) else [selected_colleges]
     selected_status = selected_status.tolist() if isinstance(selected_status, np.ndarray) else [selected_status]
-
-    min_year = db_manager.get_min_value('year')
-    max_year = max(selected_years)  # Ensure the graph extends to the max selected year
+    max_year = max(selected_years)  # Ensure graph extends to the latest selected year
 
     research_data = get_research_count(
-        start_year=min(selected_years),
+        start_year=min(selected_years)-1,
         end_year=max_year,
         sdg_filter=[sdg_dropdown_value] if sdg_dropdown_value != "ALL" else None,
         status_filter=selected_status,
@@ -58,7 +57,7 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
     })
 
     df = pd.DataFrame(research_data)
-    print("Unique SDGs in Data:", df['sdg'].unique() if not df.empty else "No data")
+    print("Unique SDGs in Data:", df['school_year'].unique() if not df.empty else "No data")
 
     if df.empty:
         fig = go.Figure()
@@ -81,9 +80,11 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
 
     df.rename(columns={'research_count': 'Count', 'sdg': 'sdg', 'school_year': 'school_year', 'college_id': 'College'}, inplace=True)
     df.sort_values(by='school_year', inplace=True)
+    # Determine the correct starting year
+    # Fetch the true minimum year from the database
 
-    # Generate all years from (min_year - 1) to max_year
-    all_years = list(range(min_year - 1, max_year + 1))
+    # Ensure the year range is generated correctly
+    all_years = list(range(min(selected_years)-1, max_year + 1))
     sdg_list = df['sdg'].unique()
 
     # Create a DataFrame with all SDGs and all years filled with 0
@@ -91,6 +92,7 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
 
     # Merge original data, ensuring missing values are filled with 0
     df = pd.merge(full_range_df, df, on=['school_year', 'sdg'], how='left')
+    print(df)
     df['Count'] = df['Count_y'].fillna(df['Count_x']).fillna(0).astype(int)
     df = df[['school_year', 'sdg', 'Count']]  # Keep only necessary columns
 
@@ -1046,19 +1048,6 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
 
     return fig
 
-def get_gradient_color(degree, min_degree, max_degree):
-    if max_degree == min_degree:
-        return "rgb(173, 216, 230)"  # Default to light blue-indigo if all nodes have the same degree
-
-    # Normalize degree to range 0-1
-    ratio = (degree - min_degree) / (max_degree - min_degree)
-
-    # Transition from Light Blue-Indigo (173, 216, 230) to Deep Blue-Indigo (0, 0, 139)
-    red = int(173 - (173 * ratio))   # Red decreases from 173 to 0
-    green = int(216 - (216 * ratio)) # Green decreases from 216 to 0
-    blue = int(230 - (91 * ratio))   # Blue decreases from 230 to 139
-
-    return f"rgb({red}, {green}, {blue})"
 
 
 

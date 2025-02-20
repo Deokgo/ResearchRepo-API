@@ -33,3 +33,17 @@ def download_file(df, file):
     df.to_excel(file_path, index=False)
 
     return file_path
+
+def get_gradient_color(degree, min_degree, max_degree):
+    if max_degree == min_degree:
+        return "rgb(173, 216, 230)"  # Default to light blue-indigo if all nodes have the same degree
+
+    # Normalize degree to range 0-1
+    ratio = (degree - min_degree) / (max_degree - min_degree)
+
+    # Transition from Light Blue-Indigo (173, 216, 230) to Deep Blue-Indigo (0, 0, 139)
+    red = int(173 - (173 * ratio))   # Red decreases from 173 to 0
+    green = int(216 - (216 * ratio)) # Green decreases from 216 to 0
+    blue = int(230 - (91 * ratio))   # Blue decreases from 230 to 139
+
+    return f"rgb({red}, {green}, {blue})"
