@@ -40,7 +40,7 @@ def login():
             if user is None:
                 return jsonify({"message": "User not found"}), 404
 
-            if user.acc_status == 'DEACTIVATED':
+            if user.acc_status == 'INACTIVE':
                 return jsonify({"message": "Account is deactivated. Please contact support."}), 403
 
             if not check_password_hash(user.user_pw, password):

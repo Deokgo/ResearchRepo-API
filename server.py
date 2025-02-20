@@ -1,7 +1,9 @@
+import psycopg2
+import schedule
+import time
 from flask import Flask, request
 from flask_cors import CORS
 from flask_migrate import Migrate #install this module in your terminal
-import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from models import db, check_db
@@ -14,7 +16,32 @@ import json
 from urllib.parse import urlparse
 from models import Account
 
+def update_to_inactive():
+    print('Updating the status of the accounts to INACTIVE')
+    database_uri = app.config['SQLALCHEMY_DATABASE_URI']
+    parsed_uri = urlparse(database_uri)
+    db_user = parsed_uri.username
+    db_password = parsed_uri.password
+    db_name = parsed_uri.path.lstrip('/')
+    
+    conn = psycopg2.connect(f"dbname={db_name} user={db_user} password={db_password}")
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE account 
+        SET acc_status = 'INACTIVE'
+        WHERE acc_status = 'ACTIVE' 
+        AND last_login <= NOW() - INTERVAL '180 days';
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
+schedule.every().day.at("10:49").do(update_to_inactive) # Happens every 12AM
+
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute
 
 def initialize_redis(app):
     """Initialize Redis and attach it to the app."""
@@ -49,12 +76,12 @@ def initialize_db(app):
     with app.app_context():
         db.create_all()
 
-#Initialize the app
+# Initialize the app
 app = Flask(__name__)
 
 CORS(app, supports_credentials=True)
 
-#database Configuration
+# Database Configuration
 app.config.from_object(Config)
 
 initialize_db(app)
@@ -70,12 +97,9 @@ def refresh_expiring_jwts(response):
         now = datetime.now(timezone.utc)
         target_timestamp = datetime.timestamp(now + timedelta(minutes=30))
         
-        # If token has expired
         if datetime.timestamp(now) > exp_timestamp:
-            # Log the token expiration
             from services import auth_services
             user_id = get_jwt_identity()
-            # Get user details for audit trail
             user = Account.query.get(user_id)
             if user:
                 auth_services.log_audit_trail(
@@ -87,8 +111,7 @@ def refresh_expiring_jwts(response):
                     action_desc='Token expired'
                 )
             return response
-            
-        # If token is about to expire (less than 30 min remaining)
+        
         if target_timestamp > exp_timestamp:
             access_token = create_access_token(identity=get_jwt_identity())
             data = response.get_json()
@@ -97,11 +120,8 @@ def refresh_expiring_jwts(response):
                 response.data = json.dumps(data)
         return response
     except (RuntimeError, KeyError):
-        # Case where there is no valid JWT
         return response
 
-
-# Function to check if the tables have any data
 def has_table_data(session, table_model):
     return session.query(table_model).first() is not None
 
@@ -118,7 +138,6 @@ from routes.auditlogs import auditlogs
 from routes.pydash import pydash
 from routes.backup import backup
 
-# Register the blueprint for routes
 app.register_blueprint(auth, url_prefix='/auth')
 app.register_blueprint(conference, url_prefix='/conference')
 app.register_blueprint(accounts, url_prefix='/accounts')
@@ -148,13 +167,9 @@ from dashboards.sdg_impact_dash import SDG_Impact_Dash
 from dashboards.sdg_impact_college import SDG_Impact_College
 from dashboards.institutional_performance_dash import Institutional_Performance_Dash
 
-# Created by Jelly Mallari | Create Dash apps and link them to Flask app
-# Create Dash apps and link them to Flask app
 def create_dash_apps(app):
     with app.app_context():
         session = db.session
-
-        # Check if key tables have data before proceeding
         if has_table_data(session, ResearchOutput):
             MainDashboard(app)
             create_main_dashboard(app)
@@ -169,15 +184,13 @@ def create_dash_apps(app):
             SDG_Impact_Dash(app)
             SDG_Impact_College(app)
             Institutional_Performance_Dash(app)
-            # print("Dash apps created successfully.")
-            # print("Available routes:")
-            # for rule in app.url_map.iter_rules():
-            #     print(rule)
         else:
             print("Dash apps cannot be created as no data is present in the ResearchOutput table.")
 
 create_dash_apps(app)
 
 if __name__ == "__main__":
-    
+    import threading
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
     app.run(debug=True)
