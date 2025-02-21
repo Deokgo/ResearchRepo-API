@@ -211,7 +211,7 @@ class Institutional_Performance_Dash:
                         id='nonscopus_scopus_tabs',
                         value='line',
                         children=[
-                            dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "10px"}),
+                            dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "12px"}),
                             dcc.Tab(label='Percentage Distribution', value='pie', style={"font-size": "12px"})
                         ],
                         style={"font-size": "14px"}  # Adjust overall font size of tabs
@@ -259,7 +259,7 @@ class Institutional_Performance_Dash:
                     id='proceeding_conference_tabs',
                     value='line',  # Default view is the line chart
                     children=[
-                        dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "10px"}),
+                        dcc.Tab(label='Trends Over Time', value='line', style={"font-size": "12px"}),
                         dcc.Tab(label='Percentage Distribution', value='pie', style={"font-size": "12px"})
                     ],
                     style={"font-size": "14px"}  # Adjust overall font size of tabs

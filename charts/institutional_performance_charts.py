@@ -210,7 +210,7 @@ class ResearchOutputPlot:
             xaxis_title=dict(text='Research Type', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             title=dict(text=title, font=dict(size=12)),
-            height=300 if user_id == "05" else None
+            height=None
         )
         
         return fig
@@ -275,7 +275,7 @@ class ResearchOutputPlot:
             xaxis_title="Research Status",
             yaxis_title="Research Outputs",
             xaxis=dict(tickvals=status_order, ticktext=status_order, categoryorder='array', categoryarray=status_order),
-            height=300 if user_id == "05" else None
+            height=None
         )
 
         return fig
@@ -315,7 +315,7 @@ class ResearchOutputPlot:
             title=dict(text=title, font=dict(size=12)),
             xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-            template='plotly_white', height=400 if user_id != "05" else 300
+            template='plotly_white', height=None
         )
         
         return fig_bar
@@ -362,7 +362,7 @@ class ResearchOutputPlot:
             xaxis_title=dict(text=xaxis_title, font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=300 if user_id == "05" else 400
+            height=None
         )
         
         return fig_bar
@@ -443,7 +443,7 @@ class ResearchOutputPlot:
                 itemsizing="constant",  # Ensures uniform marker sizes in the legend
             ),
             legend_tracegroupgap=5,
-            height=300 if user_id == "05" else None
+            height=None
         )
         
         return fig
@@ -496,7 +496,7 @@ class ResearchOutputPlot:
             title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
-            template='plotly_white', height=300 if user_id != "05" else 200,
+            template='plotly_white', height=None,
             margin=dict(l=5, r=5, t=30, b=30),
             xaxis=dict(type='linear', tickangle=-45, automargin=True, tickfont=dict(size=10)),
             yaxis=dict(automargin=True, tickfont=dict(size=10)),
@@ -541,7 +541,7 @@ class ResearchOutputPlot:
         fig_pie.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),
             template='plotly_white',
-            height=200 if user_id == "05" else 300,  # Adjust height for user_id 05
+            height=None,
             margin=dict(l=5, r=5, t=30, b=30),
             legend=dict(font=dict(size=9))
         )
@@ -603,7 +603,7 @@ class ResearchOutputPlot:
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white',
-            height=300 if user_id != "05" else 200,  # Adjust height for user_id "05"
+            height=None,
             margin=dict(l=5, r=5, t=30, b=30),
             xaxis=dict(type='linear', tickangle=-45, automargin=True, tickfont=dict(size=10)),
             yaxis=dict(automargin=True, tickfont=dict(size=10)),
@@ -652,7 +652,7 @@ class ResearchOutputPlot:
         fig_pie.update_layout(
             title=dict(text='Publication Type Distribution', font=dict(size=12)),
             template='plotly_white',
-            height=200 if user_id == "05" else 300,  # Adjust height for user_id "05"
+            height=None,
             margin=dict(l=5, r=5, t=30, b=30),
             legend=dict(font=dict(size=9))
         )
