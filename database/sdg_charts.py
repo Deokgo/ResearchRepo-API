@@ -1203,3 +1203,40 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
     )
 
     return fig
+
+def get_total_proceeding_count(selected_colleges, selected_status, selected_years, sdg_dropdown_value):
+    """
+    Computes the total count of research proceedings and determines the alert message color.
+
+    :return: Tuple (alert message, alert color)
+    """
+
+    # Convert arrays to lists if needed
+    if isinstance(selected_colleges, np.ndarray):
+        selected_colleges = selected_colleges.tolist()
+    if isinstance(selected_status, np.ndarray):
+        selected_status = selected_status.tolist()
+
+    # Fetch data
+    df = get_proceeding_research(
+        start_year=min(selected_years),
+        end_year=max(selected_years),
+        sdg_filter=None if sdg_dropdown_value == "ALL" else [sdg_dropdown_value],
+        status_filter=selected_status,
+        college_filter=selected_colleges,
+    )
+    df =pd.DataFrame(df)
+
+    unique_research_count = df['research_id'].nunique() if 'research_id' in df.columns else 0
+
+
+    # Determine message and color
+    if unique_research_count == 0:
+        alert_message = "No research proceedings data found."
+        alert_color = "danger"  # Red color (Bootstrap)
+    else:
+        record_word = "record" if unique_research_count == 1 else "records"
+        alert_message = f"Showing {unique_research_count} research proceedings {record_word}."
+        alert_color = "warning"  # Yellow color (Bootstrap)
+
+    return alert_message, alert_color  # ✅ Return both message and color

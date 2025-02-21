@@ -9,7 +9,7 @@ from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
 from services.sdg_colors import sdg_colors
-from database.sdg_college_charts import generate_sdg_bipartite_graph,visualize_sdg_impact,create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization
+from database.sdg_college_charts import get_total_proceeding_count,generate_sdg_bipartite_graph,visualize_sdg_impact,create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization
 
 def default_if_empty(selected_values, default_values):
     return selected_values if selected_values else default_values
@@ -182,6 +182,7 @@ class SDG_Impact_College:
         # Map Section
         self.map = dbc.Container([
             dbc.Row([
+                dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True),
                 dbc.Col([
                     dbc.Card(
                         dcc.Loading(
@@ -284,7 +285,7 @@ class SDG_Impact_College:
                     children=Tabs(  # Default Tabs
                         tabs_data=[
                             ("Institutional SDG Impact", self.collage),
-                            ("Global Research Publications", self.map),
+                            ("Global Research Proceedings", self.map),
                             ("Research Trends and Collaboration",self.trend)
                         ]
                     )
@@ -481,3 +482,18 @@ class SDG_Impact_College:
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             return generate_sdg_bipartite_graph(selected_programs, selected_status, selected_years,sdg_dropdown_value,self.college)
+        @self.dash_app.callback([
+                Output("alert-message", "children"),
+                Output("alert-message", "color")],  # ✅ Change color dynamically
+                [
+                Input('program', 'value'), 
+                Input('status', 'value'), 
+                Input('years', 'value'),
+                Input('sdg-dropdown', 'value')]
+        )
+        def update_alert_message(selected_programs, selected_status, selected_years, sdg_dropdown_value):
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_status = default_if_empty(selected_status, self.default_statuses)
+            selected_years = selected_years if selected_years else self.default_years
+
+            return get_total_proceeding_count(selected_programs, selected_status, selected_years, sdg_dropdown_value, self.college)
