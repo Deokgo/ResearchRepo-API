@@ -23,8 +23,9 @@ def create_research_network(flask_app):
     # Define styles as Python dictionaries
     styles = {
         'filter_container': {
-            'width': '30%',
-            'padding': '25px',
+            'width': '25%',
+            'height': '100%',
+            'padding': '20px',
             'border': "1px solid #0A438F",
             'borderRadius': '14px',
             'margin': '15px'
@@ -48,29 +49,30 @@ def create_research_network(flask_app):
         },
         'dropdown_container': {
             'width': 'inherit',
-            'fontSize': '13px',
+            'fontSize' : '13px',
             'padding': '5px',
             'marginBottom': '20px'
         },
         'filter_button': {
             'width': '100%',
             'backgroundColor': '#08397C',
-            'fontSize': '15px',
+            'fontSize' : '15px',
             'color': 'white',
             'padding': '10px',
             'borderRadius': '4px',
             'border': 'none',
-            'cursor': 'pointer'
+            'cursor': 'pointer',
+            'borderRadius': '100px'
         },
         'label': {
             'marginBottom': '10px',
-            'fontSize': '13px',
+            'fontSize' : '13px',
             'color': '#08397C',
             'fontFamily': 'Montserrat',
             'display': 'block'
         },
         'main_label': {
-            'fontSize': '20px',
+            'fontSize' : '20px',
             'color': '#F40824',
             'fontFamily': 'Montserrat',
             'fontWeight': 'bold',
@@ -165,71 +167,43 @@ def create_research_network(flask_app):
                 ], style=styles['threshold_container']),
             ]),
 
-            html.Button(
-                'Apply Filters',
-                id='apply-filters',
-                n_clicks=0,
-                style=styles['filter_button']
-            )
         ], style=styles['filter_container']),
         
         html.Div([
             dcc.Graph(
                 id='research-network-graph',
-                style={'height': 'calc(100vh - 40px)', 'width': '100%'},
-                config={'scrollZoom': True}
+                style={
+                    'height': 'calc(100vh - 40px)',
+                    'width': '100%'
+                },
+                config={
+                    'responsive': True,
+                    'scrollZoom': True,
+                    'displayModeBar': True,
+                    'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+                },
             )
         ], style=styles['graph_container'])
     ], style=styles['main_container'])
 
     @dash_app.callback(
-        [Output('threshold-slider', 'min'),
-         Output('threshold-slider', 'max'),
-         Output('threshold-slider', 'value'),
-         Output('threshold-slider', 'marks')],
-        [Input('apply-filters', 'n_clicks')],  # Only trigger on apply button click
-        [State('college-dropdown', 'value'),
-         State('year-slider', 'value'),
-         State('threshold-slider', 'value')]
-    )
-    def update_threshold_range(n_clicks, selected_colleges, year_range, current_threshold):
-        # Don't update on initial load
-        if n_clicks is None:
-            # Get initial counts from complete dataset
-            initial_counts = defaultdict(int)
-            for _, row in df.iterrows():
-                if pd.notnull(row['concatenated_keywords']):
-                    keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-                    for keyword in keywords:
-                        initial_counts[keyword] += 1
-            
-            min_threshold = 2
-            max_threshold = max(initial_counts.values())
-            avg_count = int(np.ceil(np.mean(list(initial_counts.values()))))
-            default_value = max(min_threshold, avg_count)
-            
-            if max_threshold > 10:
-                step = max(1, max_threshold // 8)
-                marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
-                marks[max_threshold] = f'{max_threshold} uses'
-            else:
-                marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
-                
-            return min_threshold, max_threshold, default_value, marks
-
-        # Filter data based on selected colleges and years
+    [Output('threshold-slider', 'min'),
+     Output('threshold-slider', 'max'),
+     Output('threshold-slider', 'value'),
+     Output('threshold-slider', 'marks')],
+    [Input('year-slider', 'value'),
+     Input('college-dropdown', 'value')]
+)
+    def update_threshold_range(year_range, selected_colleges):
         filtered_df = df.copy()
-        
+
         if year_range:
-            filtered_df = filtered_df[
-                (filtered_df['year'] >= year_range[0]) & 
-                (filtered_df['year'] <= year_range[1])
-            ]
-        
+            filtered_df = filtered_df[(filtered_df['year'] >= year_range[0]) & 
+                                    (filtered_df['year'] <= year_range[1])]
+
         if selected_colleges:
             filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
 
-        # Count keyword usage
         keyword_counts = defaultdict(int)
         for _, row in filtered_df.iterrows():
             if pd.notnull(row['concatenated_keywords']):
@@ -240,86 +214,64 @@ def create_research_network(flask_app):
         if not keyword_counts:
             return 2, 5, 2, {i: f'{i} uses' for i in range(2, 6)}
 
-        # Calculate threshold values based on filtered data
         min_threshold = 2
         max_threshold = max(keyword_counts.values())
         avg_count = int(np.ceil(np.mean(list(keyword_counts.values()))))
-        
-        # Use ceiling average as default value if no current threshold exists
-        if current_threshold is None:
-            default_value = max(min_threshold, avg_count)
-        else:
-            # Ensure current threshold doesn't exceed new max threshold
-            default_value = min(max_threshold, max(min_threshold, current_threshold))
+        default_value = max(min_threshold, avg_count)
 
-        # Create marks with reasonable intervals
         if max_threshold > 10:
             step = max(1, max_threshold // 8)
             marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
             marks[max_threshold] = f'{max_threshold} uses'
         else:
             marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
-        
+
         return min_threshold, max_threshold, default_value, marks
 
+
     @dash_app.callback(
-        [Output('research-network-graph', 'figure'),
-         Output('clicked-node', 'data')],
-        [Input('apply-filters', 'n_clicks'),
-         Input('research-network-graph', 'clickData')],
-        [State('year-slider', 'value'),
-         State('college-dropdown', 'value'),
-         State('threshold-slider', 'value'),
-         State('clicked-node', 'data')]
-    )
-    def update_graph(n_clicks, clickData, year_range, selected_colleges, threshold, previous_clicked):
-        # Use the threshold value directly without modifying it
+    [Output('research-network-graph', 'figure'),
+     Output('clicked-node', 'data')],
+    [Input('year-slider', 'value'),
+     Input('college-dropdown', 'value'),
+     Input('threshold-slider', 'value'),
+     Input('research-network-graph', 'clickData')],
+    [State('clicked-node', 'data')]
+)
+    def update_graph(year_range, selected_colleges, threshold, clickData, previous_clicked):
         threshold = max(2, threshold if threshold is not None else 2)
-        
+
         global palette_dict
         ctx = dash.callback_context
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        
+
         # Handle click events
         clicked_node = None
         if triggered_input == 'research-network-graph' and clickData:
             current_clicked = clickData['points'][0]['text']
-            # If clicking the same node, unselect it
-            if current_clicked == previous_clicked:
-                clicked_node = None
-            else:
-                clicked_node = current_clicked
+            clicked_node = None if current_clicked == previous_clicked else current_clicked
 
-        # Filter data based on year range and selected colleges
+        # Filter and process data
         filtered_df = df.copy()
         
         if year_range:
-            filtered_df = filtered_df[
-                (filtered_df['year'] >= year_range[0]) & 
-                (filtered_df['year'] <= year_range[1])
-            ]
+            filtered_df = filtered_df[(filtered_df['year'] >= year_range[0]) & 
+                                    (filtered_df['year'] <= year_range[1])]
         
         if selected_colleges:
             filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
 
-        # Process filtered data with threshold
-        dept_metadata = defaultdict(lambda: {
-            'papers': set(),
-            'keywords': Counter(),
-            'college': None
-        })
-
-        # Count total keyword usage
+        # Process data based on threshold
+        dept_metadata = defaultdict(lambda: {'papers': set(), 'keywords': Counter(), 'college': None})
         keyword_usage = Counter()
+
         for _, row in filtered_df.iterrows():
             if pd.notnull(row['concatenated_keywords']):
                 keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
                 keyword_usage.update(keywords)
 
-        # Only keep keywords that meet the threshold
         valid_keywords = {k for k, count in keyword_usage.items() if count >= threshold}
 
-        # Process departments with filtered keywords
         for _, row in filtered_df.iterrows():
             program = row['program_name']
             college = row['college_id']
@@ -333,22 +285,17 @@ def create_research_network(flask_app):
 
             if pd.notnull(row['concatenated_keywords']):
                 keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-                # Only include keywords that meet the threshold
                 filtered_keywords = [k for k in keywords if k in valid_keywords]
                 dept_metadata[program]['keywords'].update(filtered_keywords)
 
-        # Build network with filtered data
         G = build_keyword_network(dept_metadata)
         
-        # Update global positions if needed
         global global_pos
         if not global_pos or len(global_pos) != len(G.nodes()):
             global_pos = nx.spring_layout(G, k=1, iterations=50)
 
-        # Build traces
         traces = build_network_traces(G, clicked_node)
 
-        # Create title with filter information
         title = '<br>Program-Keyword Knowledge Graph'
         if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
             filter_desc = []
@@ -362,10 +309,13 @@ def create_research_network(flask_app):
             'data': traces,
             'layout': go.Layout(
                 title=title,
+                titlefont=dict(size=16),
                 showlegend=False,
                 hovermode='closest',
+                margin=dict(b=0, l=0, r=0, t=50),
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                transition=dict(duration=500),
                 dragmode='pan',
                 paper_bgcolor='white',
                 plot_bgcolor='white'

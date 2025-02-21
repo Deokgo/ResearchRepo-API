@@ -475,12 +475,7 @@ def create_kg_area(flask_app):
                     ], style=styles['slider_container']),
                 ], id='threshold-container', style={'display': 'none'}),  # Hidden by default
 
-                html.Button(
-                    'Apply Filters',
-                    id='apply-filters',
-                    n_clicks=0,
-                    style=styles['filter_button']
-                )
+                #html.Button('Reset Filter',id='reset-filters',n_clicks=0,style=styles['filter_button'])
             ])        
         ], style=styles['filter_container']),
         
@@ -495,7 +490,7 @@ def create_kg_area(flask_app):
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=25),
+                        margin=dict(b=0, l=0, r=0, t=50),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         transition=dict(duration=500),
@@ -516,23 +511,26 @@ def create_kg_area(flask_app):
         ], style=styles['graph_container'])
     ], style=styles['main_container'])
 
-    # Callback to handle initial graph display, filters, and node click events
     @dash_app.callback(
-        [Output('knowledge-graph', 'figure'),
-         Output('click-store', 'data'),
-         Output('parent-sdg-store', 'data')],
-        [Input('apply-filters', 'n_clicks'),
-         Input('knowledge-graph', 'clickData')],
-        [State('year-slider', 'value'),
-         State('college-dropdown', 'value'),
-         State('threshold-slider', 'value'),
-         State('knowledge-graph', 'figure'),
-         State('parent-sdg-store', 'data')]
-    )
-    def update_graph(n_clicks, clickData, year_range, selected_colleges, threshold, current_figure, parent_sdg):
+    [Output('knowledge-graph', 'figure'),
+     Output('click-store', 'data'),
+     Output('parent-sdg-store', 'data')],
+    [Input('year-slider', 'value'),
+     Input('college-dropdown', 'value'),
+     Input('threshold-slider', 'value'),
+     Input('knowledge-graph', 'clickData')],  # Add Reset Button as Input
+    [State('knowledge-graph', 'figure'),
+     State('parent-sdg-store', 'data')]
+)
+    def update_graph(year_range, selected_colleges, threshold, clickData, current_figure, parent_sdg):
         ctx = dash.callback_context
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        current_title = current_figure.get('layout', {}).get('title', {}).get('text', '')
+
+        if triggered_input == 'reset-filters':
+            year_range = [df['year'].min(), df['year'].max()]  # Reset year range
+            selected_colleges = []  # Reset college selection
+            threshold = 1  # Reset threshold slider
+        
         show_studies = False
         show_labels = True
 
@@ -774,7 +772,7 @@ def create_kg_area(flask_app):
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=25),
+                        margin=dict(b=0, l=0, r=0, t=50),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         transition=dict(duration=500),
@@ -874,7 +872,7 @@ def create_kg_area(flask_app):
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=25),
+                        margin=dict(b=0, l=0, r=0, t=50),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         transition=dict(duration=500),
@@ -910,7 +908,7 @@ def create_kg_area(flask_app):
                 titlefont=dict(size=16),
                 showlegend=False,
                 hovermode='closest',
-                margin=dict(b=0, l=0, r=0, t=25),
+                margin=dict(b=0, l=0, r=0, t=50),
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 transition=dict(duration=500),
