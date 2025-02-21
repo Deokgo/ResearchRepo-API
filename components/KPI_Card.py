@@ -11,7 +11,7 @@ def KPI_Card(title, value, id, icon=None, color="primary"):
                     html.Div(
                         [
                             html.H3(value, className="mb-0 fw-bold", id=id),  # Smaller text
-                            html.Small(title, className="text-muted"),  # Title always visible
+                            html.Small(title, style={"color": "inherit"}),  # Inherit color from H3
                         ],
                         className="text-center",
                     ),
