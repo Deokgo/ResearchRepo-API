@@ -42,6 +42,8 @@ class ResearchOutputPlot:
         if user_id in ["02", "03"]:
             filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
             df = pd.DataFrame(filtered_data_with_term)
+            if df.empty:
+                return px.bar(title="No data available")
             
             if len(selected_colleges) == 1:
                 label = {'program_id': 'Programs'}
@@ -60,6 +62,8 @@ class ResearchOutputPlot:
         elif user_id in ["04", "05"]:
             filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
             df = pd.DataFrame(filtered_data_with_term)
+            if df.empty:
+                return px.bar(title="No data available")
             
             if len(selected_programs) == 1:
                 label = {'program_id': 'Program(s)'}
@@ -91,6 +95,8 @@ class ResearchOutputPlot:
 
                 # Append to the dataframe
                 grouped_df = pd.concat([missing_rows, grouped_df], ignore_index=True)
+        else:
+            return px.line(title="No data available")
 
         fig_line = px.line(
             grouped_df,
@@ -111,6 +117,12 @@ class ResearchOutputPlot:
             height=400 if user_id != "05" else 300,
             showlegend=True
         )
+
+        fig_line.update_traces(
+            hovertemplate="Year: %{x}<br>"
+                        "Number of Research Outputs: %{y}<extra></extra>"
+        )
+
         
         return fig_line
 
@@ -127,6 +139,9 @@ class ResearchOutputPlot:
         # Fetch data
         filtered_data_with_term = get_data_for_performance_overview(colleges, programs, selected_status, selected_years, selected_terms)
         df = pd.DataFrame(filtered_data_with_term)
+
+        if df.empty:
+            return px.pie(title="No Data Available", template='plotly_white')
         
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
             detail_counts = df[df['college_id'] == selected_colleges[0]].groupby('program_id').size()
@@ -157,6 +172,11 @@ class ResearchOutputPlot:
             margin=dict(l=0, r=0, t=30, b=0),
             height=400 if user_id != "05" else 300,
             title=dict(text=title, font=dict(size=12))
+        )
+
+        fig_pie.update_traces(
+            hovertemplate="%{label}<br>"
+                        "Number of Research Outputs: %{value}<extra></extra>"
         )
         
         return fig_pie
@@ -202,9 +222,13 @@ class ResearchOutputPlot:
                 x=pivot_df.index,
                 y=pivot_df[group],
                 name=group,
-                marker_color=color_map.get(group, 'grey')
+                marker_color=color_map.get(group, 'grey'),
+                hovertemplate="%{customdata}<br>"
+                            "Research Type: %{x}<br>"
+                            "Number of Research Outputs: %{y}<extra></extra>",
+                customdata=[group] * len(pivot_df)  # Pass the group name dynamically
             ))
-        
+
         fig.update_layout(
             barmode='group',
             xaxis_title=dict(text='Research Type', font=dict(size=12)),
@@ -266,7 +290,11 @@ class ResearchOutputPlot:
                 x=pivot_df.index,
                 y=pivot_df[category],
                 name=category,
-                marker_color=colors.get(category, 'grey')
+                marker_color=colors.get(category, 'grey'),
+                hovertemplate="%{customdata}<br>"
+                            "Research Status: %{x}<br>"
+                            "Number of Research Outputs: %{y}<extra></extra>",
+                customdata=[category] * len(pivot_df)  # Pass the college/program name dynamically
             ))
 
         fig.update_layout(
@@ -289,7 +317,8 @@ class ResearchOutputPlot:
         
         data_func_args = (selected_colleges, None) if user_id in ["02", "03"] else (None, selected_programs)
         df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms))
-        df = df[df['scopus'] != 'N/A']
+        if 'scopus' in df.columns:
+            df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
         
         if df.empty:
             return px.bar(title="No data available")
@@ -317,6 +346,12 @@ class ResearchOutputPlot:
             yaxis_title=dict(text='Research Outputs', font=dict(size=12)),
             template='plotly_white', height=None
         )
+
+        fig_bar.update_traces(
+            hovertemplate="%{x}<br>"
+                        "Number of Research Outputs: %{y}<extra></extra>"
+        )
+
         
         return fig_bar
     
@@ -335,7 +370,11 @@ class ResearchOutputPlot:
         
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
-        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        if 'journal' in df.columns:
+            df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+
+        if df.empty:
+            return px.bar(title="No Data Available")
         
         # Determine grouping
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
@@ -364,6 +403,12 @@ class ResearchOutputPlot:
             template='plotly_white',
             height=None
         )
+
+        fig_bar.update_traces(
+            hovertemplate="%{x}<br>"
+                        "Number of Research Outputs: %{y}<extra></extra>"
+        )
+
         
         return fig_bar
     
@@ -424,8 +469,13 @@ class ResearchOutputPlot:
                     sizeref=2. * max(sdg_count['Count']) / (100**2),
                     sizemin=4
                 ),
-                name=value
+                name=value,
+                hovertemplate="%{customdata}<br>"
+                            "SDG: %{x}<br>"
+                            "Number of Research Outputs: %{marker.size}<extra></extra>",
+                customdata=[value] * len(entity_data)  # Pass the college/program name dynamically
             ))
+
 
         fig.update_layout(
             xaxis_title='SDG Targeted',
@@ -462,7 +512,12 @@ class ResearchOutputPlot:
         # Fetch data
         filtered_data = get_data_for_scopus_section(college_filter, program_filter, selected_status, selected_years, selected_terms)
         df = pd.DataFrame(filtered_data)
-        df = df[df['scopus'] != 'N/A']  # Filter out 'N/A' values
+        if 'scopus' in df.columns:
+            df = df[df['scopus'] != 'N/A']  # Filter out 'N/A' values
+
+        # Handle empty DataFrame case
+        if df.empty:
+            return px.line(title="No data available")
         
         # Group and ensure numeric types
         grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
@@ -489,9 +544,14 @@ class ResearchOutputPlot:
             grouped_df, x='year', y='Count', color='scopus',
             color_discrete_map=college_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}, markers=True
         )
-        
-        # Update layout
-        fig_line.update_traces(line=dict(width=1.5), marker=dict(size=5))
+
+        fig_line.update_traces(
+            line=dict(width=1.5),
+            marker=dict(size=5),
+            hovertemplate="Year: %{x}<br>"
+                        "Publications: %{y}<extra></extra>"
+        )
+
         fig_line.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Publications Over Time', font=dict(size=12)),
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
@@ -519,7 +579,13 @@ class ResearchOutputPlot:
         # Fetch and process data
         filtered_data_with_term = get_data_for_scopus_section(colleges, programs, selected_status, selected_years, selected_terms)
         df = pd.DataFrame(filtered_data_with_term)
-        df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
+        if 'scopus' in df.columns:
+            df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
+
+        # Handle empty DataFrame case
+        if df.empty:
+            return px.pie(title="No Data Available", template='plotly_white')
+        
         grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
 
         # Create pie chart
@@ -536,7 +602,9 @@ class ResearchOutputPlot:
         fig_pie.update_traces(
             textfont=dict(size=9),
             insidetextfont=dict(size=9),
-            marker=dict(line=dict(width=0.5))
+            marker=dict(line=dict(width=0.5)),
+            hovertemplate="%{label}<br>"
+                        "Number of Publications:</b> %{value}<br>"
         )
         fig_pie.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),
@@ -563,7 +631,12 @@ class ResearchOutputPlot:
 
         # Convert data to DataFrame and apply filters
         df = pd.DataFrame(filtered_data_with_term)
-        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        if 'journal' in df.columns:
+            df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+
+        # Handle empty DataFrame case
+        if df.empty:
+            return px.line(title="No data available")
         
         # Group data by 'journal' and 'year'
         grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
@@ -597,7 +670,12 @@ class ResearchOutputPlot:
         )
 
         # Update layout for smaller text and responsive UI
-        fig_line.update_traces(line=dict(width=1.5), marker=dict(size=5))
+        fig_line.update_traces(
+            line=dict(width=1.5),
+            marker=dict(size=5),
+            hovertemplate="Year: %{x}<br>"
+                        "Publications: %{y}<extra></extra>"
+        )
         fig_line.update_layout(
             title=dict(text='Publication Types Over Time', font=dict(size=12)),
             xaxis_title=dict(text='Academic Year', font=dict(size=12)),
@@ -627,7 +705,12 @@ class ResearchOutputPlot:
 
         # Convert data to DataFrame and apply filters
         df = pd.DataFrame(filtered_data_with_term)
-        df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        if 'journal' in df.columns:
+            df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+
+        # Handle empty DataFrame case
+        if df.empty:
+            return px.pie(title="No Data Available", template='plotly_white')
 
         # Group data by 'journal' and sum the counts
         grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
@@ -642,15 +725,18 @@ class ResearchOutputPlot:
             labels={'journal': 'Publication Type'}
         )
 
-        # Update layout for a smaller and more responsive design
         fig_pie.update_traces(
             textfont=dict(size=9),
             insidetextfont=dict(size=9),
-            marker=dict(line=dict(width=0.5))
+            marker=dict(line=dict(width=0.5)),
+            hovertemplate="Publication Type: %{label}<br>"
+                        "Number of Publications:</b> %{value}<br>"
         )
 
+        # Add total count to title
+        total_count = grouped_df['Count'].sum()
         fig_pie.update_layout(
-            title=dict(text='Publication Type Distribution', font=dict(size=12)),
+            title=dict(text=f'Publication Type Distribution', font=dict(size=12)),
             template='plotly_white',
             height=None,
             margin=dict(l=5, r=5, t=30, b=30),

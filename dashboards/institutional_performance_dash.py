@@ -330,8 +330,8 @@ class Institutional_Performance_Dash:
                                     tabs_data=[
                                         ("Performance Overview", html.Div(main_dash, style={"height": "100%", "padding": "5px"})),
                                         ("Research Statuses and Types", html.Div(sub_dash1, style={"height": "100%", "padding": "5px"})),
-                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={"height": "100%", "padding": "5px"})),
                                         ("SDG Distribution", html.Div(sub_dash3, style={"height": "100%", "padding": "5px"})),
+                                        ("Scopus and Non-Scopus", html.Div(sub_dash2, style={"height": "100%", "padding": "5px"})),                                        
                                         ("Publication Types", html.Div(sub_dash4, style={"height": "100%", "padding": "5px"}))
                                     ]
                                 ),
@@ -758,6 +758,7 @@ class Institutional_Performance_Dash:
             if tab == 'line':
                 return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
             else:
+                print('HAYNAKO')
                 return self.plot_instance.scopus_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
             
         @self.dash_app.callback(
