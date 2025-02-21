@@ -163,6 +163,11 @@ def add_paper():
         
         # Adviser ID is None if skipped
         adviser_id = None if skip_adviser_and_panel else data.get('adviser_id')
+        print(f'adviser_id: {adviser_id}')
+
+        adviser = None
+        if adviser_id is not None:
+            adviser = UserProfile.query.get(adviser_id)
 
         # Create new research output
         new_research = ResearchOutput(
@@ -176,8 +181,10 @@ def add_paper():
             research_type_id=data['research_type'],
             full_manuscript=file_path,
             extended_abstract=file_path_ea,
-            adviser_id=adviser_id,
-            user_id=user_id,
+            adviser_first_name=adviser.first_name if adviser else None,
+            adviser_middle_name=adviser.middle_name if adviser else None,
+            adviser_last_name=adviser.last_name if adviser else None,
+            adviser_suffix=adviser.suffix if adviser else None,
             date_uploaded=current_datetime,
         )
         db.session.add(new_research)
@@ -209,11 +216,18 @@ def add_paper():
         # Handle panels only if required
         if not skip_adviser_and_panel:
             panel_ids = request.form.getlist('panel_ids')
+            print(f'panel_ids: {panel_ids}')
+            
             if panel_ids:
                 for panel_id in panel_ids:
+                    panel = UserProfile.query.get(panel_id) if panel_id else None
+                    
                     new_panel = Panel(
                         research_id=data['research_id'],
-                        panel_id=panel_id
+                        panel_first_name=panel.first_name if panel else None,
+                        panel_middle_name=panel.middle_name if panel else None,
+                        panel_last_name=panel.last_name if panel else None,
+                        panel_suffix=panel.suffix if panel else None
                     )
                     db.session.add(new_panel)
 
@@ -234,29 +248,36 @@ def add_paper():
 
         if author_ids:
             try:
-                # Query author information including last names
+                # Get user IDs
+                accounts = db.session.query(Account.user_id).filter(Account.user_id.in_(author_ids)).all()
+                account_ids = [account.user_id for account in accounts]
+
+                # Get UserProfile details separately
                 author_info = db.session.query(
-                    Account.user_id,
-                    UserProfile.last_name
-                ).join(
-                    UserProfile,
-                    Account.user_id == UserProfile.researcher_id
-                ).filter(
-                    Account.user_id.in_(author_ids)
-                ).all()
+                    UserProfile.researcher_id,
+                    UserProfile.first_name,
+                    UserProfile.middle_name,
+                    UserProfile.last_name,
+                    UserProfile.suffix
+                ).filter(UserProfile.researcher_id.in_(account_ids)).all()
 
                 # Create a dictionary of author_id to last_name for sorting
-                author_dict = {str(author.user_id): author.last_name for author in author_info}
-                
+                author_dict = {str(author.researcher_id): author.last_name for author in author_info}
+
                 # Sort author_ids based on last names
                 sorted_author_ids = sorted(author_ids, key=lambda x: author_dict[x].lower())
 
                 # Add authors with order based on sorted last names
                 for index, author_id in enumerate(sorted_author_ids, start=1):
+                    author = UserProfile.query.get(author_id)  # Fetch the full author details
+                    
                     new_author = ResearchOutputAuthor(
                         research_id=data['research_id'],
-                        author_id=author_id,
-                        author_order=index
+                        author_order=index,
+                        author_first_name=author.first_name,
+                        author_middle_name=author.middle_name,
+                        author_last_name=author.last_name,
+                        author_suffix=author.suffix
                     )
                     db.session.add(new_author)
 
