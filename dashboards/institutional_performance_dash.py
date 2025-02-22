@@ -90,21 +90,21 @@ class Institutional_Performance_Dash:
             className="mb-4",
         )
 
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
         status = html.Div(
             [
                 dbc.Label("Select Status:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': value, 'value': value} for value in sorted(
-                        db_manager.get_unique_values('status'), key=lambda x: (x != 'READY', x != 'PULLOUT', x)
-                    )],
+                    options=[{'label': 'PULLED-OUT' if value == 'PULLOUT' else value, 'value': value} 
+                            for value in status_order if value in db_manager.get_unique_values('status')],
                     value=[],
                     inline=True,
                 ),
             ],
             className="mb-4",
         )
-
+        
         slider = html.Div(
             [
                 dbc.Label("Select Years: ", style={"color": "#08397C"}),
@@ -758,7 +758,6 @@ class Institutional_Performance_Dash:
             if tab == 'line':
                 return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
             else:
-                print('HAYNAKO')
                 return self.plot_instance.scopus_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
             
         @self.dash_app.callback(

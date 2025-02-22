@@ -263,8 +263,8 @@ class ResearchOutputPlot:
         df = pd.DataFrame(filtered_data_with_term)
         if df.empty:
             return px.bar(title="No data available")
-
-        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
+        df['status'] = df['status'].replace({'PULLOUT': 'PULLED-OUT'})
+        status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLED-OUT']
         fig = go.Figure()
 
         group_by_col = 'college_id' if user_id in ["02", "03"] and len(selected_colleges) > 1 else 'program_id'
