@@ -7,25 +7,14 @@ from models import ResearchTypes
 import numpy as np
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-import nltk
-from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
 import base64
 from io import BytesIO
 import dash_html_components as html
 import plotly.graph_objects as go
 import networkx as nx
 from dashboards.usable_methods import get_gradient_color
-
-# Download necessary NLTK datasets
-nltk.download("stopwords")
-nltk.download("punkt")
-nltk.download("wordnet")
-
-# Initialize stopwords and lemmatizer
-stop_words = set(stopwords.words("english"))
-lemmatizer = WordNetLemmatizer()
+from config import stop_words,lemmatizer
 
 import pandas as pd
 import plotly.express as px
@@ -76,6 +65,11 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
             yaxis=dict(visible=False),
             margin=dict(l=10, r=10, t=30, b=10)
         )
+        fig.update_traces(
+        hovertemplate="Year: %{x}<br>"
+                      "Number of Research Outputs: %{y}<extra></extra>"
+        )
+
         return fig
 
     df.rename(columns={'research_count': 'Count', 'sdg': 'sdg', 'school_year': 'school_year', 'college_id': 'College'}, inplace=True)
@@ -311,6 +305,10 @@ def create_sdg_research_chart(selected_colleges, selected_status, selected_years
         xaxis=dict(tickangle=x_angle),
         showlegend=True
     )
+    fig.update_traces(
+        hovertemplate="Category: %{x}<br>"
+                      "Research Count: %{y}<extra></extra>"
+    )
 
     return fig
 
@@ -393,6 +391,10 @@ def create_geographical_heatmap(selected_colleges, selected_status, selected_yea
         width=800,
         height=300,
         margin=dict(l=0, r=0, t=23, b=0)  # Reduce unnecessary spacing
+    )
+    fig.update_traces(
+        hovertemplate="Country: %{hovertext}<br>"
+                      "Research Count: %{z}<extra></extra>"
     )
 
 
@@ -482,6 +484,11 @@ def create_geographical_treemap(selected_colleges, selected_status, selected_yea
         height=350,
         margin=dict(l=0, r=0, t=25, b=0)  # Reduce margins to remove extra spacing
     )
+    fig.update_traces(
+        hovertemplate="Country: %{parent}<br>"
+                      "City: %{label}<br>"
+                      "Research Count: %{value}<extra></extra>"
+    )
 
     return fig
 
@@ -565,7 +572,11 @@ def create_conference_participation_bar_chart(selected_colleges, selected_status
         color_continuous_scale='Viridis'
     )
 
-    fig.update_traces(textposition='outside')
+    # Improve hover text
+    fig.update_traces(
+        textposition='outside',
+        hovertemplate="%{x}<br>Participation Count: %{y}<extra></extra>"
+    )
 
     fig.update_layout(
         title_font_size=14,
@@ -663,9 +674,11 @@ def create_local_vs_foreign_donut_chart(selected_colleges, selected_status, sele
         color_discrete_map={"Local": "blue", "Foreign": "red"}  # Custom colors
     )
 
-    # Adjust chart appearance
-    fig.update_traces(textinfo='percent+label', pull=[0.05, 0])  # Slightly separate one slice for effect
-
+    fig.update_traces(
+        textinfo='percent+label',
+        pull=[0.05, 0],  # Slightly separate the larger slice for effect
+        texttemplate="%{label}: %{value}"  # Show both count and category
+    )
     fig.update_layout(
         title_font_size=14,
         template="plotly_white",
@@ -678,14 +691,7 @@ def create_local_vs_foreign_donut_chart(selected_colleges, selected_status, sele
 
 
 
-# Download necessary NLTK datasets
-nltk.download("stopwords")
-nltk.download("punkt")
-nltk.download("wordnet")
 
-# Initialize stopwords and lemmatizer
-stop_words = set(stopwords.words("english"))
-lemmatizer = WordNetLemmatizer()
 
 def preprocess_text_nltk(text):
     """
@@ -755,9 +761,6 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
 
     # Concatenate all research text
     all_text = " ".join(df["combined_text"])
-
-    # Tokenize, remove stopwords, and clean text
-    stop_words = set(stopwords.words("english"))
     words = [word.lower() for word in all_text.split() if word.isalpha() and word.lower() not in stop_words]
     print(words)
 
@@ -935,6 +938,11 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
         width=550,
         category_orders={"sdg": all_sdgs}  # Ensure SDG order
     )
+    fig.update_traces(
+        hovertemplate="SDG: %{x}<br>"
+                      "Research Area: %{legendgroup}<br>"
+                      "Research Count: %{y}<extra></extra>"
+    )
 
     # Update layout
     fig.update_layout(
@@ -989,6 +997,9 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
             xref="paper", yref="paper",
             showarrow=False,
             font=dict(size=20, color="gray")
+        )
+        fig.update_traces(
+        hovertemplate="%{y}: %{x} Research Outputs<extra></extra>"
         )
         fig.update_layout(
             title="SDG Research Impact",
@@ -1045,7 +1056,9 @@ def visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg
         margin=dict(l=10, r=10, t=30, b=10),
         yaxis={'categoryorder': 'total ascending'}
     )
-
+    fig.update_traces(
+    hovertemplate="%{y}: %{x} Research Outputs<extra></extra>"
+)
     return fig
 
 
@@ -1201,6 +1214,16 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
         xaxis=dict(showticklabels=False, zeroline=False, showgrid=False),  # Hide X-axis labels
         yaxis=dict(showticklabels=False, zeroline=False, showgrid=False)   # Hide Y-axis labels
     )
+    edge_trace.update_traces(
+    hoverinfo="text",
+    hovertemplate="%{x} ↔ %{y}: %{customdata} Research Outputs<extra></extra>",
+    customdata=[G[u][v]['weight'] for u, v in G.edges()]
+    )
+    node_trace.update_traces(
+        hoverinfo="text",
+        hovertemplate="%{text}: Connected to %{marker.size} SDGs<extra></extra>"
+    )
+
 
     return fig
 

@@ -6,6 +6,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
+import nltk
+from nltk.corpus import stopwords
+
+from nltk.stem import WordNetLemmatizer
 
 def detect_pg_bin():
     if platform.system() == 'Windows':
@@ -23,8 +27,8 @@ def detect_pg_bin():
     return None
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', "b'\x06F\x83X\xe1\x94\xd6\x1f\x89bU\xf5\xbfd\xa4\xda\xb2T\xf7\x0b{\xc0\xaf\xc2'")
-    SQLALCHEMY_DATABASE_URI = "postgresql://postgres:Papasa01!@localhost:5432/Research_Data_Integration_System"
+    SECRET_KEY = os.getenv('SECRET_KEY', "default_secret_key")
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     SESSION_TYPE="redis"
@@ -39,13 +43,14 @@ class Config:
     JWT_SECRET_KEY = SECRET_KEY
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=3)
     
-    MAIL_SERVER = "dev.institutional-repository.mcl-ccis.net"
-    MAIL_PORT = 465  # Using SSL, as recommended
-    MAIL_USE_SSL = True
-    MAIL_USE_TLS = False  # SSL and TLS are mutually exclusive
-    MAIL_USERNAME = "info@dev.institutional-repository.mcl-ccis.net"
-    MAIL_PASSWORD = ";b_DcJ;SRU$n"  # Replace with the actual email account password
-    DEFAULT_SENDER = "info@dev.institutional-repository.mcl-ccis.net"
+    # Mail Configuration
+    MAIL_SERVER = os.getenv('MAIL_SERVER')
+    MAIL_PORT = int(os.getenv('MAIL_PORT', 465))
+    MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'True').lower() in ['true', '1']
+    MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'False').lower() in ['true', '1']
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
+    DEFAULT_SENDER = os.getenv('DEFAULT_SENDER')
 
     # Add these new configurations
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,5 +69,13 @@ class Config:
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 
+# Download necessary NLTK datasets
+nltk.download("stopwords")
+nltk.download("punkt")
+nltk.download("wordnet")
+
+# Initialize stopwords and lemmatizer
+stop_words = set(stopwords.words("english"))
+lemmatizer = WordNetLemmatizer()
 
     
