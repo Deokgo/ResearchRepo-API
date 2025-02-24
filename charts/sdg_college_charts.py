@@ -1215,15 +1215,6 @@ def generate_sdg_bipartite_graph(selected_programs, selected_status, selected_ye
         xaxis=dict(showticklabels=False, zeroline=False, showgrid=False),  # Hide X-axis labels
         yaxis=dict(showticklabels=False, zeroline=False, showgrid=False)   # Hide Y-axis labels
     )
-    edge_trace.update_traces(
-    hoverinfo="text",
-    hovertemplate="%{x} ↔ %{y}: %{customdata} Research Outputs<extra></extra>",
-    customdata=[G[u][v]['weight'] for u, v in G.edges()]
-    )
-    node_trace.update_traces(
-        hoverinfo="text",
-        hovertemplate="%{text}: Connected to %{marker.size} SDGs<extra></extra>"
-    )
 
 
     return fig

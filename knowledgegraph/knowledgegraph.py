@@ -5,16 +5,16 @@ import plotly.graph_objs as go
 import networkx as nx
 from collections import defaultdict
 from flask import Flask, redirect, url_for
-from . import db_manager
 import pandas as pd
 import numpy as np
+from database.knowledgegraph_queries import get_filtered_kgdata
 
 # Enable dragging feature
 dragmode = 'pan'  # Allows users to move the graph freely
 from services.sdg_colors import sdg_colors
 
 def create_kg_area(flask_app):
-    df = db_manager.get_all_data()
+    df = get_filtered_kgdata()
     G = nx.Graph()
     connected_nodes = defaultdict(list)
     sdg_to_areas = defaultdict(set)
@@ -28,12 +28,12 @@ def create_kg_area(flask_app):
         research_id = row['research_id']
         study = row['title']
         area_list = row['concatenated_areas'].split(';') if pd.notnull(row['concatenated_areas']) else []
-        sdg_list = row['sdg'].split(';') if pd.notnull(row['sdg']) else []
+        sdg_list = row['concatenated_sdg'].split(';') if pd.notnull(row['concatenated_sdg']) else []
         college_id = row['college_id']
         color_code = row['color_code']
         program_name = row['program_name']
         concatenated_authors = row['concatenated_authors']
-        year = row['year']
+        year = row['school_year']
 
         if college_id not in palette_dict:
             palette_dict[college_id] = color_code
@@ -436,11 +436,11 @@ def create_kg_area(flask_app):
                 html.Div([
                     dcc.RangeSlider(
                         id='year-slider',
-                        min=df['year'].min(),
-                        max=df['year'].max(),
-                        value=[df['year'].min(), df['year'].max()],
-                        marks={year: str(year) for year in range(int(df['year'].min()), 
-                                                               int(df['year'].max()) + 1, 2)},
+                        min=df['school_year'].min(),
+                        max=df['school_year'].max(),
+                        value=[df['school_year'].min(), df['school_year'].max()],
+                        marks={year: str(year) for year in range(int(df['school_year'].min()), 
+                                                               int(df['school_year'].max()) + 1, 2)},
                         step=1
                     )
                 ], style=styles['slider_container']),
@@ -527,7 +527,7 @@ def create_kg_area(flask_app):
         triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
 
         if triggered_input == 'reset-filters':
-            year_range = [df['year'].min(), df['year'].max()]  # Reset year range
+            year_range = [df['school_year'].min(), df['school_year'].max()]  # Reset year range
             selected_colleges = []  # Reset college selection
             threshold = 1  # Reset threshold slider
         
@@ -600,11 +600,11 @@ def create_kg_area(flask_app):
                     show_studies = True
                     new_title = f'<br>Research Areas and Studies for {current_sdg}'
                     
-                    if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
+                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
                         filter_desc = []
                         if selected_colleges:
                             filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-                        if year_range != [df['year'].min(), df['year'].max()]:
+                        if year_range != [df['school_year'].min(), df['school_year'].max()]:
                             filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
                         new_title += f" ({' | '.join(filter_desc)})"
 
@@ -653,7 +653,7 @@ def create_kg_area(flask_app):
             if clicked_type == 'sdg':
                 if 'Research Studies Knowledge Graph (SDG View)' not in current_title:
                     # Return to SDG overview with applied filters
-                    if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
+                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
                         # Apply filters to get relevant SDGs
                         if year_range:
                             year_filtered_studies = {
@@ -681,11 +681,11 @@ def create_kg_area(flask_app):
                     
                     edges_to_show = []
                     new_title = '<br>Research Studies Knowledge Graph (SDG View)'
-                    if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
+                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
                         filter_desc = []
                         if selected_colleges:
                             filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-                        if year_range != [df['year'].min(), df['year'].max()]:
+                        if year_range != [df['school_year'].min(), df['school_year'].max()]:
                             filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
                         new_title += f" ({' | '.join(filter_desc)})"
                     

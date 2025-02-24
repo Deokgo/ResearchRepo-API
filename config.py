@@ -2,15 +2,16 @@
 
 import os
 import platform
+from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 import nltk
 from nltk.corpus import stopwords
-
 from nltk.stem import WordNetLemmatizer
 
+load_dotenv()
 def detect_pg_bin():
     if platform.system() == 'Windows':
         # Look for PostgreSQL in Program Files
@@ -28,7 +29,7 @@ def detect_pg_bin():
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', "default_secret_key")
-    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DB_CONNECTION_STRING')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     SESSION_TYPE="redis"
@@ -45,9 +46,9 @@ class Config:
     
     # Mail Configuration
     MAIL_SERVER = os.getenv('MAIL_SERVER')
-    MAIL_PORT = int(os.getenv('MAIL_PORT', 465))
-    MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'True').lower() in ['true', '1']
-    MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'False').lower() in ['true', '1']
+    MAIL_PORT = 465
+    MAIL_USE_SSL = True
+    MAIL_USE_TLS = False
     MAIL_USERNAME = os.getenv('MAIL_USERNAME')
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
     DEFAULT_SENDER = os.getenv('DEFAULT_SENDER')
