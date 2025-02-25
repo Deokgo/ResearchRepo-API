@@ -168,7 +168,10 @@ class SDG_Impact_Dash:
         # Map Section
         self.map = dbc.Container([
             dbc.Row([
-                dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True),
+                dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True,style={"width": "100%", "padding": "2px", "fontSize": "14px"} ),
+            ], className='g-0 d-flex'),  # Ensure no space around the alert
+
+            dbc.Row([
                 dbc.Col([
                     dbc.Card(
                         dcc.Loading(
@@ -176,7 +179,7 @@ class SDG_Impact_Dash:
                             type='circle',
                             children=dcc.Graph(id='local-vs-foreign')
                         ),
-                        body=True, 
+                        body=True,
                         style={"width": "100%", "height": "auto"}
                     ),
                     dbc.Card(
@@ -185,7 +188,7 @@ class SDG_Impact_Dash:
                             type='circle',
                             children=dcc.Graph(id='tree-map')
                         ),
-                        body=True, 
+                        body=True,
                         style={"width": "100%", "height": "auto"}
                     ),
                 ], width="auto", className='p-0'),
@@ -211,6 +214,7 @@ class SDG_Impact_Dash:
                 ], width="auto", className='p-0')
             ], className='g-0 d-flex')
         ])
+
 
 
         # Trend Section

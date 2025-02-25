@@ -183,6 +183,9 @@ class SDG_Impact_College:
         self.map = dbc.Container([
             dbc.Row([
                 dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True),
+            ], className='m-0 p-0'),  # Ensure no space around the alert
+
+            dbc.Row([
                 dbc.Col([
                     dbc.Card(
                         dcc.Loading(
@@ -190,7 +193,7 @@ class SDG_Impact_College:
                             type='circle',
                             children=dcc.Graph(id='local-vs-foreign')
                         ),
-                        body=True, 
+                        body=True,
                         style={"width": "100%", "height": "auto"}
                     ),
                     dbc.Card(
@@ -199,7 +202,7 @@ class SDG_Impact_College:
                             type='circle',
                             children=dcc.Graph(id='tree-map')
                         ),
-                        body=True, 
+                        body=True,
                         style={"width": "100%", "height": "auto"}
                     ),
                 ], width="auto", className='p-0'),
@@ -225,6 +228,7 @@ class SDG_Impact_College:
                 ], width="auto", className='p-0')
             ], className='g-0 d-flex')
         ])
+
 
 
         # Trend Section

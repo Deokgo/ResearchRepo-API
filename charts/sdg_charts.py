@@ -65,10 +65,7 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
             yaxis=dict(visible=False),
             margin=dict(l=10, r=10, t=30, b=10)
         )
-        fig.update_traces(
-        hovertemplate="Year: %{x}<br>"
-                      "Number of Research Outputs: %{y}<extra></extra>"
-        )
+
 
         return fig
 
@@ -108,6 +105,10 @@ def create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_drop
         color_discrete_map=color_map,
         category_orders=category_orders
     )
+    fig.update_traces(
+        hovertemplate="Year: %{x}<br>"
+                      "Number of Research Outputs: %{y}<extra></extra>"
+        )
     
     fig.update_layout(
         title_font_size=14,

@@ -193,4 +193,4 @@ if __name__ == "__main__":
     import threading
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)

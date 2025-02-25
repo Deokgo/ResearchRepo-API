@@ -477,8 +477,7 @@ def create_kg_area(flask_app):
                 figure={
                     'data': [edge_trace, node_trace],
                     'layout': go.Layout(
-                        title='<br>Research Studies Knowledge Graph',
-                        titlefont=dict(size=16),
+                        title=dict(text='<br>Research Studies Knowledge Graph', font=dict(size=16)),
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=50),
@@ -598,8 +597,7 @@ def create_kg_area(flask_app):
                 fig = {
                     'data': [edge_trace, node_trace],
                     'layout': go.Layout(
-                        title=title,
-                        titlefont=dict(size=16),
+                        title=dict(text=title, font=dict(size=16)),
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=50),
@@ -703,8 +701,7 @@ def create_kg_area(flask_app):
                 fig = {
                     'data': [edge_trace, node_trace],
                     'layout': go.Layout(
-                        title=title,
-                        titlefont=dict(size=16),
+                        title=dict(text=title, font=dict(size=16)),
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=50),
