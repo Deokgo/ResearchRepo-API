@@ -5,8 +5,8 @@ import plotly.graph_objs as go
 import networkx as nx
 from collections import defaultdict, Counter
 import pandas as pd
-from . import db_manager
 import numpy as np
+from database.knowledgegraph_queries import get_program_research_aggregation
 
 # Define color for keywords (Distinct Purple)
 keyword_color = '#8A2BE2'
@@ -87,40 +87,70 @@ def create_research_network(flask_app):
         }
     }
 
-    # Process data to collect department information
-    df = db_manager.get_all_data()
+    # Process data to collect usage per program information
+    program_data = get_program_research_aggregation()
 
-    # Define color palette from database (make it global)
-    global palette_dict
-    palette_dict = {}
-    for _, row in df.iterrows():
-        college_id = row['college_id']
-        color_code = row['color_code']
-        if college_id and color_code:
-            palette_dict[college_id] = color_code
-
-    # Calculate initial threshold range from complete dataset
-    initial_keyword_counts = defaultdict(int)
-    for _, row in df.iterrows():
+    # Calculate initial thresholds based on per-program usage
+    keyword_program_usage = defaultdict(lambda: defaultdict(int))
+    
+    for _, row in program_data.iterrows():
         if pd.notnull(row['concatenated_keywords']):
             keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-            for keyword in keywords:  # Update counts one keyword at a time
-                initial_keyword_counts[keyword] += 1
+            program = row['program_name']
+            for keyword in keywords:
+                keyword_program_usage[keyword][program] += 1
 
-    min_threshold = 2
-    max_threshold = max(initial_keyword_counts.values())
-    
-    # Create initial marks
-    if max_threshold > 10:
-        step = max(1, max_threshold // 8)
-        initial_marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
-        initial_marks[max_threshold] = f'{max_threshold} uses'
+    # Find the highest number where any keyword has at least 2 programs using it that many times
+    max_threshold = 1
+    # Test each possible threshold from 1 up
+    for test_threshold in range(1, 100):  # Set a reasonable upper limit
+        found_valid_keyword = False
+        # Check each keyword
+        for keyword, program_counts in keyword_program_usage.items():
+            # Count programs that used this keyword at least test_threshold times
+            programs_meeting_threshold = sum(
+                1 for count in program_counts.values() 
+                if count >= test_threshold
+            )
+            # If at least 2 programs meet this threshold
+            if programs_meeting_threshold >= 2:
+                found_valid_keyword = True
+                break
+        
+        if found_valid_keyword:
+            max_threshold = test_threshold
+        else:
+            # If no keywords have 2+ programs meeting this threshold, we've found our max
+            break
+
+    min_usage_threshold = 1
+    max_usage_threshold = max_threshold
+    default_threshold = (min_usage_threshold + max_usage_threshold) // 2
+
+    print(f"Initial thresholds - min: {min_usage_threshold}, max: {max_usage_threshold}, default: {default_threshold}")
+
+    # Create marks for usage threshold
+    if max_usage_threshold > 10:
+        step = max(1, max_usage_threshold // 6)
+        usage_marks = {
+            i: f'≥{i} uses each by 2+ programs' for i in range(
+                min_usage_threshold, 
+                max_usage_threshold + 1, 
+                step
+            )
+        }
+        usage_marks[max_usage_threshold] = f'≥{max_usage_threshold} uses each by 2+ programs'
     else:
-        initial_marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
+        usage_marks = {i: f'≥{i} uses each by 2+ programs' for i in range(min_usage_threshold, max_usage_threshold + 1)}
 
-    # Define layout with filters
+    # Define layout with single filter
     dash_app.layout = html.Div([
         dcc.Store(id='clicked-node', data=None),
+        dcc.Interval(
+            id='refresh-interval',
+            interval=300000,  # 5 minutes in milliseconds
+            n_intervals=0
+        ),
         html.Div([
             html.Label('Filters', style=styles['main_label']),
             html.Div([
@@ -128,11 +158,11 @@ def create_research_network(flask_app):
                 html.Div([
                     dcc.RangeSlider(
                         id='year-slider',
-                        min=df['year'].min(),
-                        max=df['year'].max(),
-                        value=[df['year'].min(), df['year'].max()],
-                        marks={year: str(year) for year in range(int(df['year'].min()), 
-                                                               int(df['year'].max()) + 1, 2)},
+                        min=program_data['school_year'].min(),
+                        max=program_data['school_year'].max(),
+                        value=[program_data['school_year'].min(), program_data['school_year'].max()],
+                        marks={year: str(year) for year in range(int(program_data['school_year'].min()), 
+                                                               int(program_data['school_year'].max()) + 1, 2)},
                         step=1
                     )
                 ], style=styles['slider_container']),
@@ -144,7 +174,7 @@ def create_research_network(flask_app):
                     dcc.Dropdown(
                         id='college-dropdown',
                         options=[{'label': college, 'value': college} 
-                                for college in df['college_id'].unique()],
+                                for college in program_data['college_id'].unique()],
                         value=[],
                         multi=True,
                         placeholder='Select colleges...'
@@ -152,19 +182,20 @@ def create_research_network(flask_app):
                 ], style=styles['dropdown_container']),
             ]),
 
-            # Add threshold slider
+            # Single threshold slider for minimum uses per program
             html.Div([
-                html.Label('Keyword Usage Threshold:', style=styles['label']),
+                html.Label('Minimum Uses per Program:', style=styles['label']),
                 html.Div([
                     dcc.Slider(
-                        id='threshold-slider',
-                        min=min_threshold,
-                        max=max_threshold,
-                        value=min_threshold,
-                        marks=initial_marks,
-                        step=None
+                        id='usage-threshold-slider',
+                        min=min_usage_threshold,
+                        max=max_usage_threshold,
+                        value=default_threshold,  # Use the calculated default
+                        marks=usage_marks,
+                        step=1,
+                        included=True
                     )
-                ], style=styles['threshold_container']),
+                ], style=styles['slider_container']),
             ]),
 
         ], style=styles['filter_container']),
@@ -172,10 +203,7 @@ def create_research_network(flask_app):
         html.Div([
             dcc.Graph(
                 id='research-network-graph',
-                style={
-                    'height': 'calc(100vh - 40px)',
-                    'width': '100%'
-                },
+                style={'height': 'calc(100vh - 40px)', 'width': '100%'},
                 config={
                     'responsive': True,
                     'scrollZoom': True,
@@ -187,121 +215,165 @@ def create_research_network(flask_app):
     ], style=styles['main_container'])
 
     @dash_app.callback(
-    [Output('threshold-slider', 'min'),
-     Output('threshold-slider', 'max'),
-     Output('threshold-slider', 'value'),
-     Output('threshold-slider', 'marks')],
+    [Output('usage-threshold-slider', 'min'),
+     Output('usage-threshold-slider', 'max'),
+     Output('usage-threshold-slider', 'value'),
+     Output('usage-threshold-slider', 'marks')],
     [Input('year-slider', 'value'),
-     Input('college-dropdown', 'value')]
+     Input('college-dropdown', 'value'),
+     Input('refresh-interval', 'n_intervals')]
 )
-    def update_threshold_range(year_range, selected_colleges):
-        filtered_df = df.copy()
+    def update_usage_threshold_range(year_range, selected_colleges, n_intervals):
+        print(f"Updating threshold range. Interval trigger: {n_intervals}")
+        
+        # Get filtered data
+        filtered_data = get_program_research_aggregation(
+            start_year=year_range[0] if year_range else None,
+            end_year=year_range[1] if year_range else None,
+            selected_colleges=selected_colleges if selected_colleges else None
+        )
 
-        if year_range:
-            filtered_df = filtered_df[(filtered_df['year'] >= year_range[0]) & 
-                                    (filtered_df['year'] <= year_range[1])]
-
-        if selected_colleges:
-            filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
-
-        keyword_counts = defaultdict(int)
-        for _, row in filtered_df.iterrows():
+        # Calculate keyword usage per program
+        keyword_program_usage = defaultdict(lambda: defaultdict(int))
+        for _, row in filtered_data.iterrows():
             if pd.notnull(row['concatenated_keywords']):
                 keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+                program = row['program_name']
                 for keyword in keywords:
-                    keyword_counts[keyword] += 1
+                    keyword_program_usage[keyword][program] += 1
 
-        if not keyword_counts:
-            return 2, 5, 2, {i: f'{i} uses' for i in range(2, 6)}
+        # Find the highest number where any keyword has at least 2 programs using it that many times
+        max_threshold = 1
+        # Test each possible threshold from 1 up
+        for test_threshold in range(1, 100):  # Set a reasonable upper limit
+            found_valid_keyword = False
+            # Check each keyword
+            for keyword, program_counts in keyword_program_usage.items():
+                # Count programs that used this keyword at least test_threshold times
+                programs_meeting_threshold = sum(
+                    1 for count in program_counts.values() 
+                    if count >= test_threshold
+                )
+                # If at least 2 programs meet this threshold
+                if programs_meeting_threshold >= 2:
+                    found_valid_keyword = True
+                    break
+            
+            if found_valid_keyword:
+                max_threshold = test_threshold
+            else:
+                # If no keywords have 2+ programs meeting this threshold, we've found our max
+                break
 
-        min_threshold = 2
-        max_threshold = max(keyword_counts.values())
-        avg_count = int(np.ceil(np.mean(list(keyword_counts.values()))))
-        default_value = max(min_threshold, avg_count)
+        min_usage_threshold = 1
+        max_usage_threshold = max_threshold
+        default_threshold = (min_usage_threshold + max_usage_threshold) // 2
 
-        if max_threshold > 10:
-            step = max(1, max_threshold // 8)
-            marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1, step)}
-            marks[max_threshold] = f'{max_threshold} uses'
+        print(f"Setting threshold range: min={min_usage_threshold}, max={max_usage_threshold}, default={default_threshold}")
+
+        # Create marks for usage threshold
+        if max_usage_threshold > 10:
+            step = max(1, max_usage_threshold // 6)
+            usage_marks = {
+                i: f'≥{i} uses each by 2+ programs' for i in range(
+                    min_usage_threshold, 
+                    max_usage_threshold + 1, 
+                    step
+                )
+            }
+            usage_marks[max_usage_threshold] = f'≥{max_usage_threshold} uses each by 2+ programs'
         else:
-            marks = {i: f'{i} uses' for i in range(min_threshold, max_threshold + 1)}
+            usage_marks = {i: f'≥{i} uses each by 2+ programs' for i in range(min_usage_threshold, max_usage_threshold + 1)}
 
-        return min_threshold, max_threshold, default_value, marks
-
+        return min_usage_threshold, max_usage_threshold, default_threshold, usage_marks
 
     @dash_app.callback(
     [Output('research-network-graph', 'figure'),
      Output('clicked-node', 'data')],
     [Input('year-slider', 'value'),
      Input('college-dropdown', 'value'),
-     Input('threshold-slider', 'value'),
-     Input('research-network-graph', 'clickData')],
+     Input('usage-threshold-slider', 'value'),
+     Input('research-network-graph', 'clickData'),
+     Input('refresh-interval', 'n_intervals')],
     [State('clicked-node', 'data')]
 )
-    def update_graph(year_range, selected_colleges, threshold, clickData, previous_clicked):
-        threshold = max(2, threshold if threshold is not None else 2)
-
-        global palette_dict
-        ctx = dash.callback_context
-        triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
-
-        # Handle click events
-        clicked_node = None
-        if triggered_input == 'research-network-graph' and clickData:
-            current_clicked = clickData['points'][0]['text']
-            clicked_node = None if current_clicked == previous_clicked else current_clicked
-
-        # Filter and process data
-        filtered_df = df.copy()
+    def update_graph(year_range, selected_colleges, usage_threshold, clickData, n_intervals, previous_clicked):
+        print(f"Updating graph. Interval trigger: {n_intervals}")
         
-        if year_range:
-            filtered_df = filtered_df[(filtered_df['year'] >= year_range[0]) & 
-                                    (filtered_df['year'] <= year_range[1])]
-        
-        if selected_colleges:
-            filtered_df = filtered_df[filtered_df['college_id'].isin(selected_colleges)]
+        # Get filtered data
+        filtered_data = get_program_research_aggregation(
+            start_year=year_range[0] if year_range else None,
+            end_year=year_range[1] if year_range else None,
+            selected_colleges=selected_colleges if selected_colleges else None
+        )
 
-        # Process data based on threshold
-        dept_metadata = defaultdict(lambda: {'papers': set(), 'keywords': Counter(), 'college': None})
-        keyword_usage = Counter()
-
-        for _, row in filtered_df.iterrows():
+        # Recalculate keyword usage based on filtered data
+        keyword_program_usage = defaultdict(lambda: defaultdict(int))
+        for _, row in filtered_data.iterrows():
             if pd.notnull(row['concatenated_keywords']):
                 keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-                keyword_usage.update(keywords)
+                program = row['program_name']
+                for keyword in keywords:
+                    keyword_program_usage[keyword][program] += 1
 
-        valid_keywords = {k for k, count in keyword_usage.items() if count >= threshold}
-
-        for _, row in filtered_df.iterrows():
-            program = row['program_name']
-            college = row['college_id']
-            research_id = row['research_id']
-            
-            if not program or pd.isna(row['concatenated_keywords']):
-                continue
-
-            dept_metadata[program]['papers'].add(research_id)
-            dept_metadata[program]['college'] = college
-
-            if pd.notnull(row['concatenated_keywords']):
-                keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
-                filtered_keywords = [k for k in keywords if k in valid_keywords]
-                dept_metadata[program]['keywords'].update(filtered_keywords)
-
-        G = build_keyword_network(dept_metadata)
+        # Find the highest number where any keyword has at least 2 programs using it that many times
+        max_threshold = 1
+        # Get the absolute maximum any program used any keyword
+        absolute_max = max(
+            count 
+            for program_counts in keyword_program_usage.values() 
+            for count in program_counts.values()
+        )
         
-        global global_pos
-        if not global_pos or len(global_pos) != len(G.nodes()):
-            global_pos = nx.spring_layout(G, k=1, iterations=50)
+        # Test each possible threshold from 1 to absolute_max
+        for test_threshold in range(1, absolute_max + 1):
+            # Check each keyword
+            for keyword, program_counts in keyword_program_usage.items():
+                # Count programs that used this keyword at least test_threshold times
+                programs_meeting_threshold = sum(
+                    1 for count in program_counts.values() 
+                    if count >= test_threshold
+                )
+                # If at least 2 programs meet this threshold
+                if programs_meeting_threshold >= 2:
+                    max_threshold = test_threshold
+                    break  # Found a keyword with 2+ programs meeting this threshold
+            else:
+                # If we complete the keyword loop without finding any keywords
+                # with 2+ programs meeting this threshold, we've found our max
+                break
 
-        traces = build_network_traces(G, clicked_node)
+        # Ensure usage_threshold is within valid range
+        if usage_threshold is None:
+            usage_threshold = 1
+        elif isinstance(usage_threshold, list):
+            usage_threshold = min(usage_threshold[0], max_threshold)
+        else:
+            usage_threshold = min(int(usage_threshold), max_threshold)
+        
+        print(f"Using threshold: {usage_threshold} (max possible: {max_threshold})")  # Debug print
 
-        title = '<br>Program-Keyword Knowledge Graph'
-        if selected_colleges or year_range != [df['year'].min(), df['year'].max()]:
+        # Get clicked node info
+        clicked_keyword = None
+        if clickData and clickData['points'][0]['text'] != previous_clicked:
+            clicked_keyword = clickData['points'][0]['text']
+            previous_clicked = clicked_keyword
+        
+        # Build network
+        G = build_keyword_network(
+            filtered_data,
+            clicked_keyword=clicked_keyword,
+            usage_threshold=usage_threshold
+        )
+
+        traces = build_network_traces(G, clicked_keyword)
+
+        title = f'Research Synergy Knowledge Graph (Min. {usage_threshold} uses per program)'
+        if selected_colleges or year_range != [filtered_data['school_year'].min(), filtered_data['school_year'].max()]:
             filter_desc = []
             if selected_colleges:
                 filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-            if year_range != [df['year'].min(), df['year'].max()]:
+            if year_range != [filtered_data['school_year'].min(), filtered_data['school_year'].max()]:
                 filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
             title += f" ({' | '.join(filter_desc)})"
 
@@ -320,153 +392,216 @@ def create_research_network(flask_app):
                 paper_bgcolor='white',
                 plot_bgcolor='white'
             )
-        }, clicked_node
+        }, previous_clicked
 
     return dash_app
 
 
-def build_keyword_network(dept_metadata):
+def build_keyword_network(df, clicked_keyword=None, usage_threshold=1):
+    print(f"Building network with threshold: {usage_threshold}")  # Debug print
     G = nx.Graph()
     
-    # Add program nodes
-    for program, data in dept_metadata.items():
-        G.add_node(program, 
-                  type='program',
-                  college=data['college'])
+    # Get aggregated program data
+    program_data = get_program_research_aggregation()
     
-    # Add keyword nodes for top keywords
-    keyword_freq = Counter()
-    for data in dept_metadata.values():
-        keyword_freq.update(data['keywords'])
+    # Collect keyword statistics
+    keyword_program_usage = defaultdict(lambda: defaultdict(int))
+    program_colors = {}
     
-    top_keywords = [k for k, _ in keyword_freq.most_common(20)]  # Top 20 keywords
-    
-    for keyword in top_keywords:
-        G.add_node(keyword, type='keyword')
+    # Process the DataFrame rows to get keyword usage per program
+    for _, row in program_data.iterrows():
+        program = row['program_name']
+        program_colors[program] = row['color_code']
         
-        # Connect keywords to programs and store usage count
-        for program, data in dept_metadata.items():
-            if keyword in data['keywords']:
-                G.add_edge(program, keyword, weight=data['keywords'][keyword])
+        if pd.notnull(row['concatenated_keywords']):
+            keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+            for keyword in keywords:
+                keyword_program_usage[keyword][program] += 1
+    
+    # Filter keywords: must have at least 2 programs that EACH used it >= threshold times
+    valid_keywords = set()
+    for keyword, program_counts in keyword_program_usage.items():
+        # Get programs that used it at least threshold times
+        high_usage_programs = [prog for prog, count in program_counts.items() 
+                             if count >= usage_threshold]
+        if len(high_usage_programs) >= 2:  # At least 2 programs must meet threshold
+            valid_keywords.add(keyword)
+    
+    print(f"Found {len(valid_keywords)} valid keywords")  # Debug print
+    
+    if clicked_keyword and clicked_keyword in valid_keywords:
+        # Show clicked keyword and ONLY its connected programs that meet the threshold
+        high_usage_programs = [prog for prog, count in keyword_program_usage[clicked_keyword].items() 
+                             if count >= usage_threshold]
+        
+        G.add_node(clicked_keyword, 
+                  type='keyword',
+                  usage_count=sum(count for prog, count in keyword_program_usage[clicked_keyword].items()
+                                if prog in high_usage_programs),
+                  program_count=len(high_usage_programs))
+        
+        # Add ONLY programs that used it >= threshold times
+        for program in high_usage_programs:
+            count = keyword_program_usage[clicked_keyword][program]
+            research_count = program_data[program_data['program_name'] == program]['research_count'].iloc[0]
+            G.add_node(program, 
+                      type='program',
+                      usage_count=count,
+                      research_count=research_count,
+                      relative_size=1.0,
+                      color_code=program_colors[program])
+            G.add_edge(clicked_keyword, program)
+    else:
+        # Show all valid keywords
+        for keyword in valid_keywords:
+            high_usage_programs = [prog for prog, count in keyword_program_usage[keyword].items() 
+                                 if count >= usage_threshold]
+            G.add_node(keyword, 
+                      type='keyword',
+                      usage_count=sum(count for prog, count in keyword_program_usage[keyword].items()
+                                    if prog in high_usage_programs),
+                      program_count=len(high_usage_programs))
     
     return G
 
 def build_network_traces(G, clicked_node):
-    global global_pos, palette_dict
+    global global_pos
 
-    # Get positions and setup highlighted nodes/edges
-    pos = global_pos
-    highlighted_nodes = set()
-    highlighted_edges = []
-    
-    # Determine if we're in highlight mode
-    highlight_mode = clicked_node and clicked_node in G
-    
-    if highlight_mode:
-        highlighted_nodes.add(clicked_node)
-        for neighbor in G.neighbors(clicked_node):
-            highlighted_nodes.add(neighbor)
-            highlighted_edges.append((clicked_node, neighbor))
+    # Use Kamada-Kawai layout when a node is clicked, spring layout otherwise
+    if clicked_node:
+        pos = nx.kamada_kawai_layout(G)
+    else:
+        pos = global_pos if global_pos else nx.spring_layout(G, k=1, iterations=50)
+        global_pos = pos
 
-    # Separate nodes by type
+    traces = []
+    
+    # Create keyword nodes trace
     keyword_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'keyword']
-    program_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'program']
+    if keyword_nodes:
+        keyword_hovertext = []
+        for node in keyword_nodes:
+            usage_count = G.nodes[node]['usage_count']
+            high_usage_programs = G.nodes[node]['program_count']  # This is now correctly counted in build_keyword_network
+            keyword_hovertext.append(f"{node}\nUsed {usage_count} times in {high_usage_programs} programs")
 
-    # Filter nodes based on highlight mode
-    if highlight_mode:
-        keyword_nodes = [n for n in keyword_nodes if n in highlighted_nodes]
-        program_nodes = [n for n in program_nodes if n in highlighted_nodes]
-
-    # Create edge traces
-    edge_x, edge_y = [], []
-    
-    # Only show highlighted edges in highlight mode
-    edges_to_show = highlighted_edges if highlight_mode else G.edges()
-    
-    for edge in edges_to_show:
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
-
-    # Create program node hovertext with connected keyword counts
-    program_hovertext = []
-    program_display = []  # New list for display text
-    for node in program_nodes:
-        connected_keywords = len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'keyword'])
-        if clicked_node and clicked_node in keyword_nodes and G.has_edge(node, clicked_node):
-            count = G[node][clicked_node]['weight']
-            program_hovertext.append(f"{node}\n(connected to {connected_keywords} keywords)\n(used '{clicked_node}' {count} times)")
-        else:
-            program_hovertext.append(f"{node}\n(connected to {connected_keywords} keywords)")
-        program_display.append(node)  # Only show the name
-
-    # Create keyword node hovertext with connected program counts
-    keyword_hovertext = []
-    keyword_display = []  # New list for display text
-    for node in keyword_nodes:
-        connected_programs = len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program'])
-        if clicked_node and clicked_node in program_nodes and G.has_edge(clicked_node, node):
-            count = G[clicked_node][node]['weight']
-            keyword_hovertext.append(f"{node}\n(used in {connected_programs} programs)\n(used {count} times in '{clicked_node}')")
-        else:
-            keyword_hovertext.append(f"{node}\n(used in {connected_programs} programs)")
-        keyword_display.append(node)  # Only show the name
-
-    # Define size ranges for nodes
-    keyword_size_range = (20, 30)  # Min and max sizes for keywords
-    program_size = 20  # Fixed size for programs
-
-    # Get connection counts for scaling
-    keyword_counts = [len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program']) 
-                     for node in keyword_nodes]
-    max_connections = max(keyword_counts) if keyword_counts else 1
-
-    # Create traces
-    traces = [
-        go.Scatter(
-            x=edge_x, 
-            y=edge_y, 
-            line=dict(width=1, color='rgba(200, 200, 200, 0.3)' if not highlight_mode else 'rgba(255, 87, 51, 0.6)'), 
-            mode='lines', 
-            hoverinfo='none'
-        ),
-        go.Scatter(
-            x=[pos[node][0] for node in program_nodes],
-            y=[pos[node][1] for node in program_nodes],
-            mode='markers+text',
-            text=program_display,
-            hovertext=program_hovertext,
-            textposition="bottom center",
-            marker=dict(
-                size=program_size,
-                color=[palette_dict.get(G.nodes[node]['college'], '#000000') for node in program_nodes],
-                symbol='circle'
-            ),
-            name='Programs',
-            hoverinfo='text'
-        ),
-        go.Scatter(
+        traces.append(go.Scatter(
             x=[pos[node][0] for node in keyword_nodes],
             y=[pos[node][1] for node in keyword_nodes],
             mode='markers+text',
-            text=keyword_display,
+            text=[node for node in keyword_nodes],
             hovertext=keyword_hovertext,
             textposition="bottom center",
             marker=dict(
-                # Scale node size based on number of connections
-                size=[
-                    keyword_size_range[0] + 
-                    (len([n for n in G.neighbors(node) if G.nodes[n]['type'] == 'program']) / max_connections) 
-                    * (keyword_size_range[1] - keyword_size_range[0])
-                    for node in keyword_nodes
-                ],
+                size=[20 + (G.nodes[node]['program_count'] * 2) for node in keyword_nodes],
                 color=keyword_color,
                 symbol='diamond'
             ),
             name='Keywords',
             hoverinfo='text'
-        )
-    ]
+        ))
+
+    # Create program nodes trace if a keyword is clicked
+    program_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'program']
+    if program_nodes:
+        program_hovertext = []
+        node_colors = []
+        for node in program_nodes:
+            usage_count = G.nodes[node]['usage_count']
+            color_code = G.nodes[node]['color_code']
+            program_hovertext.append(f"{node}\nUses keyword {usage_count} times")
+            node_colors.append(color_code or '#0A438F')  # Default to '#0A438F' if color_code is None
+
+        traces.append(go.Scatter(
+            x=[pos[node][0] for node in program_nodes],
+            y=[pos[node][1] for node in program_nodes],
+            mode='markers+text',
+            text=[node for node in program_nodes],
+            hovertext=program_hovertext,
+            textposition="top center",
+            marker=dict(
+                size=[30 * G.nodes[node]['relative_size'] for node in program_nodes],
+                color=node_colors,
+                symbol='circle'
+            ),
+            name='Programs',
+            hoverinfo='text'
+        ))
+
+    # Add edges if a keyword is clicked
+    if clicked_node:
+        edge_x = []
+        edge_y = []
+        for edge in G.edges():
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+
+        traces.insert(0, go.Scatter(
+            x=edge_x,
+            y=edge_y,
+            mode='lines',
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none'
+        ))
 
     return traces
+
+def build_research_aggregation_network(df, clicked_keyword=None, usage_threshold=(2, float('inf'))):
+    G = nx.Graph()
+    
+    # Collect keyword statistics and research counts
+    keyword_freq = Counter()
+    keyword_programs = defaultdict(set)
+    program_research = defaultdict(int)
+    program_colors = {}
+    
+    # Process the data
+    for _, row in df.iterrows():
+        program = row['program_name']
+        program_colors[program] = row['color_code']
+        program_research[program] = row['research_count']
+        
+        if pd.notnull(row['concatenated_keywords']):
+            keywords = [k.strip().lower() for k in row['concatenated_keywords'].split(';')]
+            for keyword in keywords:
+                keyword_freq[keyword] += 1
+                keyword_programs[keyword].add(program)
+    
+    # Filter keywords based on threshold ranges
+    valid_keywords = {
+        k for k in keyword_freq 
+        if (usage_threshold[0] <= keyword_freq[k] <= usage_threshold[1])
+    }
+    
+    if clicked_keyword and clicked_keyword in valid_keywords:
+        # Show clicked keyword and connected programs
+        G.add_node(clicked_keyword,
+                  type='keyword',
+                  usage_count=keyword_freq[clicked_keyword],
+                  program_count=len(keyword_programs[clicked_keyword]))
+        
+        # Add connected programs
+        connected_programs = keyword_programs[clicked_keyword]
+        if connected_programs:
+            max_research = max(program_research[p] for p in connected_programs)
+            
+            for program in connected_programs:
+                relative_size = 0.3 + (0.7 * program_research[program] / max_research) if max_research > 0 else 1.0
+                G.add_node(program,
+                          type='program',
+                          research_count=program_research[program],
+                          usage_count=1,
+                          relative_size=relative_size,
+                          color_code=program_colors[program])
+                G.add_edge(clicked_keyword, program)
+    else:
+        # Show all valid keywords
+        for keyword in valid_keywords:
+            G.add_node(keyword,
+                      type='keyword',
+                      usage_count=keyword_freq[keyword],
+                      program_count=len(keyword_programs[keyword]))
+    
+    return G

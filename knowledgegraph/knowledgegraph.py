@@ -16,7 +16,7 @@ from services.sdg_colors import sdg_colors
 import json
 from dash import clientside_callback
 
-# Enable dragging feature
+# Enable dragging featureF
 dragmode = 'pan'  # Allows users to move the graph freely
 
 # Global position variable
@@ -24,56 +24,13 @@ pos = {}
 
 def create_kg_area(flask_app):
     # Get min and max years from the database manager
-    df = db_manager.get_all_data()
-    min_year = int(df['year'].min())
-    max_year = int(df['year'].max())
+    sdg_counts_df = get_filtered_sdg_counts()
+    min_year = db_manager.get_min_value('year')
+    max_year = db_manager.get_max_value('year')
 
     # Get list of colleges from database manager
-    colleges = df['college_id'].unique().tolist()
+    colleges = db_manager.get_unique_values('college_id')
 
-    def build_graph(df):
-        G = nx.Graph()
-        
-        # Build the graph from filtered data
-        for index, row in df.iterrows():
-            research_id = row['research_id']
-            study = row['title']
-            area_list = row['concatenated_areas'].split(';') if pd.notnull(row['concatenated_areas']) else []
-            sdg_list = row['concatenated_sdg'].split(';') if pd.notnull(row['concatenated_sdg']) else []
-            college_id = row['college_id']
-            color_code = row['color_code']
-            program_name = row['program_name']
-            concatenated_authors = row['concatenated_authors']
-            year = row['school_year']
-
-            # Add study node
-            G.add_node(research_id, type='study', research=research_id, title=study,
-                      college=college_id, program=program_name,
-                      authors=concatenated_authors, year=year)
-
-            # Process areas and connect to study
-            for area in area_list:
-                area = area.strip()
-                if area:
-                    if not G.has_node(area):
-                        G.add_node(area, type='area')
-                    G.add_edge(area, research_id)
-
-            # Process SDGs and connect to study and areas
-            for sdg in sdg_list:
-                sdg = sdg.strip()
-                if sdg:
-                    if not G.has_node(sdg):
-                        G.add_node(sdg, type='sdg')
-                    G.add_edge(sdg, research_id)
-                    
-                    # Connect SDG to areas
-                    for area in area_list:
-                        area = area.strip()
-                        if area:
-                            G.add_edge(sdg, area)
-
-        return G
 
     def create_circular_layout(G, sdg_counts_df):
         """Create a circular layout for SDG nodes with radius based on study count"""
@@ -237,7 +194,7 @@ def create_kg_area(flask_app):
             elif node_type == 'area':
                 node_text.append(node)
                 node_hover_text.append(f"{node}<br>Research Count: {study_count}")
-                color = '#ff7f0e'
+                color = '#9F7AEA      '
                 # Get the calculated size from node attributes
                 size = G.nodes[node].get('node_size', 15)  # Default to 15 if not set
 
@@ -417,6 +374,7 @@ def create_kg_area(flask_app):
         dcc.Store(id='parent-sdg-store', storage_type='memory'),
         dcc.Store(id='side-panel-store', storage_type='memory'),
         dcc.Store(id='panel-visibility', data={'visible': True}),
+        dcc.Store(id='threshold-store', storage_type='memory'),
         
         # Add interval component at the top
         dcc.Interval(
@@ -435,8 +393,7 @@ def create_kg_area(flask_app):
                         min=min_year,
                         max=max_year,
                         value=[min_year, max_year],
-                        marks={year: str(year) for year in range(int(df['year'].min()), 
-                                                               int(df['year'].max()) + 1, 2)},
+                        marks={year: str(year) for year in range(min_year, max_year + 1, 2)},
                         step=1
                     )
                 ], style=styles['slider_container']),
@@ -448,7 +405,7 @@ def create_kg_area(flask_app):
                     dcc.Dropdown(
                         id='college-dropdown',
                         options=[{'label': college, 'value': college} 
-                                for college in df['college_id'].unique()],
+                                for college in colleges],
                         value=[],
                         multi=True,
                         placeholder='Select colleges...'
@@ -458,7 +415,7 @@ def create_kg_area(flask_app):
             
             # Add threshold slider in its own container
             html.Div([
-                html.Label('Minimum Connections:', style=styles['label']),
+                html.Label('Research Area Minimum Count:', style=styles['label']),
                 dcc.Slider(
                     id='threshold-slider',
                     min=2,  # Set minimum to 2
@@ -519,29 +476,36 @@ def create_kg_area(flask_app):
 
     # Update the click handler callback
     @dash_app.callback(
-        Output('parent-sdg-store', 'data'),
-        [Input('knowledge-graph', 'clickData')],
-        [State('parent-sdg-store', 'data')]
-    )
+    Output('parent-sdg-store', 'data'),
+    [Input('knowledge-graph', 'clickData')],
+    [State('parent-sdg-store', 'data')]
+)
     def handle_click(clickData, current_sdg):
         if clickData:
-            point_data = clickData['points'][0]['customdata']
-            print(f"Click detected on: {point_data}")
-            print(f"Current SDG: {current_sdg}")
-            
-            if point_data['type'] == 'sdg':
-                # If we click the same SDG that's currently selected, clear the selection
-                if current_sdg == point_data['id']:
-                    print("Same SDG clicked - returning to overall view")
-                    return None
-                # Otherwise, select the new SDG
-                print(f"New SDG clicked - switching to {point_data['id']}")
-                return point_data['id']
-            elif point_data['type'] == 'area':
-                # If we click an area node, maintain the current SDG view
-                print("Area clicked - maintaining current view")
-                return current_sdg
-        return current_sdg
+            try:
+                point_data = clickData['points'][0]['customdata']
+                print(f"Click detected on: {point_data}")
+
+                if point_data['type'] == 'sdg':
+                    if current_sdg == point_data['id']:
+                        print("Same SDG clicked - returning to overall view")
+                        return None
+                    print(f"New SDG clicked - switching to {point_data['id']}")
+                    return point_data['id']
+                
+                elif point_data['type'] == 'area':
+                    print("Research Area clicked - **Maintaining threshold and SDG view**")
+                    return dash.no_update  # Prevent SDG from resetting
+
+            except Exception as e:
+                print(f"Error in handle_click: {e}")
+                import traceback
+                print(traceback.format_exc())
+
+        return dash.no_update
+
+
+
 
     # Main graph update callback
     @dash_app.callback(
@@ -750,7 +714,7 @@ def create_kg_area(flask_app):
     # Update the side panel callback
     @dash_app.callback(
         [Output('side-panel', 'children'),
-         Output('side-panel', 'style', allow_duplicate=True)],  # Add allow_duplicate
+         Output('side-panel', 'style', allow_duplicate=True)],
         [Input('knowledge-graph', 'clickData')],
         [State('parent-sdg-store', 'data'),
          State('year-slider', 'value'),
@@ -832,52 +796,49 @@ def create_kg_area(flask_app):
 
     # Add callback to update threshold slider range
     @dash_app.callback(
-        [Output('threshold-slider', 'max'),
-         Output('threshold-slider', 'value'),
-         Output('threshold-slider', 'marks')],
-        [Input('parent-sdg-store', 'data'),
-         Input('year-slider', 'value'),
-         Input('college-dropdown', 'value')]
-    )
-    def update_threshold_range(parent_sdg, year_range, selected_colleges):
+    [Output('threshold-slider', 'max'),
+     Output('threshold-slider', 'value'),
+     Output('threshold-slider', 'marks'),
+     Output('threshold-store', 'data')],  # Store threshold value
+    [Input('parent-sdg-store', 'data')],  # Only trigger when SDG changes
+    [State('threshold-store', 'data'),
+     State('threshold-slider', 'value')]  # Get stored value
+)
+    def update_threshold_range(parent_sdg, stored_threshold, current_value):
         if parent_sdg:
             try:
-                # Get the research areas data for the selected SDG
-                research_areas_df = get_filtered_research_area_counts(
-                    selected_sdg=parent_sdg,
-                    start_year=year_range[0] if year_range else None,
-                    end_year=year_range[1] if year_range else None,
-                    selected_colleges=selected_colleges if selected_colleges else None
-                )
-                
+                research_areas_df = get_filtered_research_area_counts(selected_sdg=parent_sdg)
+
                 if not research_areas_df.empty:
                     min_threshold = 2
                     max_threshold = int(research_areas_df['study_count'].max())
-                    
-                    # Ensure max threshold is at least the minimum
                     max_threshold = max(max_threshold, min_threshold)
-                    
-                    # Calculate middle value
-                    default_value = min_threshold + (max_threshold - min_threshold) // 2
-                    
-                    # Create marks for the slider
+
+                    # Keep previous threshold if within range; otherwise, reset it
+                    if stored_threshold and min_threshold <= stored_threshold <= max_threshold:
+                        default_value = stored_threshold
+                    else:
+                        default_value = min_threshold
+
                     marks = {
                         min_threshold: {'label': str(min_threshold), 'style': {'color': '#08397C'}},
-                        default_value: {'label': str(default_value), 'style': {'color': '#08397C'}},
                         max_threshold: {'label': str(max_threshold), 'style': {'color': '#08397C'}}
                     }
-                    
-                    print(f"Threshold range: min={min_threshold}, default={default_value}, max={max_threshold}")
-                    
-                    return max_threshold, default_value, marks
-            
+
+                    print(f"Threshold updated: min={min_threshold}, max={max_threshold}, default={default_value}")
+
+                    return max_threshold, default_value, marks, default_value
+
             except Exception as e:
-                print(f"Error updating threshold range: {e}")
+                print(f"Error updating threshold: {e}")
                 import traceback
                 print(traceback.format_exc())
-        
-        # Default values if no SDG is selected or error occurs
-        return 2, 2, {2: {'label': '2', 'style': {'color': '#08397C'}}}
+
+        # If no SDG is selected, retain the last known threshold
+        return dash.no_update, stored_threshold if stored_threshold else 2, dash.no_update, stored_threshold if stored_threshold else 2
+
+
+
 
     # Update the clientside callback
     dash_app.clientside_callback(
