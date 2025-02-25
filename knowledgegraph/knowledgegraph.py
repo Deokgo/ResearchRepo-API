@@ -1,113 +1,121 @@
 import dash
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output, State, ALL, MATCH
 import plotly.graph_objs as go
 import networkx as nx
 from collections import defaultdict
 from flask import Flask, redirect, url_for
 import pandas as pd
 import numpy as np
-from database.knowledgegraph_queries import get_filtered_kgdata
+from database.knowledgegraph_queries import get_filtered_kgdata, get_filtered_sdg_counts, get_filtered_research_area_counts
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from models import db  # Import db from models
+from . import db_manager
+from services.sdg_colors import sdg_colors
+import json
+from dash import clientside_callback
 
 # Enable dragging feature
 dragmode = 'pan'  # Allows users to move the graph freely
-from services.sdg_colors import sdg_colors
+
+# Global position variable
+pos = {}
 
 def create_kg_area(flask_app):
-    df = get_filtered_kgdata()
-    G = nx.Graph()
-    connected_nodes = defaultdict(list)
-    sdg_to_areas = defaultdict(set)
-    area_to_studies = defaultdict(list)
+    # Get min and max years from the database manager
+    df = db_manager.get_all_data()
+    min_year = int(df['year'].min())
+    max_year = int(df['year'].max())
 
-    # Define color palette
-    palette_dict = {}
+    # Get list of colleges from database manager
+    colleges = df['college_id'].unique().tolist()
 
-    # Build the graph
-    for index, row in df.iterrows():
-        research_id = row['research_id']
-        study = row['title']
-        area_list = row['concatenated_areas'].split(';') if pd.notnull(row['concatenated_areas']) else []
-        sdg_list = row['concatenated_sdg'].split(';') if pd.notnull(row['concatenated_sdg']) else []
-        college_id = row['college_id']
-        color_code = row['color_code']
-        program_name = row['program_name']
-        concatenated_authors = row['concatenated_authors']
-        year = row['school_year']
+    def build_graph(df):
+        G = nx.Graph()
+        
+        # Build the graph from filtered data
+        for index, row in df.iterrows():
+            research_id = row['research_id']
+            study = row['title']
+            area_list = row['concatenated_areas'].split(';') if pd.notnull(row['concatenated_areas']) else []
+            sdg_list = row['concatenated_sdg'].split(';') if pd.notnull(row['concatenated_sdg']) else []
+            college_id = row['college_id']
+            color_code = row['color_code']
+            program_name = row['program_name']
+            concatenated_authors = row['concatenated_authors']
+            year = row['school_year']
 
-        if college_id not in palette_dict:
-            palette_dict[college_id] = color_code
+            # Add study node
+            G.add_node(research_id, type='study', research=research_id, title=study,
+                      college=college_id, program=program_name,
+                      authors=concatenated_authors, year=year)
 
-        # Add study node
-        G.add_node(research_id, type='study', research=research_id, title=study,
-                   college=college_id, program=program_name,
-                   authors=concatenated_authors, year=year)
+            # Process areas and connect to study
+            for area in area_list:
+                area = area.strip()
+                if area:
+                    if not G.has_node(area):
+                        G.add_node(area, type='area')
+                    G.add_edge(area, research_id)
 
-        # Process areas and SDGs
-        for area in area_list:
-            area = area.strip()
-            if area:  # Skip empty areas
-                if not G.has_node(area):
-                    G.add_node(area, type='area')
-                area_to_studies[area].append(research_id)
-                G.add_edge(area, research_id)
+            # Process SDGs and connect to study and areas
+            for sdg in sdg_list:
+                sdg = sdg.strip()
+                if sdg:
+                    if not G.has_node(sdg):
+                        G.add_node(sdg, type='sdg')
+                    G.add_edge(sdg, research_id)
+                    
+                    # Connect SDG to areas
+                    for area in area_list:
+                        area = area.strip()
+                        if area:
+                            G.add_edge(sdg, area)
 
-        # Process SDGs and connect them to studies directly
-        for sdg in sdg_list:
-            sdg = sdg.strip()
-            if sdg:  # Skip empty SDGs
-                if not G.has_node(sdg):
-                    G.add_node(sdg, type='sdg')
-                connected_nodes[sdg].append(research_id)  # Connect SDG directly to study
-                G.add_edge(sdg, research_id)  # Add direct edge between SDG and study
+        return G
 
-                # Connect SDG to areas of this study
-                for area in area_list:
-                    area = area.strip()
-                    if area:
-                        sdg_to_areas[sdg].add(area)
-                        G.add_edge(sdg, area)
-
-    def create_circular_layout(nodes, radius=1):
-        """Create a circular layout for SDG nodes"""
+    def create_circular_layout(G, sdg_counts_df):
+        """Create a circular layout for SDG nodes with radius based on study count"""
         pos = {}
+        sdg_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
+        
+        if not sdg_nodes:
+            return pos
+        
+        # Sort SDGs by study count in descending order
+        sdg_counts_df = sdg_counts_df.sort_values('study_count', ascending=False)
+        
         # Calculate angle between each node
-        angle = 2 * np.pi / len(nodes)
+        angle = 2 * np.pi / len(sdg_nodes)
+        start_angle = 0  # Start from right (0 radians)
         
-        # Create two circles: outer circle for isolated nodes
-        # and inner circle for connected nodes
-        connected_nodes = set()
-        for edge in G.edges():
-            n1, n2 = edge
-            if G.nodes[n1]['type'] == 'sdg' and G.nodes[n2]['type'] == 'sdg':
-                connected_nodes.add(n1)
-                connected_nodes.add(n2)
+        # Get max study count for scaling
+        max_count = max(sdg_counts_df['study_count']) if not sdg_counts_df.empty else 1
+        min_radius = 1
+        max_radius = 2
         
-        isolated_nodes = [n for n in nodes if n not in connected_nodes]
-        connected_nodes = [n for n in nodes if n in connected_nodes]
-        
-        # Position connected nodes in inner circle
-        if connected_nodes:
-            inner_radius = radius * 0.6
-            inner_angle = 2 * np.pi / len(connected_nodes)
-            for i, node in enumerate(connected_nodes):
-                theta = i * inner_angle
-                x = inner_radius * np.cos(theta)
-                y = inner_radius * np.sin(theta)
-                pos[node] = np.array([x, y])
-        
-        # Position isolated nodes in outer circle
-        if isolated_nodes:
-            outer_angle = 2 * np.pi / len(isolated_nodes)
-            for i, node in enumerate(isolated_nodes):
-                theta = i * outer_angle
+        # Assign positions based on sorted order (highest count gets rightmost position)
+        for i, (_, row) in enumerate(sdg_counts_df.iterrows()):
+            sdg = row['sdg']
+            if sdg in G.nodes():
+                count = row['study_count']
+                # Calculate radius based on count
+                radius = min_radius + (count / max_count) * (max_radius - min_radius)
+                
+                # Calculate angle - start from right (0) and move counterclockwise
+                theta = start_angle + (i * angle)
+                
+                # Calculate coordinates
                 x = radius * np.cos(theta)
                 y = radius * np.sin(theta)
-                pos[node] = np.array([x, y])
+                pos[sdg] = np.array([x, y])
+                
+                # Store study count in node attributes for hover text
+                G.nodes[sdg]['study_count'] = count
         
         return pos
 
-    # Initial layout
     def get_initial_layout():
         """
         Creates an initial layout using a combination of circular layout for SDG nodes
@@ -121,20 +129,8 @@ def create_kg_area(flask_app):
             pos = {}
             
             # Use circular layout for SDG nodes
-            sdg_pos = create_circular_layout(sdg_nodes, radius=1.5)
+            sdg_pos = create_circular_layout(G, sdg_counts_df)
 
-            """
-            # Use Kamada-Kawai layout for remaining nodes
-            other_pos = nx.kamada_kawai_layout(
-                sdg_nodes,
-                dist=None,
-                weight=None,
-                scale=3,
-                pos={node: (np.random.rand() * 2 - 1, np.random.rand() * 2 - 1) 
-                    for node in sdg_nodes}  # Random initial positions
-            )
-            pos.update(other_pos)
-            """
             pos.update(sdg_pos)
 
             # Get remaining nodes
@@ -149,7 +145,6 @@ def create_kg_area(flask_app):
                     remaining_subgraph,
                     dist=None,
                     weight=None,
-                    scale=1.5,
                     pos={node: (np.random.rand() * 2 - 1, np.random.rand() * 2 - 1) 
                         for node in remaining_nodes}  # Random initial positions
                 )
@@ -158,209 +153,156 @@ def create_kg_area(flask_app):
                 pos.update(other_pos)
             
             return pos
-        
-        # If no SDG nodes, use Kamada-Kawai layout for the entire graph
-        return nx.kamada_kawai_layout(
-            G,
-            dist=None,
-            weight=None,
-            scale=2.0
-         )
 
-    pos = get_initial_layout()
-    
-    # Apply scaling
-    scaling_factor = 25
-    fixed_pos = {node: (coords[0] * scaling_factor, coords[1] * scaling_factor) 
-                for node, coords in pos.items()}
+    def build_traces(G, edges, pos=None, show_labels=True):
+        """
+        Build traces for the graph visualization
+        """
+        if pos is None:
+            pos = nx.spring_layout(G)
 
-    
-    def build_traces(nodes_to_show, edges_to_show, filtered_nodes, show_labels=True, show_studies=False, year_range=None, selected_colleges=None):
-        # Calculate connections for both SDGs and areas
-        node_connections = defaultdict(int)
+        # Define min and max node sizes
+        MIN_SIZE = 76
+        MAX_SIZE = 150
 
-        # Get the current SDG and area context
-        # Check filtered_nodes first for SDG context, then nodes_to_show
-        current_sdg = None
-        current_area = None
-        for node in filtered_nodes:
-            if G.nodes[node]['type'] == 'sdg':
-                current_sdg = node
-                break
-        
-        for node in nodes_to_show:
-            if G.nodes[node]['type'] == 'area':
-                current_area = node
+        # SDG titles mapping
+        sdg_titles = {
+            'SDG 1': 'No Poverty',
+            'SDG 2': 'Zero Hunger',
+            'SDG 3': 'Good Health and Well-being',
+            'SDG 4': 'Quality Education',
+            'SDG 5': 'Gender Equality',
+            'SDG 6': 'Clean Water and Sanitation',
+            'SDG 7': 'Affordable and Clean Energy',
+            'SDG 8': 'Decent Work and Economic Growth',
+            'SDG 9': 'Industry, Innovation and Infrastructure',
+            'SDG 10': 'Reduced Inequalities',
+            'SDG 11': 'Sustainable Cities and Communities',
+            'SDG 12': 'Responsible Consumption and Production',
+            'SDG 13': 'Climate Action',
+            'SDG 14': 'Life Below Water',
+            'SDG 15': 'Life on Land',
+            'SDG 16': 'Peace, Justice and Strong Institutions',
+            'SDG 17': 'Partnerships for the Goals'
+        }
 
-        # Helper function to check if a study matches filters
-        def study_matches_filters(study_node):
-            matches = True
-            if year_range:
-                matches = matches and (year_range[0] <= G.nodes[study_node]['year'] <= year_range[1])
-            if selected_colleges:
-                matches = matches and (G.nodes[study_node]['college'] in selected_colleges)
-            return matches
-        
-        for node in G.nodes():
-            if G.nodes[node]['type'] == 'sdg':
-                if current_area:
-                    # When viewing specific area, count only studies connected to both
-                    sdg_studies = set(n for n in G.neighbors(node) 
-                                    if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
-                    area_studies = set(n for n in G.neighbors(current_area) 
-                                        if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
-                    node_connections[node] = len(sdg_studies.intersection(area_studies))
-                else:
-                    # Normal SDG view - count all connected studies that match filters
-                    node_connections[node] = len([n for n in G.neighbors(node) 
-                                                if G.nodes[n]['type'] == 'study' and study_matches_filters(n)])
-            elif G.nodes[node]['type'] == 'area':
-                # Always get intersection with current SDG since we can only reach area view through an SDG
-                area_studies = set(n for n in G.neighbors(node) 
-                                  if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
-                if current_sdg:
-                    sdg_studies = set(n for n in G.neighbors(current_sdg) 
-                                     if G.nodes[n]['type'] == 'study' and study_matches_filters(n))
-                    node_connections[node] = len(area_studies.intersection(sdg_studies))
-                else:
-                    # This case should never happen in practice since we always have an SDG context
-                    node_connections[node] = len(area_studies)
-
-        # Filter nodes based on type and whether to show studies
-        nodes_to_show = [node for node in nodes_to_show 
-                        if G.nodes[node]['type'] == 'sdg' or  
-                        (G.nodes[node]['type'] == 'area' and show_studies) or  
-                        (G.nodes[node]['type'] == 'study' and show_studies and study_matches_filters(node))]
-
-        edges_to_show = [edge for edge in edges_to_show 
-                        if edge[0] in nodes_to_show and edge[1] in nodes_to_show]
-
-        # Remove direct SDG-study edges when in SDG view
-        current_sdg = next((node for node in filtered_nodes if G.nodes[node]['type'] == 'sdg'), None)
-        if current_sdg and show_studies:  # If we're showing studies, we're in SDG view
-            edges_to_show = [edge for edge in edges_to_show 
-                            if not (
-                                (edge[0] == current_sdg and G.nodes[edge[1]]['type'] == 'study') or
-                                (edge[1] == current_sdg and G.nodes[edge[0]]['type'] == 'study')
-                            )]
-
-        node_x, node_y = [], []
-        hover_text, node_labels = [], []
-        node_color, node_size = [], []
-        customdata = []
-
-        # Adjust node sizes to prevent overlap
-        sdg_size_range = (60, 150)
-        area_size_range = (30, 80)
-        study_size = 15
-
-        # Get connection counts for scaling
-        sdg_counts = [count for node, count in node_connections.items() if count > 0]
-        max_connections = max(sdg_counts) if sdg_counts else 1
-
-        for node in nodes_to_show:
-            x, y = fixed_pos[node]
-            node_x.append(x)
-            node_y.append(y)
-            node_type = G.nodes[node]['type']
-
-            if node_type == 'sdg':
-                count = node_connections[node]
-                size = sdg_size_range[0] + (count / max_connections) * (sdg_size_range[1] - sdg_size_range[0])
-                node_size.append(max(size, sdg_size_range[0]))
-                # Format the node name to match sdg_colors dictionary keys
-                sdg_key = f"SDG {node.split(' ')[1]}"  # Convert "SDG1" to "SDG 1"
-                node_color.append(sdg_colors.get(sdg_key, '#FF4500'))  # Use color from sdg_colors
-                hover_text.append(f"SDG: {node}<br>{count} studies")
-                node_labels.append(node)
-                customdata.append({'type': 'sdg', 'id': node})
-            elif node_type == 'area':
-                # Find the current SDG node (should be the only SDG in filtered_nodes)
-                current_sdg = next((n for n in filtered_nodes if G.nodes[n]['type'] == 'sdg'), None)
-                
-                # Get studies connected to both this area and the current SDG
-                area_studies = set(n for n in G.neighbors(node) if G.nodes[n]['type'] == 'study')
-                sdg_studies = set(n for n in G.neighbors(current_sdg) if G.nodes[n]['type'] == 'study') if current_sdg else set()
-                common_studies = area_studies.intersection(sdg_studies)
-                
-                # Apply additional filters
-                filtered_studies = set()
-                for study in common_studies:
-                    if year_range and not (year_range[0] <= G.nodes[study]['year'] <= year_range[1]):
-                        continue
-                    if selected_colleges and G.nodes[study]['college'] not in selected_colleges:
-                        continue
-                    filtered_studies.add(study)
-                
-                count = len(filtered_studies)
-                size = area_size_range[0] + (count / max_connections) * (area_size_range[1] - area_size_range[0])
-                node_size.append(max(size, area_size_range[0]))
-                node_color.append('#0A438F')
-                hover_text.append(f"Research Area: {node}<br>Studies: {count}")
-                node_labels.append(node if show_labels else '')
-                customdata.append({'type': 'area', 'id': node})
-            else:  # Study nodes
-                connected_sdgs = [n for n in G.neighbors(node) if G.nodes[n]['type'] == 'sdg']
-                connected_areas = [n for n in G.neighbors(node) if G.nodes[n]['type'] == 'area']
-                
-                hover_text.append(
-                    f"<b>Title:</b> {G.nodes[node]['title']}<br>"
-                    f"<b>College:</b> {G.nodes[node]['college']}<br>"
-                    f"<b>Program:</b> {G.nodes[node]['program']}<br>"
-                    f"<b>Authors:</b> {G.nodes[node]['authors']}<br>"
-                    f"<b>Year:</b> {G.nodes[node]['year']}<br>"
-                    f"<b>SDGs:</b> {', '.join(connected_sdgs)}<br>"
-                    f"<b>Research Areas:</b> {', '.join(connected_areas)}"
-                )
-                node_color.append(palette_dict.get(G.nodes[node]['college'], 'grey'))
-                node_size.append(study_size)
-                node_labels.append("")
-                customdata.append({'type': 'study', 'research_id': node})
-
+        # Create edge trace
         edge_x = []
         edge_y = []
-        for edge in edges_to_show:
-            x0, y0 = fixed_pos[edge[0]]
-            x1, y1 = fixed_pos[edge[1]]
-            edge_x.append(x0)
-            edge_x.append(x1)
-            edge_x.append(None)
-            edge_y.append(y0)
-            edge_y.append(y1)
-            edge_y.append(None)
+        for edge in edges:
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
 
         edge_trace = go.Scatter(
             x=edge_x, y=edge_y,
-            line=dict(width=0.3, color='#888'),
+            line=dict(width=0.5, color='#888'),
             hoverinfo='none',
             mode='lines'
         )
 
+        # Create node trace
+        node_x = []
+        node_y = []
+        node_text = []
+        node_hover_text = []
+        node_color = []
+        node_size = []
+        node_data = []
+
+        # Get max study count for relative sizing
+        max_study_count = max([G.nodes[node].get('study_count', 0) for node in G.nodes()], default=1)
+
+        for node in G.nodes():
+            x, y = pos[node]
+            node_x.append(x)
+            node_y.append(y)
+            
+            # Get node attributes
+            node_type = G.nodes[node].get('type', '')
+            study_count = G.nodes[node].get('study_count', 0)
+            
+            if node_type == 'sdg':
+                # Display text is just the SDG number
+                node_text.append(node)
+                # Hover text includes title and count
+                hover_text = f"{node}: {sdg_titles.get(node, '')}<br>Research Count: {study_count}"
+                node_hover_text.append(hover_text)
+                
+                color = sdg_colors.get(node, '#1f77b4')
+                # Calculate relative size based on study count
+                relative_size = MIN_SIZE + ((study_count / max_study_count) * (MAX_SIZE - MIN_SIZE))
+                size = G.nodes[node].get('node_size', relative_size)  # Default to 15 if not set
+            elif node_type == 'area':
+                node_text.append(node)
+                node_hover_text.append(f"{node}<br>Research Count: {study_count}")
+                color = '#ff7f0e'
+                # Get the calculated size from node attributes
+                size = G.nodes[node].get('node_size', 15)  # Default to 15 if not set
+
+            node_color.append(color)
+            node_size.append(size)
+            
+            # Store custom data for callbacks
+            node_data.append({
+                'id': node,
+                'type': node_type,
+                'study_count': study_count
+            })
+
         node_trace = go.Scatter(
-            x=node_x, y=node_y,
-            mode='markers+text',
-            text=node_labels,
-            textposition="middle center",
-            hovertext=hover_text,
+            x=node_x,
+            y=node_y,
+            mode='markers+text' if show_labels else 'markers',
             hoverinfo='text',
+            text=node_text,
+            textposition="middle center",
+            hovertext=node_hover_text,  # Use the new hover text
             marker=dict(
                 color=node_color,
                 size=node_size,
-                line=dict(width=2, color='white')
+                line_width=2,
+                line=dict(color='white'),
+                opacity=1.0,
+                symbol='circle',
+                sizemode='diameter'
             ),
-            customdata=customdata,
             textfont=dict(
                 size=14,
-                color='black',
-                family='Arial'
-            )
+                family='Arial Black'
+            ),
+            customdata=node_data,
+            hoverlabel=dict(
+                bgcolor='white',
+                font_size=14,
+                font_family='Arial'
+            ),
+            hovertemplate='%{hovertext}<extra></extra>',
+            selected=dict(marker=dict(opacity=1.0)),
+            unselected=dict(marker=dict(opacity=1.0))
         )
 
         return edge_trace, node_trace
 
-    initial_nodes = [node for node in G.nodes() if G.nodes[node]['type'] in ['sdg', 'area', 'study']]
-    initial_edges = list(G.edges())
-    edge_trace, node_trace = build_traces(initial_nodes, initial_edges, initial_nodes, show_labels=False)
+    # Initial graph build with only SDG counts
+    sdg_counts_df = get_filtered_sdg_counts()
+    G = nx.Graph()
+    
+    # Add SDG nodes with their counts
+    for _, row in sdg_counts_df.iterrows():
+        G.add_node(row['sdg'], 
+                  type='sdg',  # Make sure type is set
+                  study_count=row['study_count'])
+
+    # Create initial circular layout
+    pos = create_circular_layout(G, sdg_counts_df)
+    pos = {node: (coords[0] * 25, coords[1] * 25) 
+           for node, coords in pos.items()}
+
+    # Build initial traces
+    edge_trace, node_trace = build_traces(G, [], pos=pos, show_labels=True)
+
     # Initialize Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
 
@@ -393,7 +335,7 @@ def create_kg_area(flask_app):
         },
         'dropdown_container': {
             'width': 'inherit',
-            'fontSize' : '13px',
+            'fontSize': '13px',
             'padding': '5px',
             'marginBottom': '20px'
         },
@@ -410,7 +352,7 @@ def create_kg_area(flask_app):
         },
         'label': {
             'marginBottom': '10px',
-            'fontSize' : '13px',
+            'fontSize': '13px',
             'color': '#08397C',
             'fontFamily': 'Montserrat',
             'display': 'block'
@@ -422,6 +364,50 @@ def create_kg_area(flask_app):
             'fontWeight': 'bold',
             'marginBottom': '16px',
             'display': 'block'
+        },
+        'side_panel': {
+            'position': 'fixed',
+            'top': '0',
+            'right': '0',
+            'width': '400px',
+            'height': '100vh',
+            'backgroundColor': 'white',
+            'boxShadow': '-2px 0px 10px rgba(0, 0, 0, 0.1)',
+            'padding': '20px',
+            'overflowY': 'auto',
+            'zIndex': '1000',
+            'transition': 'transform 0.3s ease-in-out',
+            'fontFamily': 'Montserrat'
+        },
+        'study_item': {
+            'padding': '15px',
+            'marginBottom': '10px',
+            'border': '1px solid #ddd',
+            'borderRadius': '5px',
+            'backgroundColor': '#f9f9f9'
+        },
+        'study_title': {
+            'fontSize': '16px',
+            'fontWeight': 'bold',
+            'color': '#08397C',
+            'marginBottom': '8px'
+        },
+        'study_authors': {
+            'fontSize': '14px',
+            'color': '#666',
+            'marginBottom': '5px'
+        },
+        'study_year': {
+            'fontSize': '14px',
+            'color': '#666'
+        },
+        'close_button': {
+            'position': 'absolute',
+            'right': '20px',
+            'top': '20px',
+            'cursor': 'pointer',
+            'fontSize': '24px',
+            'color': '#08397C'
         }
     }
 
@@ -429,6 +415,16 @@ def create_kg_area(flask_app):
     dash_app.layout = html.Div([
         dcc.Store(id='click-store', storage_type='memory'),
         dcc.Store(id='parent-sdg-store', storage_type='memory'),
+        dcc.Store(id='side-panel-store', storage_type='memory'),
+        dcc.Store(id='panel-visibility', data={'visible': True}),
+        
+        # Add interval component at the top
+        dcc.Interval(
+            id='refresh-interval',
+            interval=5000,  # 5 second in milliseconds
+            n_intervals=0
+        ),
+        
         html.Div([
             html.Label('Filters', style=styles['main_label']),
             html.Div([
@@ -436,65 +432,60 @@ def create_kg_area(flask_app):
                 html.Div([
                     dcc.RangeSlider(
                         id='year-slider',
-                        min=df['school_year'].min(),
-                        max=df['school_year'].max(),
-                        value=[df['school_year'].min(), df['school_year'].max()],
-                        marks={year: str(year) for year in range(int(df['school_year'].min()), 
-                                                               int(df['school_year'].max()) + 1, 2)},
+                        min=min_year,
+                        max=max_year,
+                        value=[min_year, max_year],
+                        marks={year: str(year) for year in range(int(df['year'].min()), 
+                                                               int(df['year'].max()) + 1, 2)},
                         step=1
                     )
                 ], style=styles['slider_container']),
             ]),
             
             html.Div([
+                html.Label('Select College/s:', style=styles['label']),
                 html.Div([
-                    html.Label('Select College/s:', style=styles['label']),
-                    html.Div([
-                        dcc.Dropdown(
-                            id='college-dropdown',
-                            options=[{'label': college, 'value': college} for college in df['college_id'].unique()],
-                            value=[],
-                            multi=True,
-                            placeholder='Select colleges...'
-                        )
-                    ], style=styles['dropdown_container']),
-                ]),
-
-                # Add threshold slider
-                html.Div([
-                    html.Label('Research Area Connection Threshold:', style=styles['label']),
-                    html.Div([
-                        dcc.Slider(
-                            id='threshold-slider',
-                            min=1,
-                            max=5,
-                            value=1,  # Default value
-                            marks={i: f'{i} connections' for i in range(1, 6)},
-                            step=1  # Force whole number intervals
-                        )
-                    ], style=styles['slider_container']),
-                ], id='threshold-container', style={'display': 'none'}),  # Hidden by default
-
-                #html.Button('Reset Filter',id='reset-filters',n_clicks=0,style=styles['filter_button'])
-            ])        
+                    dcc.Dropdown(
+                        id='college-dropdown',
+                        options=[{'label': college, 'value': college} 
+                                for college in df['college_id'].unique()],
+                        value=[],
+                        multi=True,
+                        placeholder='Select colleges...'
+                    )
+                ], style=styles['dropdown_container']),
+            ]),
+            
+            # Add threshold slider in its own container
+            html.Div([
+                html.Label('Minimum Connections:', style=styles['label']),
+                dcc.Slider(
+                    id='threshold-slider',
+                    min=2,  # Set minimum to 2
+                    # Max and default will be set in the callback
+                    marks=None,  # We'll update this dynamically
+                    step=1
+                ),
+            ], id='threshold-container', style={'display': 'none'}),
+            
         ], style=styles['filter_container']),
         
-        # Container for graph
+        # Container for graph with updated config
         html.Div([
             dcc.Graph(
                 id='knowledge-graph',
                 figure={
                     'data': [edge_trace, node_trace],
                     'layout': go.Layout(
-                        title='<br>Research Studies Knowledge Graph (Overall View)',
+                        title='<br>Research Studies Knowledge Graph',
                         titlefont=dict(size=16),
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=50),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        transition=dict(duration=500),
-                        dragmode=dragmode
+                        dragmode='pan',
+                        clickmode='event'
                     )
                 },
                 style={
@@ -505,542 +496,411 @@ def create_kg_area(flask_app):
                     'responsive': True,
                     'scrollZoom': True,
                     'displayModeBar': True,
-                    'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+                    'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                    'displaylogo': False
                 }
             )
-        ], style=styles['graph_container'])
+        ], style=styles['graph_container']),
+        
+        # Side Panel for Studies
+        html.Div(id='side-panel', style={'display': 'none'}),
+        
     ], style=styles['main_container'])
 
+    # Add a simple callback to test clicks
     @dash_app.callback(
-    [Output('knowledge-graph', 'figure'),
-     Output('click-store', 'data'),
-     Output('parent-sdg-store', 'data')],
-    [Input('year-slider', 'value'),
-     Input('college-dropdown', 'value'),
-     Input('threshold-slider', 'value'),
-     Input('knowledge-graph', 'clickData')],  # Add Reset Button as Input
-    [State('knowledge-graph', 'figure'),
-     State('parent-sdg-store', 'data')]
-)
-    def update_graph(year_range, selected_colleges, threshold, clickData, current_figure, parent_sdg):
-        ctx = dash.callback_context
-        triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
+        Output('click-store', 'data'),
+        [Input('knowledge-graph', 'clickData')]
+    )
+    def print_click_data(clickData):
+        if clickData:
+            print("Click detected!")
+            print(f"Click data: {clickData}")
+        return clickData
 
-        if triggered_input == 'reset-filters':
-            year_range = [df['school_year'].min(), df['school_year'].max()]  # Reset year range
-            selected_colleges = []  # Reset college selection
-            threshold = 1  # Reset threshold slider
-        
-        show_studies = False
-        show_labels = True
+    # Update the click handler callback
+    @dash_app.callback(
+        Output('parent-sdg-store', 'data'),
+        [Input('knowledge-graph', 'clickData')],
+        [State('parent-sdg-store', 'data')]
+    )
+    def handle_click(clickData, current_sdg):
+        if clickData:
+            point_data = clickData['points'][0]['customdata']
+            print(f"Click detected on: {point_data}")
+            print(f"Current SDG: {current_sdg}")
+            
+            if point_data['type'] == 'sdg':
+                # If we click the same SDG that's currently selected, clear the selection
+                if current_sdg == point_data['id']:
+                    print("Same SDG clicked - returning to overall view")
+                    return None
+                # Otherwise, select the new SDG
+                print(f"New SDG clicked - switching to {point_data['id']}")
+                return point_data['id']
+            elif point_data['type'] == 'area':
+                # If we click an area node, maintain the current SDG view
+                print("Area clicked - maintaining current view")
+                return current_sdg
+        return current_sdg
 
-        # Initialize with all SDG nodes for the overview
-        filtered_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'sdg']
-        nodes_to_show = filtered_nodes
-        edges_to_show = []
-        new_title = '<br>Research Studies Knowledge Graph (SDG View)'
+    # Main graph update callback
+    @dash_app.callback(
+        Output('knowledge-graph', 'figure'),
+        [Input('year-slider', 'value'),
+         Input('college-dropdown', 'value'),
+         Input('threshold-slider', 'value'),
+         Input('parent-sdg-store', 'data'),
+         Input('refresh-interval', 'n_intervals')]
+    )
+    def update_graph_on_filter(year_range, selected_colleges, threshold, parent_sdg, n_intervals):
+        try:
+            if not selected_colleges:
+                selected_colleges = colleges
+            if not year_range:
+                year_range = [min_year, max_year]
+            if not threshold:
+                threshold = 1
 
-        # If we're in a specific SDG view and applying filters, maintain that view
-        if triggered_input == 'apply-filters':
-            if "Research Areas and Studies for SDG" in current_title:
-                current_sdg = parent_sdg  # Get the current SDG from store
-                if current_sdg:
-                    # Show filtered areas and studies for this SDG
-                    nodes_to_show = {current_sdg}
-                    
-                    # Get all studies connected to this SDG (before filtering)
-                    sdg_studies = set(n for n in G.neighbors(current_sdg) 
-                                    if G.nodes[n]['type'] == 'study')
-                    
-                    # Apply filters to studies
-                    filtered_studies = set()
-                    for study in sdg_studies:
-                        if year_range and not (year_range[0] <= G.nodes[study]['year'] <= year_range[1]):
-                            continue
-                        if selected_colleges and G.nodes[study]['college'] not in selected_colleges:
-                            continue
-                        filtered_studies.add(study)
-                    
-                    # Get all areas connected to the filtered studies
-                    area_connections = defaultdict(int)
-                    areas_to_show = set()
-                    
-                    for study in filtered_studies:
-                        for neighbor in G.neighbors(study):
-                            if G.nodes[neighbor]['type'] == 'area':
-                                area_connections[neighbor] += 1
-                    
-                    # Filter areas based on threshold but keep original connection counts
-                    if area_connections:
-                        min_connections = min(area_connections.values())
-                        threshold_count = max(int(threshold * min_connections), min_connections)
-                        areas_to_show = {
-                            area for area, count in area_connections.items()
-                            if count >= threshold_count
+            print(f"Updating graph with parent_sdg: {parent_sdg}")
+
+            # Always get fresh data for overall view when parent_sdg is None
+            if parent_sdg is None:
+                print("Creating overall SDG view")
+                sdg_counts_df = get_filtered_sdg_counts(
+                    start_year=year_range[0],
+                    end_year=year_range[1],
+                    selected_colleges=selected_colleges
+                )
+                
+                # Create new graph with current data
+                G = nx.Graph()
+                
+                # Add SDG nodes with their counts
+                for _, row in sdg_counts_df.iterrows():
+                    G.add_node(row['sdg'], 
+                             type='sdg',
+                             study_count=row['study_count'])
+
+                # Create new layout based on current counts
+                pos = create_circular_layout(G, sdg_counts_df)
+                
+                # Scale positions - reduced scaling factor for consistency
+                pos = {node: (coords[0] * 25, coords[1] * 25) 
+                      for node, coords in pos.items()}
+
+                # Build traces with updated positions
+                edge_trace, node_trace = build_traces(G, [], pos=pos, show_labels=True)
+                
+                title = '<br>Overall SDG View'
+
+                # Create figure for overall view with fixed camera
+                fig = {
+                    'data': [edge_trace, node_trace],
+                    'layout': go.Layout(
+                        title=title,
+                        titlefont=dict(size=16),
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=0, l=0, r=0, t=50),
+                        xaxis=dict(
+                            showgrid=False, 
+                            zeroline=False, 
+                            showticklabels=False,
+                        ),
+                        yaxis=dict(
+                            showgrid=False, 
+                            zeroline=False, 
+                            showticklabels=False,
+                        ),
+                        dragmode='pan',
+                        clickmode='event',
+                        uirevision='constant',
+                        transition={
+                            'duration': 1000,
+                            'easing': 'cubic-in-out'
                         }
+                    )
+                }
+                return fig
+            else:
+                # SDG specific view code
+                research_areas_df = get_filtered_research_area_counts(
+                    selected_sdg=parent_sdg,
+                    start_year=year_range[0],
+                    end_year=year_range[1],
+                    selected_colleges=selected_colleges
+                )
+                
+                # Create new graph for SDG-specific view
+                G = nx.Graph()
+                
+                # Define sizes for SDG detail view
+                MIN_AREA_SIZE = 40
+                MAX_AREA_SIZE = 80
+                SDG_NODE_SIZE = 100  # Fixed size, larger than max area size
+                MINIMUM_DISTANCE = 3  # Minimum distance from center
+                
+                # Add central SDG node with fixed size
+                G.add_node(parent_sdg, type='sdg', node_size=SDG_NODE_SIZE)
+                
+                # Get max study count for relative sizing
+                max_study_count = research_areas_df['study_count'].max() if not research_areas_df.empty else 1
+                
+                # Add research areas and edges
+                if not research_areas_df.empty:
+                    research_areas_df = research_areas_df.sort_values('study_count', ascending=False)
                     
-                    # Only show studies connected to visible areas
-                    studies_to_show = {
-                        study for study in filtered_studies
-                        if any(area in areas_to_show 
-                              for area in G.neighbors(study) 
-                              if G.nodes[area]['type'] == 'area')
-                    }
-                    
-                    nodes_to_show.update(areas_to_show)
-                    nodes_to_show.update(studies_to_show)
-                    
-                    # Get edges but exclude direct SDG-study connections
-                    edges_to_show = [e for e in G.edges() 
-                                   if e[0] in nodes_to_show and e[1] in nodes_to_show and
-                                   not ((e[0] == current_sdg and G.nodes[e[1]]['type'] == 'study') or
-                                        (e[1] == current_sdg and G.nodes[e[0]]['type'] == 'study'))]
-                    
-                    filtered_nodes = list(nodes_to_show)
-                    show_studies = True
-                    new_title = f'<br>Research Areas and Studies for {current_sdg}'
-                    
-                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
-                        filter_desc = []
-                        if selected_colleges:
-                            filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-                        if year_range != [df['school_year'].min(), df['school_year'].max()]:
-                            filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
-                        new_title += f" ({' | '.join(filter_desc)})"
+                    for _, row in enumerate(research_areas_df.itertuples()):
+                        area_name = str(row.research_area_name)
+                        study_count = int(row.study_count)
+                        
+                        if study_count >= threshold:
+                            # Calculate relative size based on study count
+                            relative_size = MIN_AREA_SIZE + ((study_count / max_study_count) * (MAX_AREA_SIZE - MIN_AREA_SIZE))
+                            G.add_node(area_name, type='area', study_count=study_count, node_size=relative_size)
+                            G.add_edge(parent_sdg, area_name)
 
-            elif "Studies for Research Area:" in current_title and parent_sdg:
-                # Maintain Research Area view when applying filters
-                area_name = current_title.split("Studies for Research Area:")[1].split("(SDG:")[0].strip()
-                nodes_to_show = {area_name}  # Only show the area node
-                
-                # Get studies connected to both area and SDG
-                sdg_studies = set(n for n in G.neighbors(parent_sdg) 
-                                 if G.nodes[n]['type'] == 'study')
-                area_studies = set(n for n in G.neighbors(area_name) 
-                                 if G.nodes[n]['type'] == 'study')
-                
-                common_studies = sdg_studies.intersection(area_studies)
-                
-                # Apply filters to studies
-                if year_range:
-                    common_studies = {
-                        study for study in common_studies
-                        if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
-                    }
-                
-                if selected_colleges:
-                    common_studies = {
-                        study for study in common_studies
-                        if G.nodes[study]['college'] in selected_colleges
-                    }
-                
-                nodes_to_show.update(common_studies)
-                filtered_nodes = list(nodes_to_show)
-                filtered_nodes.append(parent_sdg)  # Add SDG to filtered_nodes for context
-                
-                edges_to_show = [e for e in G.edges() 
-                               if e[0] in nodes_to_show and e[1] in nodes_to_show]
-                show_studies = True
-                new_title = f'<br>Studies for Research Area: {area_name} (SDG: {parent_sdg})'
+                # Position nodes
+                if len(G.nodes()) > 1:  # If we have research areas
+                    # First position the SDG node at the center
+                    pos = {parent_sdg: np.array([0, 0])}
+                    
+                    # Get all research area nodes
+                    area_nodes = [node for node in G.nodes() if G.nodes[node]['type'] == 'area']
+                    
+                    if len(area_nodes) == 1:
+                        # For single research area, place it to the right of the SDG node
+                        area_node = area_nodes[0]
+                        pos[area_node] = np.array([MINIMUM_DISTANCE, 0])
+                    else:
+                        # For multiple areas, use Kamada-Kawai layout
+                        area_subgraph = G.subgraph(area_nodes)
+                        area_pos = nx.kamada_kawai_layout(area_subgraph)
+                        
+                        # Ensure minimum distance from center
+                        for node, coords in area_pos.items():
+                            distance = np.linalg.norm(coords)
+                            if distance < MINIMUM_DISTANCE:
+                                # Scale up the position to meet minimum distance
+                                scale_factor = MINIMUM_DISTANCE / distance
+                                area_pos[node] = coords * scale_factor
+                        
+                        pos.update(area_pos)
+                else:
+                    pos = {parent_sdg: np.array([0, 0])}
 
-        # Handle click events
-        elif triggered_input == 'knowledge-graph' and clickData:
+                # Scale positions
+                pos = {node: (coords[0] * 15, coords[1] * 15) 
+                      for node, coords in pos.items()}
+
+                # Build traces with updated positions
+                edge_trace, node_trace = build_traces(G, G.edges(), pos=pos, show_labels=True)
+                
+                title = '<br>SDG Details View'
+
+                # Create figure for SDG detail view with fixed camera
+                fig = {
+                    'data': [edge_trace, node_trace],
+                    'layout': go.Layout(
+                        title=title,
+                        titlefont=dict(size=16),
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=0, l=0, r=0, t=50),
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        dragmode='pan',
+                        clickmode='event',
+                        uirevision='constant',
+                        transition={
+                            'duration': 1000,
+                            'easing': 'cubic-in-out'
+                        }
+                    )
+                }
+                return fig
+
+        except Exception as e:
+            print(f"Error updating graph on filter: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return dash.no_update
+
+    # Add callback to control threshold slider visibility
+    @dash_app.callback(
+        Output('threshold-container', 'style'),
+        [Input('parent-sdg-store', 'data')]
+    )
+    def toggle_threshold_visibility(parent_sdg):
+        if parent_sdg:  # If we're in a specific SDG view
+            return {'display': 'block'}
+        return {'display': 'none'}  # Hide in overall view
+
+    # Modify the close button callback
+    @dash_app.callback(
+        [Output('side-panel', 'style'),
+         Output('panel-visibility', 'data')],
+        [Input('close-panel', 'n_clicks')],
+        [State('panel-visibility', 'data')]
+    )
+    def handle_close_button(n_clicks, current_visibility):
+        if n_clicks:
+            print("Close button clicked!")
+            return {'display': 'none'}, {'visible': False}
+        raise dash.exceptions.PreventUpdate
+
+    # Update the side panel callback
+    @dash_app.callback(
+        [Output('side-panel', 'children'),
+         Output('side-panel', 'style', allow_duplicate=True)],  # Add allow_duplicate
+        [Input('knowledge-graph', 'clickData')],
+        [State('parent-sdg-store', 'data'),
+         State('year-slider', 'value'),
+         State('college-dropdown', 'value')],
+        prevent_initial_call=True
+    )
+    def update_side_panel(clickData, parent_sdg, year_range, selected_colleges):
+        print("\n=== Side Panel Update ===")
+        
+        try:
+            if not clickData:
+                return None, {'display': 'none'}
+
             point_data = clickData['points'][0]['customdata']
             clicked_type = point_data.get('type')
             clicked_id = point_data.get('id')
-            current_title = current_figure.get('layout', {}).get('title', {}).get('text', '')
 
-            if clicked_type == 'sdg':
-                if 'Research Studies Knowledge Graph (SDG View)' not in current_title:
-                    # Return to SDG overview with applied filters
-                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
-                        # Apply filters to get relevant SDGs
-                        if year_range:
-                            year_filtered_studies = {
-                                node for node in G.nodes()
-                                if G.nodes[node]['type'] == 'study' and
-                                year_range[0] <= G.nodes[node]['year'] <= year_range[1]
-                            }
-                        
-                        if selected_colleges:
-                            filtered_studies = {
-                                node for node in year_filtered_studies
-                                if G.nodes[node]['college'] in selected_colleges
-                            }
-                        else:
-                            filtered_studies = year_filtered_studies
-                        
-                        filtered_sdgs = {
-                            node for node in G.nodes()
-                            if G.nodes[node]['type'] == 'sdg' and
-                            any(neighbor in filtered_studies for neighbor in G.neighbors(node))
-                        }
-                        nodes_to_show = filtered_sdgs
-                    else:
-                        nodes_to_show = {node for node in G.nodes() if G.nodes[node]['type'] == 'sdg'}
-                    
-                    edges_to_show = []
-                    new_title = '<br>Research Studies Knowledge Graph (SDG View)'
-                    if selected_colleges or year_range != [df['school_year'].min(), df['school_year'].max()]:
-                        filter_desc = []
-                        if selected_colleges:
-                            filter_desc.append(f"Colleges: {', '.join(selected_colleges)}")
-                        if year_range != [df['school_year'].min(), df['school_year'].max()]:
-                            filter_desc.append(f"Years: {year_range[0]}-{year_range[1]}")
-                        new_title += f" ({' | '.join(filter_desc)})"
-                    
-                    show_studies = False
-                    show_labels = True
-                else:
-                    # Show filtered areas and studies for this SDG
-                    nodes_to_show = {clicked_id}
-                    
-                    # Get filtered studies directly connected to this SDG
-                    sdg_studies = set(n for n in G.neighbors(clicked_id) 
-                                    if G.nodes[n]['type'] == 'study')
-                    
-                    if year_range:
-                        sdg_studies = {
-                            study for study in sdg_studies
-                            if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
-                        }
-                    
-                    if selected_colleges:
-                        sdg_studies = {
-                            study for study in sdg_studies
-                            if G.nodes[study]['college'] in selected_colleges
-                        }
-                    
-                    # Get areas connected to filtered studies with connection counts
-                    area_connections = defaultdict(int)
-                    
-                    for study in sdg_studies:
-                        for neighbor in G.neighbors(study):
-                            if G.nodes[neighbor]['type'] == 'area':
-                                area_connections[neighbor] += 1
+            print(f"Clicked type: {clicked_type}, id: {clicked_id}")
 
-                    # Calculate default threshold for initial view
-                    if area_connections:
-                        connection_counts = list(area_connections.values())
-                        min_conn = min(connection_counts)
-                        max_conn = min(max(connection_counts), 10)
-                        default_threshold = min_conn + (max_conn - min_conn) // 2
-                    else:
-                        default_threshold = 1
-
-                    # Apply threshold immediately
-                    areas_with_studies = {
-                        area for area, count in area_connections.items()
-                        if count >= default_threshold
-                    }
-                    
-                    nodes_to_show.update(areas_with_studies)
-                    
-                    # Only show studies connected to visible areas
-                    filtered_studies = {
-                        study for study in sdg_studies
-                        if any(area in areas_with_studies 
-                              for area in G.neighbors(study) 
-                              if G.nodes[area]['type'] == 'area')
-                    }
-                    
-                    nodes_to_show.update(filtered_studies)
-                    
-                    edges_to_show = [e for e in G.edges() 
-                                   if e[0] in nodes_to_show and e[1] in nodes_to_show]
-                    
-                    show_studies = True
-                    new_title = f'<br>Research Areas and Studies for {clicked_id}'
-
-                filtered_nodes = list(nodes_to_show)
-
-                # Update all build_traces calls to include the new parameters:
-                edge_trace, node_trace = build_traces(
-                    nodes_to_show, 
-                    edges_to_show, 
-                    filtered_nodes,
-                    show_labels=show_labels,
-                    show_studies=show_studies,
-                    year_range=year_range,
-                    selected_colleges=selected_colleges
+            if clicked_type == 'area':
+                df = get_filtered_kgdata(
+                    selected_area=clicked_id,
+                    selected_sdg=parent_sdg,
+                    start_year=int(year_range[0]) if year_range else None,
+                    end_year=int(year_range[1]) if year_range else None,
+                    selected_colleges=selected_colleges if selected_colleges else None
                 )
-
-                new_figure = {
-                    'data': [edge_trace, node_trace],
-                    'layout': go.Layout(
-                        title=new_title,
-                        titlefont=dict(size=16),
-                        showlegend=False,
-                        hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=50),
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        transition=dict(duration=500),
-                        dragmode='pan'
-                    )
-                }
-
-                if 'Research Studies Knowledge Graph (SDG View)' not in current_title:
-                    return new_figure, None, None  # Reset parent SDG
-                else:
-                    return new_figure, None, clicked_id  # Store the current SDG
-
-            elif clicked_type == 'area':
-                if "Studies for Research Area:" in current_title and parent_sdg:
-                    # We're in area view, return to the parent SDG view
-                    nodes_to_show = {parent_sdg}
-                    sdg_studies = set(n for n in G.neighbors(parent_sdg) 
-                                    if G.nodes[n]['type'] == 'study')
-                    
-                    if year_range:
-                        sdg_studies = {
-                            study for study in sdg_studies
-                            if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
-                        }
-                        
-                    if selected_colleges:
-                        sdg_studies = {
-                            study for study in sdg_studies
-                            if G.nodes[study]['college'] in selected_colleges
-                        }
-
-                    areas_with_studies = set()
-                    for study in sdg_studies:
-                        for neighbor in G.neighbors(study):
-                            if G.nodes[neighbor]['type'] == 'area':
-                                areas_with_studies.add(neighbor)
-                    
-                    nodes_to_show.update(areas_with_studies)
-                    nodes_to_show.update(sdg_studies)
-                    
-                    edges_to_show = [e for e in G.edges() 
-                                   if e[0] in nodes_to_show and e[1] in nodes_to_show]
-                    
-                    show_studies = True
-                    new_title = f'<br>Research Areas and Studies for {parent_sdg}'
-                    filtered_nodes = list(nodes_to_show)
                 
-                elif parent_sdg:  # We're in SDG view, zoom into area
-                    # Store parent_sdg for context
-                    context_sdg = parent_sdg
-                    nodes_to_show = {clicked_id}  # Only show the area node
-                    
-                    # Get studies connected to both area and SDG
-                    sdg_studies = set(n for n in G.neighbors(context_sdg) 
-                                    if G.nodes[n]['type'] == 'study')
-                    area_studies = set(n for n in G.neighbors(clicked_id) 
-                                     if G.nodes[n]['type'] == 'study')
-                    
-                    common_studies = sdg_studies.intersection(area_studies)
-                    
-                    if year_range:
-                        common_studies = {
-                            study for study in common_studies
-                            if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
-                        }
-                    
-                    if selected_colleges:
-                        common_studies = {
-                            study for study in common_studies
-                            if G.nodes[study]['college'] in selected_colleges
-                        }
-                    
-                    nodes_to_show.update(common_studies)  # Add studies to display
-                    filtered_nodes = list(nodes_to_show)
-                    filtered_nodes.append(context_sdg)  # Add SDG to filtered_nodes for context
-                    
-                    edges_to_show = [e for e in G.edges() 
-                                   if e[0] in nodes_to_show and e[1] in nodes_to_show]
-                    show_studies = True
-                    new_title = f'<br>Studies for Research Area: {clicked_id} (SDG: {parent_sdg})'
+                if df is None or df.empty:
+                    return None, {'display': 'none'}
 
-                # Update all build_traces calls to include the new parameters:
-                edge_trace, node_trace = build_traces(
-                    nodes_to_show, 
-                    edges_to_show, 
-                    filtered_nodes,
-                    show_labels=show_labels,
-                    show_studies=show_studies,
-                    year_range=year_range,
-                    selected_colleges=selected_colleges
+                studies_list = []
+                for _, row in df.iterrows():
+                    study_item = html.Div([
+                        html.Div(row['title'], style=styles['study_title']),
+                        html.Div(f"Authors: {row['concatenated_authors']}", style=styles['study_authors']),
+                        html.Div(f"Year: {row['school_year']}", style=styles['study_year']),
+                        html.Button(
+                            'View Details',
+                            id={'type': 'study-button', 'index': row['research_id']},
+                            n_clicks=0,
+                            style={
+                                'backgroundColor': '#08397C',
+                                'color': '#FFF',
+                                'border': 'none',
+                                'borderRadius': '20px',
+                                'padding': '5px 15px',
+                                'marginTop': '10px',
+                                'cursor': 'pointer',
+                                'fontSize': '0.8rem',
+                                'fontFamily': 'Montserrat, sans-serif'
+                            }
+                        ),
+                        # Add a hidden div to store the research ID
+                        html.Div(row['research_id'], id={'type': 'research-id', 'index': row['research_id']}, style={'display': 'none'})
+                    ], style=styles['study_item'])
+                    studies_list.append(study_item)
+
+                panel_content = html.Div([
+                    html.Button(
+                        '×', 
+                        id='close-panel',
+                        n_clicks=0,
+                        style=styles['close_button']
+                    ),
+                    html.H2(f"Studies in {clicked_id}", style={'marginBottom': '20px', 'color': '#08397C'}),
+                    html.Div(studies_list)
+                ])
+
+                return panel_content, {**styles['side_panel'], 'display': 'block', 'transform': 'translateX(0)'}
+
+            return None, {'display': 'none'}
+            
+        except Exception as e:
+            print(f"Error in update_side_panel: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return None, {'display': 'none'}
+
+    # Add callback to update threshold slider range
+    @dash_app.callback(
+        [Output('threshold-slider', 'max'),
+         Output('threshold-slider', 'value'),
+         Output('threshold-slider', 'marks')],
+        [Input('parent-sdg-store', 'data'),
+         Input('year-slider', 'value'),
+         Input('college-dropdown', 'value')]
+    )
+    def update_threshold_range(parent_sdg, year_range, selected_colleges):
+        if parent_sdg:
+            try:
+                # Get the research areas data for the selected SDG
+                research_areas_df = get_filtered_research_area_counts(
+                    selected_sdg=parent_sdg,
+                    start_year=year_range[0] if year_range else None,
+                    end_year=year_range[1] if year_range else None,
+                    selected_colleges=selected_colleges if selected_colleges else None
                 )
+                
+                if not research_areas_df.empty:
+                    min_threshold = 2
+                    max_threshold = int(research_areas_df['study_count'].max())
+                    
+                    # Ensure max threshold is at least the minimum
+                    max_threshold = max(max_threshold, min_threshold)
+                    
+                    # Calculate middle value
+                    default_value = min_threshold + (max_threshold - min_threshold) // 2
+                    
+                    # Create marks for the slider
+                    marks = {
+                        min_threshold: {'label': str(min_threshold), 'style': {'color': '#08397C'}},
+                        default_value: {'label': str(default_value), 'style': {'color': '#08397C'}},
+                        max_threshold: {'label': str(max_threshold), 'style': {'color': '#08397C'}}
+                    }
+                    
+                    print(f"Threshold range: min={min_threshold}, default={default_value}, max={max_threshold}")
+                    
+                    return max_threshold, default_value, marks
+            
+            except Exception as e:
+                print(f"Error updating threshold range: {e}")
+                import traceback
+                print(traceback.format_exc())
+        
+        # Default values if no SDG is selected or error occurs
+        return 2, 2, {2: {'label': '2', 'style': {'color': '#08397C'}}}
 
-                new_figure = {
-                    'data': [edge_trace, node_trace],
-                    'layout': go.Layout(
-                        title=new_title,
-                        titlefont=dict(size=16),
-                        showlegend=False,
-                        hovermode='closest',
-                        margin=dict(b=0, l=0, r=0, t=50),
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        transition=dict(duration=500),
-                        dragmode='pan'
-                    )
-                }
-
-                return new_figure, None, parent_sdg
-
-            elif clicked_type == 'study':
-                research_id = point_data.get('research_id')
-                return current_figure, {
-                    'type': 'study_click',
-                    'research_id': str(research_id),
-                    'action': 'redirect'
-                }, parent_sdg
-
-        # Build traces and return figure
-        edge_trace, node_trace = build_traces(
-            nodes_to_show, 
-            edges_to_show, 
-            filtered_nodes,
-            show_labels=show_labels,
-            show_studies=show_studies,
-            year_range=year_range,
-            selected_colleges=selected_colleges
-        )
-
-        return {
-            'data': [edge_trace, node_trace],
-            'layout': go.Layout(
-                title=new_title,
-                titlefont=dict(size=16),
-                showlegend=False,
-                hovermode='closest',
-                margin=dict(b=0, l=0, r=0, t=50),
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                transition=dict(duration=500),
-                dragmode='pan'
-            )
-        }, None, parent_sdg
-
-    # Add clientside callback to handle redirects
+    # Update the clientside callback
     dash_app.clientside_callback(
         """
-        function(clickStoreData) {
-            if (clickStoreData && clickStoreData.type === 'study_click' && clickStoreData.action === 'redirect') {
+        function(n_clicks, research_id) {
+            if (n_clicks > 0) {
+                console.log("Button clicked, research_id:", research_id);
                 window.parent.postMessage({
                     type: 'study_click',
-                    research_id: clickStoreData.research_id
+                    research_id: research_id
                 }, '*');
+                return 0;  // Reset n_clicks
             }
             return window.dash_clientside.no_update;
         }
         """,
-        Output('knowledge-graph', 'id'),  # Dummy output
-        Input('click-store', 'data')
-    )
-
-    @dash_app.callback(
-        Output('threshold-container', 'style'),
-        [Input('knowledge-graph', 'figure')]
-    )
-    def toggle_threshold_visibility(figure):
-        # Show threshold slider only when in SDG view
-        if figure and 'title' in figure['layout']:
-            title = figure['layout']['title']['text']
-            if "Research Areas and Studies for SDG" in title:
-                return {'display': 'block'}
-        return {'display': 'none'}
-
-    # Update the callback that updates the threshold slider properties
-    @dash_app.callback(
-        [Output('threshold-slider', 'min'),
-         Output('threshold-slider', 'max'),
-         Output('threshold-slider', 'value'),
-         Output('threshold-slider', 'marks')],
-        [Input('knowledge-graph', 'clickData'),
-         Input('knowledge-graph', 'figure'),
-         Input('apply-filters', 'n_clicks')],
-        [State('year-slider', 'value'),
-         State('college-dropdown', 'value'),
-         State('threshold-slider', 'value')]
-    )
-    def update_threshold_range(clickData, figure, n_clicks, year_range, selected_colleges, current_threshold):
-        if not clickData:
-            return 1, 5, 1, {i: f"{i} connections" for i in range(1, 6)}
-        
-        ctx = dash.callback_context
-        triggered_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        current_title = figure.get('layout', {}).get('title', {}).get('text', '')
-        
-        # Always maintain current threshold when applying filters
-        if triggered_input == 'apply-filters':
-            return dash.no_update, dash.no_update, current_threshold, dash.no_update
-        
-        # If this update wasn't triggered by a new click or new view, maintain current threshold
-        if triggered_input != 'knowledge-graph':
-            if current_threshold is not None:
-                return dash.no_update, dash.no_update, current_threshold, dash.no_update
-            return dash.no_update, dash.no_update, 1, dash.no_update
-        
-        clicked_node = clickData['points'][0]['customdata']['id']
-        
-        # Return default values if not in SDG view
-        if G.nodes[clicked_node]['type'] != 'sdg':
-            return 1, 5, 1, {i: f"{i} connections" for i in range(1, 6)}
-
-        # Get studies for this SDG
-        sdg_studies = set(n for n in G.neighbors(clicked_node) 
-                         if G.nodes[n]['type'] == 'study')
-        
-        # Apply filters
-        if year_range:
-            sdg_studies = {
-                study for study in sdg_studies
-                if year_range[0] <= G.nodes[study]['year'] <= year_range[1]
-            }
-        
-        if selected_colleges:
-            sdg_studies = {
-                study for study in sdg_studies
-                if G.nodes[study]['college'] in selected_colleges
-            }
-
-        # Count area connections
-        area_connections = defaultdict(int)
-        for study in sdg_studies:
-            for neighbor in G.neighbors(study):
-                if G.nodes[neighbor]['type'] == 'area':
-                    area_connections[neighbor] += 1
-
-        if not area_connections:
-            return 1, 5, 1, {i: f"{i} connections" for i in range(1, 6)}
-
-        connection_counts = list(area_connections.values())
-        min_conn = 1  # Always start at 1
-        max_conn = min(max(connection_counts), 10)  # Cap at 10 for usability
-        
-        # Check if we're entering a new SDG view
-        is_new_sdg_view = (
-            triggered_input == 'knowledge-graph' and 
-            "Research Areas and Studies for SDG" in current_title and
-            not any(prev_title.strip().startswith("Research Areas and Studies for SDG") 
-                   for prev_title in current_title.split('\n') if prev_title.strip())
-        )
-        
-        if is_new_sdg_view:
-            # Set default value to middle of range
-            default_value = min_conn + (max_conn - min_conn) // 2
-        else:
-            # Maintain user's selected threshold
-            default_value = current_threshold if current_threshold is not None else min_conn
-        
-        # Create marks with whole number intervals
-        marks = {i: f"{i} connections" for i in range(min_conn, max_conn + 1)}
-        
-        return min_conn, max_conn, default_value, marks
-
-    # Add a new callback to handle threshold changes
-    @dash_app.callback(
-        Output('threshold-slider', 'value', allow_duplicate=True),
-        [Input('threshold-slider', 'value')],
+        Output({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
+        Input({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'research-id', 'index': MATCH}, 'children'),
         prevent_initial_call=True
     )
-    def maintain_threshold_value(value):
-        """Maintain the user's selected threshold value"""
-        return value
 
     return dash_app
