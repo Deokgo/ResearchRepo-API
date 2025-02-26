@@ -273,7 +273,7 @@ def send_registration_otp():
         redis_client.setex(otp_key, timedelta(minutes=5), otp)
 
         # Send OTP email
-        send_otp_email(email, 'Your OTP Code', f'Your OTP code is {otp}')
+        send_otp_email(email, 'Your One-Time Password (OTP)', f'Your OTP code is {otp}')
         
         return jsonify({"message": "OTP sent successfully. Please verify your email.", "otp": otp})
     except Exception as e:
