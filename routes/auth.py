@@ -167,26 +167,57 @@ def create_account():
 @jwt_required()
 def get_user_details():
     user_id = get_jwt_identity()
-    
+
     try:
-        user = Account.query.get(user_id)
+        # Fetch the user with role, visitor, and profile in one query
+        user = (
+            Account.query
+            .options(joinedload(Account.role), joinedload(Account.visitor), joinedload(Account.user_profile))
+            .filter_by(user_id=user_id)
+            .first()
+        )
+
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        user_profile = UserProfile.query.filter_by(researcher_id=user.user_id).one_or_none()
-        
-        return jsonify({
+        # Extracting role information safely
+        role_id = user.role.role_id if user.role else None
+        role_name = user.role.role_name if user.role else None
+
+        # Extract profile info from either visitor or researcher
+        visitor = user.visitor
+        user_profile = user.user_profile
+
+        data = {
             "user_id": user.user_id,
-            "role": user.role.role_id,
-            "role_name": user.role.role_name,
-            "first_name": user_profile.first_name,
-            "last_name": user_profile.last_name,
-            "college": user_profile.college_id if user_profile else None,
-            "program": user_profile.program_id if user_profile else None
-        }), 200
+            "role": role_id,
+            "role_name": role_name,
+            "email": user.email,
+            "first_name": None,
+            "last_name": None,
+            "college": None,
+            "program": None
+        }
+
+        if visitor:
+            data.update({
+                "first_name": visitor.first_name,
+                "last_name": visitor.last_name,
+                "institution": visitor.institution,
+            })
+        elif user_profile:
+            data.update({
+                "first_name": user_profile.first_name,
+                "last_name": user_profile.last_name,
+                "college": user_profile.college_id,
+                "program": user_profile.program_id
+            })
+
+        return jsonify(data), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
+
 
 @auth.route('/validate-session', methods=['GET'])
 @jwt_required()
