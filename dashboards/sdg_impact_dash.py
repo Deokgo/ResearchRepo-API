@@ -281,18 +281,21 @@ class SDG_Impact_Dash:
         ], width=10, className="p-3", style={"marginLeft": "16.67%"})
 
 
-        self.dash_app.layout = dbc.Container([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
-            dbc.Row([sidebar, main_content], className="g-0")
-        ], fluid=True, style={
-            "paddingBottom": "0px",
-            "marginBottom": "0px",
-            "overflow": "hidden",
-            "height": "100vh",
-            "width": "100vw",
-            "display": "flex",
-            "flexDirection": "column"
-        })
+
+        self.dash_app.layout = html.Div([
+            dbc.Container([
+                dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
+                dbc.Row(
+                    [sidebar, main_content], 
+                    className="g-0 flex-grow-1"
+                )
+            ], 
+            fluid=True, 
+            className="d-flex flex-column w-100 h-100"
+            )
+        ], 
+        className="vh-100 vw-100 d-flex flex-column"
+        )
 
     def add_callbacks(self):
         @self.dash_app.callback(

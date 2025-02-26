@@ -151,17 +151,12 @@ app.register_blueprint(auditlogs, url_prefix='/auditlogs')
 app.register_blueprint(pydash, url_prefix='/dash')
 app.register_blueprint(backup, url_prefix='/backup')
 
-from dashboards.main_dashboard import create_main_dashboard
-from dashboards.main_dash import MainDashboard
+
 from knowledgegraph.knowledgegraph import create_kg_area
 from knowledgegraph.keywordskg import create_research_network
 from knowledgegraph.collectionkg import collection_kg
-from dashboards.college_dash import CollegeDashApp
-from dashboards.program_dash import ProgDashApp
 import dash_bootstrap_components as dbc
 from models import ResearchOutput
-from dashboards.sdg_map_overall import SDG_Map
-from dashboards.sdg_map_college import SDG_Map_College
 from dashboards.user_engagement_dash import UserEngagementDash
 from dashboards.sdg_impact_dash import SDG_Impact_Dash
 from dashboards.sdg_impact_college import SDG_Impact_College
@@ -171,15 +166,9 @@ def create_dash_apps(app):
     with app.app_context():
         session = db.session
         if has_table_data(session, ResearchOutput):
-            MainDashboard(app)
-            create_main_dashboard(app)
             create_kg_area(app)
             create_research_network(app)
             collection_kg(app)
-            CollegeDashApp(app)
-            ProgDashApp(app)
-            SDG_Map(app)
-            SDG_Map_College(app)
             UserEngagementDash(app)
             SDG_Impact_Dash(app)
             SDG_Impact_College(app)

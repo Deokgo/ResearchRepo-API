@@ -8,6 +8,7 @@ from components.CollageContainer import CollageContainer
 from dash import dcc
 from urllib.parse import parse_qs, urlparse
 from . import db_manager
+import dash_html_components as html
 from services.sdg_colors import sdg_colors
 from charts.sdg_college_charts import get_total_proceeding_count,generate_sdg_bipartite_graph,visualize_sdg_impact,create_sdg_plot, create_sdg_pie_chart,create_sdg_research_chart,create_geographical_heatmap,create_geographical_treemap,create_conference_participation_bar_chart,create_local_vs_foreign_donut_chart,get_word_cloud,generate_research_area_visualization
 
@@ -182,8 +183,8 @@ class SDG_Impact_College:
         # Map Section
         self.map = dbc.Container([
             dbc.Row([
-                dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True),
-            ], className='m-0 p-0'),  # Ensure no space around the alert
+                dbc.Alert("Initial alert message", id="alert-message", color="primary", is_open=True,style={"width": "100%", "padding": "2px", "fontSize": "14px"} ),
+            ], className='g-0 d-flex'),  # Ensure no space around the alert
 
             dbc.Row([
                 dbc.Col([
@@ -228,6 +229,7 @@ class SDG_Impact_College:
                 ], width="auto", className='p-0')
             ], className='g-0 d-flex')
         ])
+
 
 
 
@@ -300,18 +302,23 @@ class SDG_Impact_College:
             style={"marginLeft": "16.67%"}  # Pushes main content to the right of sidebar
         )
 
-        self.dash_app.layout = dbc.Container([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
-            dbc.Row([sidebar, main_content], className="g-0")
-        ], fluid=True, style={
-            "paddingBottom": "0px",
-            "marginBottom": "0px",
-            "overflow": "hidden",
-            "height": "100vh",
-            "width": "100vw",
-            "display": "flex",
-            "flexDirection": "column"
-        })
+
+
+        self.dash_app.layout = html.Div([
+            dbc.Container([
+                dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
+                dbc.Row(
+                    [sidebar, main_content], 
+                    className="g-0 flex-grow-1"
+                )
+            ], 
+            fluid=True, 
+            className="d-flex flex-column w-100 h-100"
+            )
+        ], 
+        className="vh-100 vw-100 d-flex flex-column"
+        )
+
 
 
     def add_callbacks(self):

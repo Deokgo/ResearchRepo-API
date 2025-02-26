@@ -2,6 +2,9 @@ import os
 import datetime
 from pathlib import Path
 import numpy as np
+import dash_html_components as html
+import dash_core_components as dcc
+import dash_bootstrap_components as dbc
 
 def default_if_empty(selected_values, default_values):
     """
@@ -47,3 +50,15 @@ def get_gradient_color(degree, min_degree, max_degree):
     blue = int(230 - (91 * ratio))   # Blue decreases from 230 to 139
 
     return f"rgb({red}, {green}, {blue})"
+
+
+def create_graph_card(graph_id, loading_id):
+    return dbc.Card(
+        dcc.Loading(
+            id=loading_id,
+            type='circle',
+            children=dcc.Graph(id=graph_id, config={'responsive': True})
+        ),
+        body=True,
+        className="flex-fill"
+    )
