@@ -106,7 +106,7 @@ def get_research_status(research_id=None):
                 return jsonify({"error": "Database error occurred", "details": error}), 500
             research_info = ResearchOutput.query.filter(ResearchOutput.research_id==research_id).first()
 
-            send_notification_email(f"NEW {changed_status.status.upper()} STATUS UPDATE",
+            send_notification_email(f"NEW {changed_status.status.upper()} RESEARCH OUTPUT!",
                                 f'Research paper entitled: {research_info.title} from {research_info.college_id} {research_info.program_id if research_info.program_id !=None else ""} has been {changed_status.status}.')
             
             # Get the current user for audit trail
