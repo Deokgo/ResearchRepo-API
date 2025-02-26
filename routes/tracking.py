@@ -592,6 +592,8 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
+            send_notification_email("NEW PUBLICATION STATUS UPDATE",
+                                f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
@@ -616,6 +618,8 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
+            send_notification_email("NEW PUBLICATION STATUS UPDATE",
+                    f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
@@ -693,6 +697,8 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
+            send_notification_email("NEW PUBLICATION STATUS UPDATE",
+                                f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
