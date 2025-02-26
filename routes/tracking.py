@@ -104,10 +104,10 @@ def get_research_status(research_id=None):
             # If there was an error inserting the status, handle it
             if error:
                 return jsonify({"error": "Database error occurred", "details": error}), 500
+            research_info = ResearchOutput.query.filter(ResearchOutput.research_id==research_id).first()
 
-            # Send email asynchronously (optional)
-            send_notification_email("NEW PUBLICATION STATUS UPDATE",
-                                f'Research paper by {research_id} has been updated to {changed_status.status}.')
+            send_notification_email(f"NEW {changed_status.status.upper()} STATUS UPDATE",
+                                f'Research paper entitled: {research_info.title} from {research_info.college_id} {research_info.program_id if research_info.program_id !=None else ""} has been {changed_status.status}.')
             
             # Get the current user for audit trail
             current_user = Account.query.get(get_jwt_identity())
@@ -181,10 +181,10 @@ def pullout_paper(research_id):
         changed_status, error = insert_status(current_status.publication_id, "PULLOUT")
         if error:
                 return jsonify({"error": "Database error occurred", "details": error}), 500
-
+        research_info = ResearchOutput.query.filter(ResearchOutput.research_id==research_id).first()
             # Send email asynchronously (optional)
-        send_notification_email("NOTIFICATION",
-                                f'Research paper by {research_id} has been pulled out.')
+        send_notification_email("[NOTIFICATION] NEW PULLED OUT PAPER",
+                                f'Research paper entitled: {research_info.title} from {research_info.college_id} {research_info.program_id if research_info.program_id !=None else ""} has been pulled out.')
 
         # Get the current user for audit trail
         current_user = Account.query.get(get_jwt_identity())
@@ -592,8 +592,6 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
-            send_notification_email("NEW PUBLICATION STATUS UPDATE",
-                                f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
@@ -618,8 +616,6 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
-            send_notification_email("NEW PUBLICATION STATUS UPDATE",
-                    f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
@@ -697,8 +693,6 @@ def manage_publication(status, research_id):
         if not status:
             print("error")
         else:
-            send_notification_email("NEW PUBLICATION STATUS UPDATE",
-                                f'Research paper by {research_id} has been updated to Status Updated: {operations[1]} -> {operations[2]}.')
             log_audit_trail(
                 email=current_user.email,
                 role=current_user.role.role_name,
