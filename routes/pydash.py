@@ -163,7 +163,7 @@ def combined_dash():
         print(f"user_id: {user_id}, role_id: {account_info.role_id}, email: {account_info.email}")
         print(f"college_id: {user_prof.college_id}, program_id: {user_prof.program_id}")
 
-        base_url = "http://localhost:5000"
+        base_url = "https://app.mmcl-researchrepository.com"
 
         query_params = {
             "user-role": account_info.role_id,

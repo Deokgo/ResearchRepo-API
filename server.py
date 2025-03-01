@@ -79,7 +79,26 @@ def initialize_db(app):
 # Initialize the app
 app = Flask(__name__)
 
-CORS(app, supports_credentials=True)
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",  # For development. In production, specify your frontend domain
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept"],
+        "supports_credentials": False
+    }
+})
+
+# Add this before your routes to debug CORS
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
+@app.route('/')
+def index():
+    return jsonify({"message": "API is running"})
 
 # Database Configuration
 app.config.from_object(Config)

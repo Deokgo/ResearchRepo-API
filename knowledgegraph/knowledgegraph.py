@@ -122,6 +122,42 @@ def create_kg_area(flask_app):
         MIN_SIZE = 76
         MAX_SIZE = 150
 
+        # Create edge trace
+        edge_x = []
+        edge_y = []
+        for edge in edges:
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+
+        edge_trace = go.Scatter(
+            x=edge_x,
+            y=edge_y,
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+
+        # Create lists for node properties
+        node_x = []
+        node_y = []
+        node_text = []
+        node_hover_text = []
+        node_color = []
+        node_size = []
+        node_data = []
+        text_colors = []  # New list for text colors
+
+        # Helper function to determine if a color is dark
+        def is_dark_color(hex_color):
+            # Convert hex to RGB
+            hex_color = hex_color.lstrip('#')
+            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            # Calculate luminance
+            luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
+            return luminance < 0.5
+
         # SDG titles mapping
         sdg_titles = {
             'SDG 1': 'No Poverty',
@@ -143,31 +179,6 @@ def create_kg_area(flask_app):
             'SDG 17': 'Partnerships for the Goals'
         }
 
-        # Create edge trace
-        edge_x = []
-        edge_y = []
-        for edge in edges:
-            x0, y0 = pos[edge[0]]
-            x1, y1 = pos[edge[1]]
-            edge_x.extend([x0, x1, None])
-            edge_y.extend([y0, y1, None])
-
-        edge_trace = go.Scatter(
-            x=edge_x, y=edge_y,
-            line=dict(width=0.5, color='#888'),
-            hoverinfo='none',
-            mode='lines'
-        )
-
-        # Create node trace
-        node_x = []
-        node_y = []
-        node_text = []
-        node_hover_text = []
-        node_color = []
-        node_size = []
-        node_data = []
-
         # Get max study count for relative sizing
         max_study_count = max([G.nodes[node].get('study_count', 0) for node in G.nodes()], default=1)
 
@@ -181,22 +192,25 @@ def create_kg_area(flask_app):
             study_count = G.nodes[node].get('study_count', 0)
             
             if node_type == 'sdg':
-                # Display text is just the SDG number
                 node_text.append(node)
-                # Hover text includes title and count
                 hover_text = f"{node}: {sdg_titles.get(node, '')}<br>Research Count: {study_count}"
                 node_hover_text.append(hover_text)
                 
                 color = sdg_colors.get(node, '#1f77b4')
-                # Calculate relative size based on study count
-                relative_size = MIN_SIZE + ((study_count / max_study_count) * (MAX_SIZE - MIN_SIZE))
-                size = G.nodes[node].get('node_size', relative_size)  # Default to 15 if not set
+                # Determine text color based on background color
+                text_colors.append('white' if is_dark_color(color) else 'black')
+                
+                if max_study_count > 0:
+                    relative_size = MIN_SIZE + ((study_count / max_study_count) * (MAX_SIZE - MIN_SIZE))
+                else:
+                    relative_size = MIN_SIZE
+                size = G.nodes[node].get('node_size', relative_size)
             elif node_type == 'area':
                 node_text.append(node)
                 node_hover_text.append(f"{node}<br>Research Count: {study_count}")
-                color = '#9F7AEA      '
-                # Get the calculated size from node attributes
-                size = G.nodes[node].get('node_size', 15)  # Default to 15 if not set
+                color = '#9F7AEA'
+                text_colors.append('white' if is_dark_color(color) else 'black')
+                size = G.nodes[node].get('node_size', MIN_SIZE)
 
             node_color.append(color)
             node_size.append(size)
@@ -215,7 +229,7 @@ def create_kg_area(flask_app):
             hoverinfo='text',
             text=node_text,
             textposition="middle center",
-            hovertext=node_hover_text,  # Use the new hover text
+            hovertext=node_hover_text,
             marker=dict(
                 color=node_color,
                 size=node_size,
@@ -227,7 +241,8 @@ def create_kg_area(flask_app):
             ),
             textfont=dict(
                 size=14,
-                family='Arial Black'
+                family='Arial Black',
+                color=text_colors  # Use the list of text colors
             ),
             customdata=node_data,
             hoverlabel=dict(
@@ -415,10 +430,10 @@ def create_kg_area(flask_app):
             
             # Add threshold slider in its own container
             html.Div([
-                html.Label('Research Area Minimum Count:', style=styles['label']),
+                html.Label('Research Area Minimum Studies:', style=styles['label']),
                 dcc.Slider(
                     id='threshold-slider',
-                    min=2,  # Set minimum to 2
+                    min=1,
                     # Max and default will be set in the callback
                     marks=None,  # We'll update this dynamically
                     step=1
@@ -794,38 +809,48 @@ def create_kg_area(flask_app):
             print(traceback.format_exc())
             return None, {'display': 'none'}
 
-    # Add callback to update threshold slider range
+    # Update the threshold slider callback
     @dash_app.callback(
-    [Output('threshold-slider', 'max'),
-     Output('threshold-slider', 'value'),
-     Output('threshold-slider', 'marks'),
-     Output('threshold-store', 'data')],  # Store threshold value
-    [Input('parent-sdg-store', 'data')],  # Only trigger when SDG changes
-    [State('threshold-store', 'data'),
-     State('threshold-slider', 'value')]  # Get stored value
-)
-    def update_threshold_range(parent_sdg, stored_threshold, current_value):
+        [Output('threshold-slider', 'max'),
+         Output('threshold-slider', 'value'),
+         Output('threshold-slider', 'marks'),
+         Output('threshold-store', 'data')],
+        [Input('parent-sdg-store', 'data'),
+         Input('year-slider', 'value'),
+         Input('college-dropdown', 'value')]  # Add filter inputs
+    )
+    def update_threshold_range(parent_sdg, year_range, selected_colleges):
         if parent_sdg:
             try:
-                research_areas_df = get_filtered_research_area_counts(selected_sdg=parent_sdg)
+                # Use all filter parameters when getting research area counts
+                research_areas_df = get_filtered_research_area_counts(
+                    selected_sdg=parent_sdg,
+                    start_year=year_range[0] if year_range else None,
+                    end_year=year_range[1] if year_range else None,
+                    selected_colleges=selected_colleges if selected_colleges else None
+                )
 
                 if not research_areas_df.empty:
-                    min_threshold = 2
+                    min_threshold = 1
+                    # Print the research areas data for debugging
+                    print("Research areas study counts:", research_areas_df['study_count'].tolist())
+                    
                     max_threshold = int(research_areas_df['study_count'].max())
-                    max_threshold = max(max_threshold, min_threshold)
-
-                    # Keep previous threshold if within range; otherwise, reset it
-                    if stored_threshold and min_threshold <= stored_threshold <= max_threshold:
-                        default_value = stored_threshold
-                    else:
-                        default_value = min_threshold
+                    print(f"Raw max threshold: {max_threshold}")
+                    
+                    # Calculate midpoint
+                    default_value = min_threshold  # If max is 1, default should be 1
+                    if max_threshold > 1:
+                        default_value = min_threshold + (max_threshold - min_threshold) // 2
+                    
+                    print("Default value:", default_value)
 
                     marks = {
                         min_threshold: {'label': str(min_threshold), 'style': {'color': '#08397C'}},
                         max_threshold: {'label': str(max_threshold), 'style': {'color': '#08397C'}}
                     }
 
-                    print(f"Threshold updated: min={min_threshold}, max={max_threshold}, default={default_value}")
+                    print(f"Threshold updated: min={min_threshold}, max={max_threshold}, selected={default_value}")
 
                     return max_threshold, default_value, marks, default_value
 
@@ -834,8 +859,8 @@ def create_kg_area(flask_app):
                 import traceback
                 print(traceback.format_exc())
 
-        # If no SDG is selected, retain the last known threshold
-        return dash.no_update, stored_threshold if stored_threshold else 2, dash.no_update, stored_threshold if stored_threshold else 2
+        # If no SDG is selected or error occurs, use default values
+        return dash.no_update, 1, dash.no_update, 1
 
 
 
