@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 import json
 from urllib.parse import urlparse
 from models import Account
+import jsonify
 
 def update_to_inactive():
     print('Updating the status of the accounts to INACTIVE')

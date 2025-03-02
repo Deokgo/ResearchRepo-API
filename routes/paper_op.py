@@ -798,3 +798,26 @@ def check_duplicate():
     except Exception as e:
         print(f"Error checking duplicates: {str(e)}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+@paper.route('/check_files/<research_id>', methods=['GET'])
+def check_files(research_id):
+    try:
+        research_output = ResearchOutput.query.filter_by(research_id=research_id).first()
+        
+        if not research_output:
+            return jsonify({
+                "manuscript": False,
+                "extendedAbstract": False
+            }), 200
+            
+        manuscript_available = bool(research_output.full_manuscript and os.path.exists(research_output.full_manuscript))
+        ea_available = bool(research_output.extended_abstract and os.path.exists(research_output.extended_abstract))
+        
+        return jsonify({
+            "manuscript": manuscript_available,
+            "extendedAbstract": ea_available
+        }), 200
+        
+    except Exception as e:
+        print(f"Error checking file availability: {str(e)}")
+        return jsonify({"error": str(e)}), 500
