@@ -112,9 +112,7 @@ def create_kg_area(flask_app):
             return pos
 
     def build_traces(G, edges, pos=None, show_labels=True):
-        """
-        Build traces for the graph visualization
-        """
+        """Build traces for the graph visualization"""
         if pos is None:
             pos = nx.spring_layout(G)
 
@@ -139,123 +137,136 @@ def create_kg_area(flask_app):
             mode='lines'
         )
 
-        # Create lists for node properties
-        node_x = []
-        node_y = []
-        node_text = []
-        node_hover_text = []
-        node_color = []
-        node_size = []
-        node_data = []
-        text_colors = []  # New list for text colors
+        # Create separate traces for SDG nodes and area nodes
+        sdg_x, sdg_y = [], []
+        sdg_hover_text = []
+        sdg_images = []
+        sdg_sizes = []
+        sdg_data = []
 
-        # Helper function to determine if a color is dark
-        def is_dark_color(hex_color):
-            # Convert hex to RGB
-            hex_color = hex_color.lstrip('#')
-            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            # Calculate luminance
-            luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-            return luminance < 0.5
-
-        # SDG titles mapping
-        sdg_titles = {
-            'SDG 1': 'No Poverty',
-            'SDG 2': 'Zero Hunger',
-            'SDG 3': 'Good Health and Well-being',
-            'SDG 4': 'Quality Education',
-            'SDG 5': 'Gender Equality',
-            'SDG 6': 'Clean Water and Sanitation',
-            'SDG 7': 'Affordable and Clean Energy',
-            'SDG 8': 'Decent Work and Economic Growth',
-            'SDG 9': 'Industry, Innovation and Infrastructure',
-            'SDG 10': 'Reduced Inequalities',
-            'SDG 11': 'Sustainable Cities and Communities',
-            'SDG 12': 'Responsible Consumption and Production',
-            'SDG 13': 'Climate Action',
-            'SDG 14': 'Life Below Water',
-            'SDG 15': 'Life on Land',
-            'SDG 16': 'Peace, Justice and Strong Institutions',
-            'SDG 17': 'Partnerships for the Goals'
-        }
+        area_x, area_y = [], []
+        area_text = []
+        area_hover_text = []
+        area_color = []
+        area_size = []
+        area_data = []
 
         # Get max study count for relative sizing
         max_study_count = max([G.nodes[node].get('study_count', 0) for node in G.nodes()], default=1)
 
         for node in G.nodes():
             x, y = pos[node]
-            node_x.append(x)
-            node_y.append(y)
-            
-            # Get node attributes
             node_type = G.nodes[node].get('type', '')
             study_count = G.nodes[node].get('study_count', 0)
-            
+
             if node_type == 'sdg':
-                node_text.append(node)
-                hover_text = f"{node}: {sdg_titles.get(node, '')}<br>Research Count: {study_count}"
-                node_hover_text.append(hover_text)
+                sdg_x.append(x)
+                sdg_y.append(y)
+                hover_text = f"{node}<br>Research Count: {study_count}"
+                sdg_hover_text.append(hover_text)
                 
-                color = sdg_colors.get(node, '#1f77b4')
-                # Determine text color based on background color
-                text_colors.append('white' if is_dark_color(color) else 'black')
-                
+                # Calculate size based on study count
                 if max_study_count > 0:
                     relative_size = MIN_SIZE + ((study_count / max_study_count) * (MAX_SIZE - MIN_SIZE))
                 else:
                     relative_size = MIN_SIZE
                 size = G.nodes[node].get('node_size', relative_size)
+                sdg_sizes.append(size)
+                
+                # Store custom data
+                sdg_data.append({
+                    'id': node,
+                    'type': node_type,
+                    'study_count': study_count
+                })
+
+                # Add SDG image
+                sdg_number = node.split()[-1].zfill(2)
+                sdg_images.append(dict(
+                    source=f"/static/assets/sdg_icons/E-WEB-Goal-{sdg_number}.png",
+                    x=x,
+                    y=y,
+                    xref="x",
+                    yref="y",
+                    sizex=size/8,
+                    sizey=size/8,
+                    xanchor="center",
+                    yanchor="middle",
+                    layer="above",
+                    sizing="contain"
+                ))
+
             elif node_type == 'area':
-                node_text.append(node)
-                node_hover_text.append(f"{node}<br>Research Count: {study_count}")
-                color = '#9F7AEA'
-                text_colors.append('white' if is_dark_color(color) else 'black')
+                area_x.append(x)
+                area_y.append(y)
+                area_text.append(node)
+                area_hover_text.append(f"{node}<br>Research Count: {study_count}")
+                area_color.append('#9F7AEA')
                 size = G.nodes[node].get('node_size', MIN_SIZE)
+                area_size.append(size)
+                area_data.append({
+                    'id': node,
+                    'type': node_type,
+                    'study_count': study_count
+                })
 
-            node_color.append(color)
-            node_size.append(size)
-            
-            # Store custom data for callbacks
-            node_data.append({
-                'id': node,
-                'type': node_type,
-                'study_count': study_count
-            })
-
-        node_trace = go.Scatter(
-            x=node_x,
-            y=node_y,
-            mode='markers+text' if show_labels else 'markers',
+        # Create SDG nodes trace (using images directly)
+        sdg_trace = go.Scatter(
+            x=sdg_x,
+            y=sdg_y,
+            mode='markers',
             hoverinfo='text',
-            text=node_text,
-            textposition="middle center",
-            hovertext=node_hover_text,
+            hovertext=sdg_hover_text,
             marker=dict(
-                color=node_color,
-                size=node_size,
+                size=[s*7 for s in sdg_sizes],  # Increased multiplier to match image size
+                symbol='square',
+                opacity=0.5,  # Make markers completely invisible
+                sizemode='area'
+            ),
+            customdata=sdg_data,
+            hoverlabel=dict(
+                bgcolor='white',
+                font_size=14,
+                font_family='Arial'
+            ),
+            hovertemplate='%{hovertext}<extra></extra>'
+        )
+
+        # Create area nodes trace
+        area_trace = go.Scatter(
+            x=area_x,
+            y=area_y,
+            mode='markers+text' if show_labels else 'markers',
+            text=area_text,
+            textposition="middle center",
+            hovertext=area_hover_text,
+            marker=dict(
+                color=area_color,
+                size=area_size,
                 line_width=2,
                 line=dict(color='white'),
                 opacity=1.0,
                 symbol='circle',
                 sizemode='diameter'
             ),
-            textfont=dict(
-                size=14,
-                family='Arial Black',
-                color=text_colors  # Use the list of text colors
-            ),
-            customdata=node_data,
+            customdata=area_data,
             hoverlabel=dict(
                 bgcolor='white',
                 font_size=14,
                 font_family='Arial'
             ),
-            hovertemplate='%{hovertext}<extra></extra>',
-            selected=dict(marker=dict(opacity=1.0)),
-            unselected=dict(marker=dict(opacity=1.0))
+            hovertemplate='%{hovertext}<extra></extra>'
         )
 
-        return edge_trace, node_trace
+        traces = []
+        if edges:
+            traces.append(edge_trace)
+        if area_x:
+            traces.append(area_trace)
+        if sdg_x:
+            traces.append(sdg_trace)
+
+        return traces, sdg_images
 
     # Initial graph build with only SDG counts
     sdg_counts_df = get_filtered_sdg_counts()
@@ -273,7 +284,7 @@ def create_kg_area(flask_app):
            for node, coords in pos.items()}
 
     # Build initial traces
-    edge_trace, node_trace = build_traces(G, [], pos=pos, show_labels=True)
+    edge_trace, sdg_images = build_traces(G, [], pos=pos, show_labels=True)
 
     # Initialize Dash app
     dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
@@ -447,7 +458,7 @@ def create_kg_area(flask_app):
             dcc.Graph(
                 id='knowledge-graph',
                 figure={
-                    'data': [edge_trace, node_trace],
+                    'data': edge_trace,
                     'layout': go.Layout(
                         title=dict(text='<br>Research Studies Knowledge Graph', font=dict(size=16)),
                         showlegend=False,
@@ -568,13 +579,13 @@ def create_kg_area(flask_app):
                       for node, coords in pos.items()}
 
                 # Build traces with updated positions
-                edge_trace, node_trace = build_traces(G, [], pos=pos, show_labels=True)
+                traces, sdg_images = build_traces(G, [], pos=pos, show_labels=True)
                 
                 title = '<br>Overall SDG View'
 
-                # Create figure for overall view with fixed camera
+                # Create figure for overall view with fixed camera and disabled zoom
                 fig = {
-                    'data': [edge_trace, node_trace],
+                    'data': traces,
                     'layout': go.Layout(
                         title=dict(text=title, font=dict(size=16)),
                         showlegend=False,
@@ -584,15 +595,18 @@ def create_kg_area(flask_app):
                             showgrid=False, 
                             zeroline=False, 
                             showticklabels=False,
+                            fixedrange=True,  # Disable x-axis zoom
                         ),
                         yaxis=dict(
                             showgrid=False, 
                             zeroline=False, 
                             showticklabels=False,
+                            fixedrange=True,  # Disable y-axis zoom
                         ),
                         dragmode='pan',
                         clickmode='event',
-                        uirevision='constant',
+                        uirevision=None,  # Reset the view when switching back
+                        images=sdg_images,
                         transition={
                             'duration': 1000,
                             'easing': 'cubic-in-out'
@@ -672,23 +686,34 @@ def create_kg_area(flask_app):
                       for node, coords in pos.items()}
 
                 # Build traces with updated positions
-                edge_trace, node_trace = build_traces(G, G.edges(), pos=pos, show_labels=True)
+                traces, sdg_images = build_traces(G, G.edges(), pos=pos, show_labels=True)
                 
                 title = '<br>SDG Details View'
 
-                # Create figure for SDG detail view with fixed camera
+                # Create figure for SDG detail view with zoom enabled
                 fig = {
-                    'data': [edge_trace, node_trace],
+                    'data': traces,
                     'layout': go.Layout(
                         title=dict(text=title, font=dict(size=16)),
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=0, l=0, r=0, t=50),
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        xaxis=dict(
+                            showgrid=False, 
+                            zeroline=False, 
+                            showticklabels=False,
+                            fixedrange=False  # Enable x-axis zoom
+                        ),
+                        yaxis=dict(
+                            showgrid=False, 
+                            zeroline=False, 
+                            showticklabels=False,
+                            fixedrange=False  # Enable y-axis zoom
+                        ),
                         dragmode='pan',
                         clickmode='event',
                         uirevision='constant',
+                        images=sdg_images,
                         transition={
                             'duration': 1000,
                             'easing': 'cubic-in-out'

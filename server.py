@@ -1,7 +1,7 @@
 import psycopg2
 import schedule
 import time
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate #install this module in your terminal
 from psycopg2 import sql
@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 import json
 from urllib.parse import urlparse
 from models import Account
-import jsonify
+
 
 def update_to_inactive():
     print('Updating the status of the accounts to INACTIVE')
@@ -78,24 +78,19 @@ def initialize_db(app):
         db.create_all()
 
 # Initialize the app
-app = Flask(__name__)
+app = Flask(__name__,
+           static_url_path='/static',
+           static_folder='static')
 
 CORS(app, resources={
     r"/*": {
-        "origins": "*",  # For development. In production, specify your frontend domain
+        "origins": "https://mmcl-researchrepository.com",  # Specify your exact frontend domain
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
-        "supports_credentials": False
+        "supports_credentials": True,  # Enable this for authenticated requests
+        "expose_headers": ["Content-Type", "Authorization"]
     }
 })
-
-# Add this before your routes to debug CORS
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
 
 @app.route('/')
 def index():
