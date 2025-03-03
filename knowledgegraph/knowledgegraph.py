@@ -162,7 +162,12 @@ def create_kg_area(flask_app):
             if node_type == 'sdg':
                 sdg_x.append(x)
                 sdg_y.append(y)
-                hover_text = f"{node}<br>Research Count: {study_count}"
+                
+                # Only show study count in overall view
+                if len(G.edges()) == 0:  # In overall view (no edges)
+                    hover_text = f"{node}<br>Research Count: {study_count}"
+                else:  # In detail view
+                    hover_text = f"{node}"
                 sdg_hover_text.append(hover_text)
                 
                 # Calculate size based on study count
@@ -173,7 +178,6 @@ def create_kg_area(flask_app):
                 size = G.nodes[node].get('node_size', relative_size)
                 sdg_sizes.append(size)
                 
-                # Store custom data
                 sdg_data.append({
                     'id': node,
                     'type': node_type,
@@ -391,6 +395,63 @@ def create_kg_area(flask_app):
             'cursor': 'pointer',
             'fontSize': '24px',
             'color': '#08397C'
+        },
+        'help_tooltip': {
+            'position': 'absolute',
+            'top': '10px',
+            'right': '10px',
+            'backgroundColor': '#08397C',
+            'color': 'white',
+            'borderRadius': '50%',
+            'width': '24px',
+            'height': '24px',
+            'textAlign': 'center',
+            'lineHeight': '24px',
+            'cursor': 'help',
+            'zIndex': '1000',
+            'fontSize': '14px',
+            'fontWeight': 'bold'
+        },
+        'tooltip_text': {
+            'visibility': 'hidden',
+            'backgroundColor': 'white',
+            'color': '#08397C',
+            'textAlign': 'left',
+            'padding': '10px',
+            'borderRadius': '6px',
+            'position': 'absolute',
+            'zIndex': '1001',
+            'width': '250px',
+            'right': '30px',
+            'top': '0px',
+            'border': '1px solid #08397C',
+            'boxShadow': '0 2px 4px rgba(0,0,0,0.2)',
+            'fontSize': '12px',
+            'fontFamily': 'Montserrat'
+        },
+        'instructions_container': {
+            'backgroundColor': 'white',
+            'color': '#08397C',
+            'padding': '15px',
+            'borderRadius': '6px',
+            'border': '1px solid #08397C',
+            'marginTop': '20px',  # Add space between filters and instructions
+            'fontSize': '12px',
+            'fontFamily': 'Montserrat'
+        },
+        'instructions_title': {
+            'fontWeight': 'bold',
+            'marginBottom': '8px',
+            'fontSize': '14px',
+            'color': '#F40824'
+        },
+        'instructions_list': {
+            'paddingLeft': '20px',
+            'margin': '0'
+        },
+        'instructions_sublist': {
+            'paddingLeft': '20px',
+            'marginTop': '4px'
         }
     }
 
@@ -411,6 +472,8 @@ def create_kg_area(flask_app):
         
         html.Div([
             html.Label('Filters', style=styles['main_label']),
+            
+            # Year Range Filter
             html.Div([
                 html.Label('Select Year Range:', style=styles['label']),
                 html.Div([
@@ -425,6 +488,7 @@ def create_kg_area(flask_app):
                 ], style=styles['slider_container']),
             ]),
             
+            # College Dropdown
             html.Div([
                 html.Label('Select College/s:', style=styles['label']),
                 html.Div([
@@ -439,17 +503,31 @@ def create_kg_area(flask_app):
                 ], style=styles['dropdown_container']),
             ]),
             
-            # Add threshold slider in its own container
+            # Threshold Slider
             html.Div([
                 html.Label('Research Area Minimum Studies:', style=styles['label']),
                 dcc.Slider(
                     id='threshold-slider',
                     min=1,
-                    # Max and default will be set in the callback
-                    marks=None,  # We'll update this dynamically
+                    marks=None,
                     step=1
                 ),
             ], id='threshold-container', style={'display': 'none'}),
+
+            # Instructions below filters
+            html.Div([
+                html.P('💡 How to use the Knowledge Graph:', style=styles['instructions_title']),
+                html.Ul([
+                    html.Li('Click on any SDG icon to view its research areas'),
+                    html.Li('In SDG detail view:'),
+                    html.Ul([
+                        html.Li('Pan by dragging the graph'),
+                        html.Li('Zoom using mouse wheel or pinch gesture'),
+                        html.Li('Click research areas to view related studies'),
+                        html.Li('Click the same SDG again to return to overview')
+                    ], style=styles['instructions_sublist'])
+                ], style=styles['instructions_list'])
+            ], style=styles['instructions_container']),
             
         ], style=styles['filter_container']),
         
@@ -886,29 +964,5 @@ def create_kg_area(flask_app):
 
         # If no SDG is selected or error occurs, use default values
         return dash.no_update, 1, dash.no_update, 1
-
-
-
-
-    # Update the clientside callback
-    dash_app.clientside_callback(
-        """
-        function(n_clicks, research_id) {
-            if (n_clicks > 0) {
-                console.log("Button clicked, research_id:", research_id);
-                window.parent.postMessage({
-                    type: 'study_click',
-                    research_id: research_id
-                }, '*');
-                return 0;  // Reset n_clicks
-            }
-            return window.dash_clientside.no_update;
-        }
-        """,
-        Output({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
-        Input({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
-        State({'type': 'research-id', 'index': MATCH}, 'children'),
-        prevent_initial_call=True
-    )
 
     return dash_app
