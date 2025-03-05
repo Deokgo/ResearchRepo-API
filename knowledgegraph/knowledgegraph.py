@@ -964,5 +964,25 @@ def create_kg_area(flask_app):
 
         # If no SDG is selected or error occurs, use default values
         return dash.no_update, 1, dash.no_update, 1
+    
+    dash_app.clientside_callback(
+        """
+        function(n_clicks, research_id) {
+            if (n_clicks > 0) {
+                console.log("Button clicked, research_id:", research_id);
+                window.parent.postMessage({
+                    type: 'study_click',
+                    research_id: research_id
+                }, '*');
+                return 0;  // Reset n_clicks
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
+        Input({'type': 'study-button', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'research-id', 'index': MATCH}, 'children'),
+        prevent_initial_call=True
+    )
 
     return dash_app
