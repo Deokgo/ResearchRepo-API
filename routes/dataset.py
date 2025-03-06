@@ -2,10 +2,12 @@
 # created by Nicole Cabansag (Oct. 7, 2024)
 
 from flask import Blueprint, jsonify
-from sqlalchemy import func, desc, nulls_last, extract
+from sqlalchemy import func, desc, nulls_last, extract, case
 import pandas as pd
 from models import College, Program, ResearchOutput, Publication, Status, Conference, ResearchOutputAuthor, Account, UserProfile, Keywords, Panel, SDG, db, ResearchArea, ResearchOutputArea, ResearchTypes, PublicationFormat, UserEngagement, AggrUserEngagement
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import case
+
 dataset = Blueprint('dataset', __name__)
 
 # used for research tracking
@@ -34,7 +36,7 @@ def retrieve_dataset(research_id=None):
         ResearchOutputAuthor.author_order
     ).order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
 
-    # Modified authors subquery to return array of JSON objects
+    # Modified authors subquery to return array of JSON objects with proper formatting
     authors_subquery = db.session.query(
         ordered_authors.c.research_id,
         func.array_agg(
@@ -42,11 +44,19 @@ def retrieve_dataset(research_id=None):
                 'name', func.concat(
                     ordered_authors.c.author_first_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.author_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(ordered_authors.c.author_middle_name, '') != '', 
+                         func.concat(ordered_authors.c.author_middle_name, '. ')),
+                        else_=''
+                    ),
                     ordered_authors.c.author_last_name,
-                    ' ',
-                    func.coalesce(ordered_authors.c.author_suffix, '')
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(ordered_authors.c.author_suffix, '') != '', 
+                         func.concat(' ', ordered_authors.c.author_suffix)),
+                        else_=''
+                    )
                 )
             )
         ).label('authors_array')
@@ -260,7 +270,7 @@ def fetch_ordered_dataset(research_id=None):
         ResearchOutputAuthor.author_order
     ).order_by(ResearchOutputAuthor.research_id, ResearchOutputAuthor.author_order).subquery()
 
-    # Modified authors subquery to return array of JSON objects
+    # Modified authors subquery to return array of JSON objects with proper formatting
     authors_subquery = db.session.query(
         ordered_authors.c.research_id,
         func.array_agg(
@@ -268,11 +278,19 @@ def fetch_ordered_dataset(research_id=None):
                 'name', func.concat(
                     ordered_authors.c.author_first_name,
                     ' ',
-                    func.coalesce(ordered_authors.c.author_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(ordered_authors.c.author_middle_name, '') != '', 
+                         func.concat(ordered_authors.c.author_middle_name, '. ')),
+                        else_=''
+                    ),
                     ordered_authors.c.author_last_name,
-                    ' ',
-                    func.coalesce(ordered_authors.c.author_suffix, '')
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(ordered_authors.c.author_suffix, '') != '', 
+                         func.concat(' ', ordered_authors.c.author_suffix)),
+                        else_=''
+                    )
                 )
             )
         ).label('authors_array')
