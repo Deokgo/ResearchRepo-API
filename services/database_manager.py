@@ -129,6 +129,22 @@ class DatabaseManager:
 
             result = query.all()
 
+            # Add this check for empty results
+            if not result:
+                print("Warning: Query returned no results. Creating empty DataFrame.")
+                # Create an empty DataFrame with all expected columns
+                columns = ['research_id', 'college_id', 'color_code', 'program_name', 'program_id', 
+                           'title', 'school_year', 'term', 'date_uploaded', 'research_type_name', 
+                           'concatenated_authors', 'concatenated_keywords', 'publication_name',
+                           'pub_format_name', 'scopus', 'date_published', 'conference_venue',
+                           'conference_title', 'conference_date', 'status', 'concatenated_areas',
+                           'abstract', 'sum_views', 'distinct_user_ids', 'sum_downloads']
+                
+                self.df = pd.DataFrame(columns=columns)
+                self.df['combined'] = ''  # Add empty combined column
+                self.df['top_nouns'] = [[]]  # Add empty top_nouns column
+                return
+
             # Formatting results into a list of dictionaries with safe handling for missing data
             data = [{
                 'research_id': row.research_id if pd.notnull(row.research_id) else 'Unknown',

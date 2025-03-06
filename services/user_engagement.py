@@ -115,6 +115,19 @@ class UserEngagementManager:
 
             result = query.all()
 
+            # Add this check for empty results
+            if not result:
+                print("Warning: UserEngagementManager query returned no results. Creating empty DataFrame.")
+                # Create an empty DataFrame with all expected columns
+                columns = ['research_id', 'date', 'total_views', 'total_unique_views', 'total_downloads',
+                          'college_id', 'program_id', 'program_name', 'concatenated_sdg', 'title',
+                          'year', 'term', 'research_type_name', 'concatenated_authors', 'concatenated_keywords',
+                          'publication_name', 'pub_format_name', 'date_published', 'published_year', 'status',
+                          'concatenated_areas']
+                
+                self.df = pd.DataFrame(columns=columns)
+                return self.df
+
             # Formatting results into a list of dictionaries with safe handling for missing data
             data = [{
                 'research_id': row.research_id if pd.notnull(row.research_id) else 'Unknown',

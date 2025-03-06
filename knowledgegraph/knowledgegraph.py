@@ -705,28 +705,30 @@ def create_kg_area(flask_app):
                 G = nx.Graph()
                 
                 # Define sizes for SDG detail view
-                MIN_AREA_SIZE = 40
-                MAX_AREA_SIZE = 80
-                SDG_NODE_SIZE = 100  # Fixed size, larger than max area size
-                MINIMUM_DISTANCE = 3  # Minimum distance from center
+                MIN_AREA_SIZE = 30
+                MAX_AREA_SIZE = 60
+                SDG_NODE_SIZE = 80
+                MINIMUM_DISTANCE = 2
                 
                 # Add central SDG node with fixed size
                 G.add_node(parent_sdg, type='sdg', node_size=SDG_NODE_SIZE)
                 
-                # Get max study count for relative sizing
-                max_study_count = research_areas_df['study_count'].max() if not research_areas_df.empty else 1
-                
-                # Add research areas and edges
+                # Update the research area sizing logic
                 if not research_areas_df.empty:
                     research_areas_df = research_areas_df.sort_values('study_count', ascending=False)
                     
+                    # Use logarithmic scaling for node sizes to reduce the size disparity
+                    max_study_count = research_areas_df['study_count'].max()
                     for _, row in enumerate(research_areas_df.itertuples()):
                         area_name = str(row.research_area_name)
                         study_count = int(row.study_count)
                         
                         if study_count >= threshold:
-                            # Calculate relative size based on study count
-                            relative_size = MIN_AREA_SIZE + ((study_count / max_study_count) * (MAX_AREA_SIZE - MIN_AREA_SIZE))
+                            # Use log scaling to compress the size range
+                            relative_size = MIN_AREA_SIZE + (
+                                (np.log2(study_count + 1) / np.log2(max_study_count + 1)) 
+                                * (MAX_AREA_SIZE - MIN_AREA_SIZE)
+                            )
                             G.add_node(area_name, type='area', study_count=study_count, node_size=relative_size)
                             G.add_edge(parent_sdg, area_name)
 
@@ -759,8 +761,8 @@ def create_kg_area(flask_app):
                 else:
                     pos = {parent_sdg: np.array([0, 0])}
 
-                # Scale positions
-                pos = {node: (coords[0] * 15, coords[1] * 15) 
+                # Update the layout scaling
+                pos = {node: (coords[0] * 10, coords[1] * 10)  # Reduced from 15 
                       for node, coords in pos.items()}
 
                 # Build traces with updated positions
@@ -920,12 +922,11 @@ def create_kg_area(flask_app):
          Output('threshold-store', 'data')],
         [Input('parent-sdg-store', 'data'),
          Input('year-slider', 'value'),
-         Input('college-dropdown', 'value')]  # Add filter inputs
+         Input('college-dropdown', 'value')]
     )
     def update_threshold_range(parent_sdg, year_range, selected_colleges):
         if parent_sdg:
             try:
-                # Use all filter parameters when getting research area counts
                 research_areas_df = get_filtered_research_area_counts(
                     selected_sdg=parent_sdg,
                     start_year=year_range[0] if year_range else None,
@@ -935,25 +936,19 @@ def create_kg_area(flask_app):
 
                 if not research_areas_df.empty:
                     min_threshold = 1
-                    # Print the research areas data for debugging
-                    print("Research areas study counts:", research_areas_df['study_count'].tolist())
-                    
                     max_threshold = int(research_areas_df['study_count'].max())
-                    print(f"Raw max threshold: {max_threshold}")
                     
-                    # Calculate midpoint
-                    default_value = min_threshold  # If max is 1, default should be 1
-                    if max_threshold > 1:
-                        default_value = min_threshold + (max_threshold - min_threshold) // 2
-                    
-                    print("Default value:", default_value)
+                    # Set default value to 25th percentile instead of midpoint
+                    default_value = max(
+                        min_threshold,
+                        int(research_areas_df['study_count'].quantile(0.25))
+                    )
 
                     marks = {
                         min_threshold: {'label': str(min_threshold), 'style': {'color': '#08397C'}},
+                        default_value: {'label': str(default_value), 'style': {'color': '#08397C'}},
                         max_threshold: {'label': str(max_threshold), 'style': {'color': '#08397C'}}
                     }
-
-                    print(f"Threshold updated: min={min_threshold}, max={max_threshold}, selected={default_value}")
 
                     return max_threshold, default_value, marks, default_value
 
@@ -962,7 +957,6 @@ def create_kg_area(flask_app):
                 import traceback
                 print(traceback.format_exc())
 
-        # If no SDG is selected or error occurs, use default values
         return dash.no_update, 1, dash.no_update, 1
     
     dash_app.clientside_callback(
