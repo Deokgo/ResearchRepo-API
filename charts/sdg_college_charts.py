@@ -18,6 +18,8 @@ import plotly.graph_objects as go
 import networkx as nx
 from dashboards.usable_methods import get_gradient_color
 from config import stop_words,lemmatizer
+from collections import Counter
+from nltk.tag import pos_tag
 
 def create_sdg_plot(selected_programs, selected_status, selected_years, sdg_dropdown_value,selected_college):
     all_sdgs = [f'SDG {i}' for i in range(1, 18)]
@@ -868,25 +870,30 @@ def get_word_cloud(selected_programs, selected_status, selected_years, sdg_dropd
         return go.Figure().update_layout(title="Missing Necessary Columns in Dataset")
 
     # Combine text fields
-    df["combined_text"] = df[["title", "abstract", "keywords"]].astype(str).agg(" ".join, axis=1)
+    df["Combined_Text"] = df[["title", "abstract", "keywords"]].astype(str).agg(" ".join, axis=1)
 
-    # Concatenate all research text
-    all_text = " ".join(df["combined_text"])
+    # Convert to a single string
+    text = " ".join(df["Combined_Text"].dropna())
 
-    # Tokenize, remove stopwords, and clean text
-    stop_words = set(stopwords.words("english"))
-    words = [word.lower() for word in all_text.split() if word.isalpha() and word.lower() not in stop_words]
-    print(words)
+    # Text Preprocessing
+    words = word_tokenize(text.lower())  # Convert to lowercase and tokenize
+    words = [word for word in words if word.isalnum() and word not in stop_words]  # Remove punctuation and stopwords
 
-    # If no valid words, return an empty figure
-    if not words:
-        return go.Figure().update_layout(title="No Meaningful Words Available")
+    # Part-of-Speech (POS) Tagging
+    tagged_words = pos_tag(words)  # POS tagging
+
+    # Extract only Nouns (NN, NNS, NNP, NNPS)
+    nouns = [word for word, pos in tagged_words if pos in ["NN", "NNS", "NNP", "NNPS"]]
+
+    # Frequency Analysis for Nouns
+    word_freq = Counter(nouns)
+    common_nouns = word_freq.most_common(20)
 
     # Generate word cloud
     wordcloud = WordCloud(
         background_color="white",
-        width=630,  # Set width to 400
-        height=250,  # Set height to 200
+        width=830,  # Set width to 400
+        height=400,  # Set height to 200
         max_words=100
     ).generate(" ".join(words))
 
@@ -926,7 +933,7 @@ def get_word_cloud(selected_programs, selected_status, selected_years, sdg_dropd
         title=f"Common Topics for {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
         margin=dict(l=0, r=0, t=30, b=0),
         width=550,  # Match word cloud width
-        height=250   # Match word cloud height
+        height=300   # Match word cloud height
     )
 
     return fig
@@ -981,7 +988,7 @@ def generate_research_area_visualization(selected_programs, selected_status, sel
         fig.update_layout(
             title=f"Top Research Areas for {sdg_dropdown_value}",
             template="plotly_white",
-            height=250, width=550,
+            height=200, width=550,
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
             margin=dict(l=0, r=0, t=40, b=0)
@@ -1029,7 +1036,7 @@ def generate_research_area_visualization(selected_programs, selected_status, sel
             )
             fig.update_layout(
                 template="plotly_white",
-                height=250, width=550,
+                height=200, width=550,
                 xaxis=dict(visible=False),
                 yaxis=dict(visible=False),
                 margin=dict(l=0, r=0, t=40, b=0)
@@ -1049,7 +1056,7 @@ def generate_research_area_visualization(selected_programs, selected_status, sel
         title=chart_title,  # Dynamic title
         labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Number of Research Papers"},
         template="plotly_white",
-        height=250,
+        height=200,
         width=550,
         category_orders={"sdg": all_sdgs}  # Ensure SDG order
     )
@@ -1187,7 +1194,7 @@ def generate_sdg_bipartite_graph(selected_programs, selected_status, selected_ye
         x=node_x, y=node_y,
         mode="markers+text",
         text=node_text,
-        textposition="top center",
+        textposition="middle center",
         hoverinfo="text",
         marker=dict(
             size=node_size,

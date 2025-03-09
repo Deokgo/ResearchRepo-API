@@ -71,12 +71,20 @@ engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 
 # Download necessary NLTK datasets
-nltk.download("stopwords")
-nltk.download("punkt")
-nltk.download("wordnet")
+# Download required NLTK resources
+nltk.download('punkt', force=True)
+nltk.download('stopwords', force=True)
+nltk.download('averaged_perceptron_tagger', force=True)  # Needed for POS tagging
 
-# Initialize stopwords and lemmatizer
-stop_words = set(stopwords.words("english"))
+custom_stopwords = set([
+    "title", "study", "researchers", "respondents", "methodology", "data", 
+    "survey", "analysis", "findings", "result", "participants", "questionnaire",
+    "research", "objective", "aim", "sample", "participant", "approach", "researcher",
+    "keywords","results","test","abstract","use","using","used"
+])
+
+# Combine default NLTK stopwords with custom stopwords
+stop_words = set(stopwords.words("english")).union(custom_stopwords)
 lemmatizer = WordNetLemmatizer()
 
     

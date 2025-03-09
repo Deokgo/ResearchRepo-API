@@ -15,6 +15,8 @@ import plotly.graph_objects as go
 import networkx as nx
 from dashboards.usable_methods import get_gradient_color
 from config import stop_words,lemmatizer
+from collections import Counter
+from nltk.tag import pos_tag
 
 import pandas as pd
 import plotly.express as px
@@ -694,12 +696,9 @@ def create_local_vs_foreign_donut_chart(selected_colleges, selected_status, sele
 
 
 
-def preprocess_text_nltk(text):
+def preprocess_text(text):
     """
-    Cleans and preprocesses text using NLTK.
-    - Tokenizes text
-    - Removes stopwords
-    - Lemmatizes words
+    Cleans and preprocesses text using tokenization, stopword removal, and lemmatization.
     """
     words = word_tokenize(text.lower())  # Tokenize and lowercase
     processed_words = [
@@ -752,28 +751,37 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
         )
         return fig
 
+
     # Ensure necessary columns exist
     required_columns = ["title", "abstract", "keywords"]
     if not all(col in df.columns for col in required_columns):
         return go.Figure().update_layout(title="Missing Necessary Columns in Dataset")
 
     # Combine text fields
-    df["combined_text"] = df[["title", "abstract", "keywords"]].astype(str).agg(" ".join, axis=1)
+    df["Combined_Text"] = df[["title", "abstract", "keywords"]].astype(str).agg(" ".join, axis=1)
 
-    # Concatenate all research text
-    all_text = " ".join(df["combined_text"])
-    words = [word.lower() for word in all_text.split() if word.isalpha() and word.lower() not in stop_words]
-    print(words)
+    # Convert to a single string
+    text = " ".join(df["Combined_Text"].dropna())
 
-    # If no valid words, return an empty figure
-    if not words:
-        return go.Figure().update_layout(title="No Meaningful Words Available")
+    # Text Preprocessing
+    words = word_tokenize(text.lower())  # Convert to lowercase and tokenize
+    words = [word for word in words if word.isalnum() and word not in stop_words]  # Remove punctuation and stopwords
+
+    # Part-of-Speech (POS) Tagging
+    tagged_words = pos_tag(words)  # POS tagging
+
+    # Extract only Nouns (NN, NNS, NNP, NNPS)
+    nouns = [word for word, pos in tagged_words if pos in ["NN", "NNS", "NNP", "NNPS"]]
+
+    # Frequency Analysis for Nouns
+    word_freq = Counter(nouns)
+    common_nouns = word_freq.most_common(20)
 
     # Generate word cloud
     wordcloud = WordCloud(
         background_color="white",
-        width=630,  # Set width to 400
-        height=250,  # Set height to 200
+        width=830,  # Set width to 400
+        height=400,  # Set height to 200
         max_words=100
     ).generate(" ".join(words))
 
@@ -813,10 +821,12 @@ def get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropd
         title=f"Common Topics for {sdg_dropdown_value}" if sdg_dropdown_value != "ALL" else "Common Topics for All SDGs",
         margin=dict(l=0, r=0, t=30, b=0),
         width=550,  # Match word cloud width
-        height=250   # Match word cloud height
+        height=300   # Match word cloud height
     )
 
     return fig
+
+
 
 def generate_research_area_visualization(selected_colleges, selected_status, selected_years, sdg_dropdown_value="ALL"):
     """
@@ -867,7 +877,7 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
         fig.update_layout(
             title=f"Top Research Areas for {sdg_dropdown_value}",
             template="plotly_white",
-            height=250, width=550,
+            height=200, width=550,
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
             margin=dict(l=0, r=0, t=40, b=0)
@@ -915,7 +925,7 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
             )
             fig.update_layout(
                 template="plotly_white",
-                height=250, width=550,
+                height=200, width=550,
                 xaxis=dict(visible=False),
                 yaxis=dict(visible=False),
                 margin=dict(l=0, r=0, t=40, b=0)
@@ -935,15 +945,17 @@ def generate_research_area_visualization(selected_colleges, selected_status, sel
         title=chart_title,  # Dynamic title
         labels={"sdg": "Sustainable Development Goals (SDGs)", "research_count": "Number of Research Papers"},
         template="plotly_white",
-        height=250,
+        height=200,
         width=550,
         category_orders={"sdg": all_sdgs}  # Ensure SDG order
     )
     fig.update_traces(
         hovertemplate="SDG: %{x}<br>"
-                      "Research Area: %{legendgroup}<br>"
-                      "Research Count: %{y}<extra></extra>"
+                    "Research Area: %{customdata[0]}<br>"
+                    "Research Count: %{y}<extra></extra>",
+        customdata=top_research_areas[["Research Area"]].values  # Pass Research Area explicitly
     )
+
 
     # Update layout
     fig.update_layout(
@@ -1187,7 +1199,7 @@ def generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_ye
         x=node_x, y=node_y,
         mode="markers+text",
         text=node_text,
-        textposition="top center",
+        textposition="middle center",
         hoverinfo="text",
         marker=dict(
             size=node_size,
