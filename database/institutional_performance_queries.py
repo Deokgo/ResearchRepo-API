@@ -191,7 +191,14 @@ def get_data_for_sdg(selected_colleges=None, selected_programs=None, selected_st
     """
     session = Session()
     try:
-        if selected_colleges == None:
+        # Convert numpy arrays to lists
+        selected_colleges = selected_colleges.tolist() if hasattr(selected_colleges, 'tolist') else selected_colleges
+        selected_programs = selected_programs.tolist() if hasattr(selected_programs, 'tolist') else selected_programs
+        selected_status = selected_status.tolist() if hasattr(selected_status, 'tolist') else selected_status
+        selected_terms = selected_terms.tolist() if hasattr(selected_terms, 'tolist') else selected_terms
+        
+        # Check if selected_colleges is None (not using == for numpy arrays)
+        if selected_colleges is None:
             query = text("""
                 SELECT
                     program_id, sdg 

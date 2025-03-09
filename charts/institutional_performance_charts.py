@@ -446,7 +446,9 @@ class ResearchOutputPlot:
                 
         df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
         df_expanded['sdg'] = df_expanded['sdg'].str.strip()
-        df_expanded.drop(columns=['level_1'], inplace=True)
+        df_expanded = df_expanded[df_expanded['sdg'] != 'Not Specified']
+        if 'level_1' in df_expanded.columns:
+            df_expanded.drop(columns=['level_1'], inplace=True)
         sdg_count = df_expanded.groupby(['sdg', entity]).size().reset_index(name='Count')
         
         if sdg_count.empty:
