@@ -149,6 +149,16 @@ def verify_backup_integrity(backup_dir):
     print("Integrity verification completed successfully")
     return True
 
+def set_directory_permissions(directory):
+    """Set correct permissions for backup directory based on OS"""
+    if platform.system() == 'Windows':
+        # On Windows, we don't need to change ownership
+        pass
+    else:
+        # On Linux/Unix systems
+        subprocess.run(['sudo', 'chown', '-R', 'postgres:postgres', directory])
+        subprocess.run(['sudo', 'chmod', '-R', '700', directory])
+
 @backup.route('/create/<backup_type>', methods=['POST'])
 @admin_required
 def create_backup(backup_type):
@@ -177,13 +187,18 @@ def create_backup(backup_type):
 
         backup_id = generate_backup_id(backup_type)
         
-        # Create backup directories
-        backup_dir = os.path.join('backups', backup_id)
+        # Create backup directories with absolute paths
+        backup_dir = os.path.abspath(os.path.join(os.getcwd(), 'backups', backup_id))
         db_backup_dir = os.path.join(backup_dir, 'database')
         files_backup_dir = os.path.join(backup_dir, 'files')
         
+        # Create directories
+        os.makedirs(backup_dir, exist_ok=True)
         os.makedirs(db_backup_dir, exist_ok=True)
         os.makedirs(files_backup_dir, exist_ok=True)
+        
+        # Set permissions based on OS
+        set_directory_permissions(backup_dir)
 
         # Get database connection details
         db_url = current_app.config['SQLALCHEMY_DATABASE_URI']
