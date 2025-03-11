@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file, session
+from flask import Blueprint, request, jsonify, send_file, session, Response
 from models import (
     db, 
     ResearchOutput, 
@@ -26,6 +26,8 @@ import pickle
 from flask_cors import cross_origin
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
+import pandas as pd
+from io import StringIO
 
 
 paper = Blueprint('paper', __name__)
@@ -820,4 +822,245 @@ def check_files(research_id):
         
     except Exception as e:
         print(f"Error checking file availability: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@paper.route('/bulk_upload', methods=['POST'])
+@jwt_required()
+def bulk_upload_papers():
+    try:
+        # Get the current user's identity
+        user_id = get_jwt_identity()
+        user = Account.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        try:
+            # Read CSV file with explicit encoding
+            csv_content = StringIO(file.stream.read().decode("UTF8"))
+            df = pd.read_csv(csv_content)
+            print("CSV file read successfully")  # Debug log
+            print("Columns found:", df.columns.tolist())  # Debug log
+        except Exception as e:
+            print(f"Error reading CSV: {str(e)}")
+            return jsonify({"error": f"Error reading CSV file: {str(e)}"}), 400
+
+        # Validate required columns
+        required_columns = [
+            'research_id', 'college_id', 'program_id', 'title', 
+            'abstract', 'school_year', 'term', 'research_type',
+            'authors', 'keywords'
+        ]
+        # Optional columns
+        optional_columns = ['adviser', 'panels']
+        
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return jsonify({
+                "error": f"Missing required columns: {', '.join(missing_columns)}"
+            }), 400
+
+        print(f"Processing {len(df)} rows")  # Debug log
+
+        # Process each row
+        for index, row in df.iterrows():
+            try:
+                print(f"Processing row {index + 1}")
+
+                # Extract starting year from school year format (YYYY-YYYY)
+                school_year = str(row['school_year']).split('-')[0]
+
+                # Process adviser information if provided
+                adviser_first_name = None
+                adviser_middle_name = None
+                adviser_last_name = None
+                adviser_suffix = ''
+
+                if pd.notna(row.get('adviser')):
+                    parts = row['adviser'].strip().split(',')
+                    if len(parts) == 2:
+                        adviser_last_name = parts[0].strip()
+                        first_part = parts[1].strip()
+                        
+                        # Split the first part into words
+                        words = first_part.split()
+                        
+                        # Check if last word ends with a period (middle initial)
+                        if words and words[-1].endswith('.'):
+                            # Get the middle initial without the period
+                            adviser_middle_name = words[-1][0]
+                            # Join all words except the last one for first name
+                            adviser_first_name = ' '.join(words[:-1])
+                        else:
+                            # No middle initial
+                            adviser_first_name = first_part
+                            adviser_middle_name = ''
+
+                # Create new research output with adviser information
+                new_research = ResearchOutput(
+                    research_id=row['research_id'],
+                    college_id=row['college_id'],
+                    program_id=row['program_id'],
+                    title=row['title'],
+                    abstract=row['abstract'],
+                    school_year=school_year,
+                    term=int(row['term']),
+                    research_type_id=row['research_type'],
+                    date_uploaded=datetime.now(),
+                    adviser_first_name=adviser_first_name,
+                    adviser_middle_name=adviser_middle_name,
+                    adviser_last_name=adviser_last_name,
+                    adviser_suffix=adviser_suffix
+                )
+                db.session.add(new_research)
+                db.session.flush()
+
+                # Process panels if provided
+                if pd.notna(row.get('panels')):
+                    panel_list = [panel.strip() for panel in str(row['panels']).split(';')]
+                    for panel_str in panel_list:
+                        parts = panel_str.split(',')
+                        if len(parts) == 2:
+                            panel_last_name = parts[0].strip()
+                            first_part = parts[1].strip()
+                            
+                            words = first_part.split()
+                            
+                            if words and words[-1].endswith('.'):
+                                panel_middle_name = words[-1][0]
+                                panel_first_name = ' '.join(words[:-1])
+                            else:
+                                panel_first_name = first_part
+                                panel_middle_name = ''
+                            
+                            new_panel = Panel(
+                                research_id=row['research_id'],
+                                panel_first_name=panel_first_name,
+                                panel_middle_name=panel_middle_name,
+                                panel_last_name=panel_last_name,
+                                panel_suffix=''
+                            )
+                            db.session.add(new_panel)
+
+                # Process SDGs
+                if pd.notna(row['sdg']):
+                    sdg_entries = str(row['sdg']).split(';')
+                    for sdg_entry in sdg_entries:
+                        sdg_entry = sdg_entry.strip()
+                        if sdg_entry.startswith('SDG '):
+                            sdg_number = sdg_entry[4:].strip()
+                            if sdg_number.isdigit():
+                                new_sdg = SDG(
+                                    research_id=row['research_id'],
+                                    sdg=f"SDG {sdg_number}"
+                                )
+                                db.session.add(new_sdg)
+
+                # Process keywords
+                if pd.notna(row['keywords']):
+                    keywords_list = [k.strip() for k in str(row['keywords']).split(';')]
+                    for keyword in keywords_list:
+                        if keyword:
+                            new_keyword = Keywords(
+                                research_id=row['research_id'],
+                                keyword=keyword
+                            )
+                            db.session.add(new_keyword)
+
+                # Process authors
+                if pd.notna(row['authors']):
+                    authors_list = [author.strip() for author in str(row['authors']).split(';')]
+                    for idx, author_str in enumerate(authors_list, start=1):
+                        parts = author_str.split(',')
+                        if len(parts) == 2:
+                            last_name = parts[0].strip()
+                            first_part = parts[1].strip()
+                            
+                            # Split the first part into words
+                            words = first_part.split()
+                            
+                            # Check if last word ends with a period (middle initial)
+                            if words and words[-1].endswith('.'):
+                                # Get the middle initial without the period
+                                middle_name = words[-1][0]  # Take just the letter before the period
+                                # Join all words except the last one for first name
+                                first_name = ' '.join(words[:-1])
+                            else:
+                                # No middle initial
+                                first_name = first_part
+                                middle_name = ''
+                            
+                            new_author = ResearchOutputAuthor(
+                                research_id=row['research_id'],
+                                author_order=idx,
+                                author_first_name=first_name,
+                                author_middle_name=middle_name,
+                                author_last_name=last_name,
+                                author_suffix=''
+                            )
+                            db.session.add(new_author)
+
+                # Commit all changes for this row if everything is successful
+                db.session.commit()
+                print(f"Successfully added research output {row['research_id']} with all related data")
+
+            except Exception as row_error:
+                print(f"Error processing row {index + 1}: {str(row_error)}")
+                db.session.rollback()
+                return jsonify({"error": f"Error in row {index + 1}: {str(row_error)}"}), 500
+
+        return jsonify({"message": "Papers uploaded successfully"}), 201
+
+    except Exception as e:
+        print(f"Unexpected error in bulk_upload: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        db.session.close()
+
+@paper.route('/get_template', methods=['GET'])
+def get_paper_template():
+    try:
+        example_data = {
+            'research_id': ['Required - Group Code (e.g., 2025CS002)'],
+            'college_id': ['Required - College ID (e.g., CCIS)'],
+            'program_id': ['Required - Program ID (e.g., CS)'],
+            'title': ['Required - Full Research Title'],
+            'abstract': ['Required - Research Abstract'],
+            'school_year': ['Required - Format: YYYY-YYYY (e.g., 2023-2024)'],
+            'term': ['Required - Values: 1, 2, or 3'],
+            'research_type': ['Required - Research Type ID:\nCD - College-Driven\nCM - Commissioned\nFD - Faculty-Driven\nGF - Government-Funded\nMT - Mentored'],
+            'authors': ['Required - Format: Lastname, Firstname MI.; Lastname2, Firstname2 MI2.'],
+            'keywords': ['Required - Keywords separated by semicolon (e.g., AI; Machine Learning)'],
+            'sdg': ['Optional - Format: SDG 1; SDG 2; SDG 3'],
+            'adviser': ['Optional - Format: Lastname, Firstname MI.'],
+            'panels': ['Optional - Format: Lastname, Firstname MI.; Lastname2, Firstname2 MI2.']
+        }
+        
+        # Create DataFrame with example data
+        df = pd.DataFrame(example_data)
+        
+        # Create a buffer to store the CSV
+        output = StringIO()
+        df.to_csv(output, index=False)
+        
+        # Create the response
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': 'attachment; filename=paper_upload_template.csv',
+                'Content-Type': 'text/csv'
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error generating template: {str(e)}")
         return jsonify({"error": str(e)}), 500

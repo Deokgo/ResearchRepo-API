@@ -70,11 +70,19 @@ def retrieve_dataset(research_id=None):
                 'name', func.concat(
                     Panel.panel_first_name,
                     ' ',
-                    func.coalesce(Panel.panel_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(Panel.panel_middle_name, '') != '', 
+                         func.concat(Panel.panel_middle_name, '. ')),
+                        else_=''
+                    ),
                     Panel.panel_last_name,
-                    ' ',
-                    func.coalesce(Panel.panel_suffix, '')
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(Panel.panel_suffix, '') != '', 
+                         func.concat(' ', Panel.panel_suffix)),
+                        else_=''
+                    )
                 )
             )
         ).label('panels_array')
@@ -100,11 +108,19 @@ def retrieve_dataset(research_id=None):
                 'name', func.concat(
                     ResearchOutput.adviser_first_name,
                     ' ',
-                    func.coalesce(ResearchOutput.adviser_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(ResearchOutput.adviser_middle_name, '') != '', 
+                         func.concat(ResearchOutput.adviser_middle_name, '. ')),
+                        else_=''
+                    ),
                     ResearchOutput.adviser_last_name,
-                    ' ',
-                    func.coalesce(ResearchOutput.adviser_suffix, '')
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(ResearchOutput.adviser_suffix, '') != '', 
+                         func.concat(' ', ResearchOutput.adviser_suffix)),
+                        else_=''
+                    )
                 )
             ).label('adviser_info')
         )
@@ -304,11 +320,19 @@ def fetch_ordered_dataset(research_id=None):
                 'name', func.concat(
                     Panel.panel_first_name,
                     ' ',
-                    func.coalesce(Panel.panel_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(Panel.panel_middle_name, '') != '', 
+                         func.concat(Panel.panel_middle_name, '. ')),
+                        else_=''
+                    ),
                     Panel.panel_last_name,
-                    ' ',
-                    func.coalesce(Panel.panel_suffix, '')
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(Panel.panel_suffix, '') != '', 
+                         func.concat(' ', Panel.panel_suffix)),
+                        else_=''
+                    )
                 )
             )
         ).label('panels_array')
@@ -334,12 +358,20 @@ def fetch_ordered_dataset(research_id=None):
                 'name', func.concat(
                     ResearchOutput.adviser_first_name,
                     ' ',
-                    func.coalesce(ResearchOutput.adviser_middle_name, ''),
-                    ' ',
+                    # Add period after middle name if present
+                    case(
+                        (func.coalesce(ResearchOutput.adviser_middle_name, '') != '', 
+                         func.concat(ResearchOutput.adviser_middle_name, '. ')),
+                        else_=''
+                    ),
                     ResearchOutput.adviser_last_name,
-                    ' ',
-                    func.coalesce(ResearchOutput.adviser_suffix, '')
-                ),
+                    # Add space before suffix only if present
+                    case(
+                        (func.coalesce(ResearchOutput.adviser_suffix, '') != '', 
+                         func.concat(' ', ResearchOutput.adviser_suffix)),
+                        else_=''
+                    )
+                )
             ).label('adviser_info')
         )
     ).subquery()

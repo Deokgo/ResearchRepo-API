@@ -118,7 +118,7 @@ def create_kg_area(flask_app):
 
         # Define min and max node sizes
         MIN_SIZE = 76
-        MAX_SIZE = 150
+        MAX_SIZE = 130
 
         # Create edge trace
         edge_x = []
