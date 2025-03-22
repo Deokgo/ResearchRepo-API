@@ -210,30 +210,18 @@ class DatabaseManager:
         else:
             return []  # Return an empty list if the column doesn't exist or has no values
 
-    def get_unique_values_by(self, column_name, condition_column=None, condition_value=None):
-        if self.df is not None and column_name in self.df.columns:
-            if condition_column and condition_column in self.df.columns:
-                # Apply the condition
-                filtered_df = self.df[self.df[condition_column] == condition_value]
-                
-                # Debug: print filtered dataframe
-                print(f"Filtered DataFrame for {condition_column} == {condition_value}:\n")
-                
-                # Get unique values from the filtered data
-                unique_values = filtered_df[column_name].dropna().unique()
-                print(f'unique values: {unique_values}')
-            else:
-                # No condition, get all unique values
-                unique_values = self.df[column_name].dropna().unique()
-
-            if len(unique_values) == 0:
-                print(f"Warning: Column '{column_name}' contains no unique values.")
+    def get_unique_values_by(self, target_column, filter_column, filter_value):
+        """Get unique values from target_column where filter_column equals filter_value"""
+        if not hasattr(self, 'df') or self.df is None:
+            self.get_all_data()
             
-            return unique_values
-        else:
-            print(f"Error: Column '{column_name}' does not exist in the DataFrame.")
-            return []
-
+        # Filter the dataframe
+        filtered_df = self.df[self.df[filter_column] == filter_value]
+        
+        # Get unique values from the target column
+        unique_values = filtered_df[target_column].unique().tolist()
+        
+        return unique_values
 
     def get_columns(self):
         return self.df.columns.tolist() if self.df is not None else []

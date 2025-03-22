@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 from . import db_manager
 import pandas as pd
+import numpy as np
 from database.institutional_performance_queries import get_data_for_modal_contents, get_data_for_text_displays
 from urllib.parse import parse_qs
 from components.DashboardHeader import DashboardHeader
@@ -14,21 +15,47 @@ from components.KPI_Card import KPI_Card
 from dashboards.usable_methods import default_if_empty, ensure_list, download_file
 from charts.institutional_performance_charts import ResearchOutputPlot
 from dash.exceptions import PreventUpdate
+import json
+from flask_jwt_extended import get_jwt_identity
+from flask import session, current_app
+from config import Config
+from services.database_manager import DatabaseManager
+
+class NumpyEncoder(json.JSONEncoder):
+    """Special JSON encoder for numpy types"""
+    def default(self, obj):
+        import numpy as np
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+                              np.int16, np.int32, np.int64, np.uint8,
+                              np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, (np.bool_)):
+            return bool(obj)
+        return json.JSONEncoder.default(self, obj)
 
 class Institutional_Performance_Dash:
-    def __init__(self, flask_app, college=None, program=None):
-        """
-        Initialize the MainDashboard class and set up the Dash app.
-        """
-        self.dash_app = Dash(__name__, server=flask_app, url_base_pathname='/institutional-performance/', 
-                             external_stylesheets=[dbc.themes.BOOTSTRAP, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"])
+    def __init__(self, server):
+        self.app = server
+        self.dash_app = dash.Dash(
+            __name__,
+            server=server,
+            routes_pathname_prefix='/institutional-performance/',
+            external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
+            requests_pathname_prefix="/institutional-performance/"
+        )
+        
+        self.redis_client = self.app.redis_client
         
         self.plot_instance = ResearchOutputPlot()
-        self.college = college
-        self.program = program
+        self.college = None
+        self.program = None
         self.user_role = ""
 
-        # Get default values
+        # Get default values from global db_manager for initial setup only
         self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_programs = []
@@ -39,10 +66,13 @@ class Institutional_Performance_Dash:
         self.selected_colleges = []
         self.selected_programs = []
         
-        self.create_layout()
+        # Add user database managers dictionary
+        self.user_db_managers = {}
+        
+        self.setup_dashboard()
         self.set_callbacks()
 
-    def create_layout(self):
+    def setup_dashboard(self):
         """
         Create the layout of the dashboard.
         """
@@ -290,7 +320,7 @@ class Institutional_Performance_Dash:
             dbc.Row(
                 [
                     dbc.Col(KPI_Card("Research Output(s)", "0", id="open-total-modal", icon="fas fa-book-open", color="primary"), width="auto"),
-                    dbc.Col(KPI_Card("Ready for Publication", "0", id="open-ready-modal", icon="fas fa-file-import", color="info"), width="auto"),
+                    dbc.Col(KPI_Card("Ready for Publication", "0", id="open-ready-modal", icon="fas fa-file-import", color="info"),width="auto"),
                     dbc.Col(KPI_Card("Submitted Paper(s)", "0", id="open-submitted-modal", icon="fas fa-file-export", color="warning"), width="auto"),
                     dbc.Col(KPI_Card("Accepted Paper(s)", "0", id="open-accepted-modal", icon="fas fa-check-circle", color="success"), width="auto"),
                     dbc.Col(KPI_Card("Published Paper(s)", "0", id="open-published-modal", icon="fas fa-file-alt", color="danger"), width="auto"),
@@ -305,7 +335,8 @@ class Institutional_Performance_Dash:
 
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),  # 1-second refresh interval
+            dcc.Store(id='session-store', storage_type='session'),
+            dcc.Interval(id="data-refresh-interval", interval=5000, n_intervals=0),  # 1-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dcc.Download(id="total-download-link"), # For download feature (modal content)
             dcc.Download(id="ready-download-link"), # For download feature (modal content)
@@ -421,131 +452,245 @@ class Institutional_Performance_Dash:
             "overflow": "hidden",  # Prevent outer scrolling
         })
     
+    # This helper function ensures numpy arrays are converted to lists before sending to SQL
+    def convert_numpy_to_list(self, value):
+        """Convert numpy arrays and values to Python native types for JSON serialization"""
+        import numpy as np
+        
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        elif isinstance(value, np.integer):
+            return int(value)
+        elif isinstance(value, np.floating):
+            return float(value)
+        elif isinstance(value, np.bool_):
+            return bool(value)
+        elif isinstance(value, list):
+            return [self.convert_numpy_to_list(item) for item in value]
+        elif isinstance(value, dict):
+            return {k: self.convert_numpy_to_list(v) for k, v in value.items()}
+        else:
+            return value
+    
+    def get_user_db_manager(self, user_id, role_id, college_id=None, program_id=None):
+        """
+        Get or create a database manager instance specific to this user.
+        """
+        # Check if we already have a manager for this user
+        if user_id in self.user_db_managers:
+            return self.user_db_managers[user_id]
+        
+        # Create a new manager for this user
+        print(f"Creating new database manager for user {user_id} with role {role_id}")
+        user_db = DatabaseManager(Config.SQLALCHEMY_DATABASE_URI)
+        user_db.get_all_data()  # Load the data
+        
+        # Store it in our dictionary
+        self.user_db_managers[user_id] = user_db
+        
+        return user_db
+    
     def set_callbacks(self):
         """
-        Set up the callback functions for the dashboard.
+        Set up the interactive callbacks for the dashboard.
         """
-        # Reset status, years, and terms
         @self.dash_app.callback(
-            [
-                Output('status', 'value'),
-                Output('years', 'value'),
-                Output('terms', 'value')
-            ],
-            [Input('reset_button', 'n_clicks')],
+            [Output('url', 'pathname'),
+             Output('session-store', 'data')],
+            Input('url', 'search'),
             prevent_initial_call=True
         )
-        def reset_status_years_terms(n_clicks):
-            if not n_clicks:
-                raise PreventUpdate
-            print('RESET (status, years, terms)')
-            return [], self.default_years, []
-        
-        @self.dash_app.callback(
-            Output("dynamic-header", "children"),
-            Input("url", "search"),
-            prevent_initial_call=True  
-        )
-        def update_header(search):
-            if search:
-                params = parse_qs(search.lstrip("?"))
-                user_role = params.get("user-role", ["Guest"])[0]
-                college = params.get("college", [""])[0]
-                program = params.get("program", [""])[0]
-
-            style = None
-
-            if user_role in ["02", "03"]:
-                style = {"display": "block"}
-                college = ""
-                program = ""
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
-            elif user_role == "04":
-                style = {"display": "none"}
-                self.college = college
-                self.program = program
-                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
-            elif user_role == "05":
-                style = {"display": "none"}
-                self.college = college
-                self.program = program
-                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
-
-            return header
-        
-        @self.dash_app.callback(
-            [
-                Output('college', 'value'),
-                Output('program', 'value'),
-                Output('college-container', 'style'),
-                Output('program-container', 'style'),
-                Output('program', 'options')
-            ],
-            [
-                Input("url", "search"),
-                Input("reset_button", "n_clicks")
-            ],
-            prevent_initial_call=True
-        )
-        def set_college_and_program(search, reset_clicks):
-            college_style = {"display": "block"}
-            program_style = {"display": "block"}
-            program_options = []
+        def initialize_user_session(search):
+            """Initialize user session from URL parameters"""
+            # Parse URL query parameters
+            parsed = parse_qs(search.lstrip('?'))
+            user_role = parsed.get('user-role', ['01'])[0]  # Default role
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
             
-            ctx = dash.callback_context
-            if not ctx.triggered:
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
-            trigger = ctx.triggered[0]["prop_id"].split(".")[0]
-
-            if search:
-                params = parse_qs(search.lstrip("?"))
-                user_role = params.get("user-role", ["Guest"])[0]
-                college = params.get("college", [""])[0]
-                program = params.get("program", [""])[0]
-            else:
-                user_role = self.user_role  # Use previously stored value
-                college = self.college
-                program = self.program
-
-            if trigger == "reset_button":
-                if user_role in ["02", "03"]:
-                    return [], [], {"display": "block"}, {"display": "none"}, []
-                elif user_role == "04":
-                    self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
-                    program_options = [{'label': p, 'value': p} for p in self.default_programs]
-                    return self.college, [], {"display": "none"}, {"display": "block"}, program_options
-                elif user_role == "05":
-                    self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
-                    program_options = [{'label': p, 'value': p} for p in self.default_programs]
-                    return [], self.program, {"display": "none"}, {"display": "none"}, program_options
-                else:
-                    return [], [], {"display": "block"}, {"display": "block"}, []
-
-            self.college = college
-            self.program = program
+            # Store these values in the class instance for this session
             self.user_role = user_role
-
-            if user_role in ["02", "03"]:
-                college = []  
-                program = []  
-                program_style = {"display": "none"}
-
-            elif user_role == "04":
-                college = self.college  
-                program = []  
-                self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", self.college)
-                program_options = [{'label': p, 'value': p} for p in self.default_programs]
-                college_style = {"display": "none"}
-
-            elif user_role == "05":
-                college = []
-                program = [self.program] if self.program else []
-                college_style = {"display": "none"}
-                program_style = {"display": "none"}
-
-            return college, program, college_style, program_style, program_options
-
+            self.college = college_id
+            self.program = program_id
+            
+            print(f"User Session Initialized - Role: {user_role}, College: {college_id}, Program: {program_id}")
+            
+            # For College Administrator (role 04), get all programs for this college
+            if user_role == "04" and college_id:
+                self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+                self.selected_colleges = [college_id]
+                print(f"College Administrator role detected - programs available: {self.default_programs}")
+            # For Program Administrator (role 05), restrict to one program
+            elif user_role == "05" and program_id:
+                self.default_programs = [program_id]
+                self.selected_programs = [program_id]
+                print(f"Program Administrator role detected - program: {self.default_programs}")
+            # For Directors and Head Executives (roles 02/03)
+            else:
+                if user_role in ["02", "03"]:
+                    print(f"Director/Head Executive role detected")
+            
+            # Create session data to store
+            session_data = {
+                'user_role': user_role,
+                'college_id': college_id,
+                'program_id': program_id,
+                'default_programs': self.default_programs if hasattr(self, 'default_programs') else []
+            }
+            
+            # Return the current pathname and session data
+            return dash.no_update, session_data
+        
+        @self.dash_app.callback(
+            [Output('college_line_plot', 'figure'),
+            Output('college_pie_chart', 'figure'),
+            Output('research_status_bar_plot', 'figure'),
+            Output('research_type_bar_plot', 'figure'),
+            Output('nonscopus_scopus_graph', 'figure'),
+            Output('nonscopus_scopus_bar_plot', 'figure'),
+            Output('proceeding_conference_graph', 'figure'),
+            Output('proceeding_conference_bar_plot', 'figure'),
+            Output('sdg_bar_plot', 'figure')],
+            [Input('url', 'search'),
+            Input('college', 'value'),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value'),
+            Input('reset_button', 'n_clicks'),
+            Input('nonscopus_scopus_tabs', 'value'),
+            Input('proceeding_conference_tabs', 'value')])
+        def update_dash_output(search, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, n_clicks, nonscopus_scopus_tab, proceeding_conference_tab):
+            # Get user identity
+            try:
+                user_id = get_jwt_identity() or 'anonymous'
+            except Exception as e:
+                print(f"Error getting JWT identity: {e}")
+                user_id = 'anonymous'
+                
+            # Parse URL parameters
+            parsed = parse_qs(search.lstrip('?')) if search else {}
+            user_role = parsed.get('user-role', ['01'])[0]
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+            
+            print(f"User ID: {user_id}, Role: {user_role}, College: {college_id}, Program: {program_id}")
+            
+            # Process selections and convert numpy arrays to lists
+            selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
+            selected_programs = self.convert_numpy_to_list(ensure_list(selected_programs) or [])
+            selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
+            selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
+            selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+            
+            # Apply role-based filters
+            if user_role in ["02", "03"] and college_id and not selected_colleges:  # Director/Head Executive
+                selected_colleges = [college_id]
+                selected_programs = []
+                print(f"Director/Head Executive role detected - restricting to college: {selected_colleges}")
+            elif user_role == "04" and college_id:  # College Administrator
+                selected_colleges = [college_id]
+                # If no program is selected, use all programs from this college
+                if not selected_programs:
+                    all_college_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+                    selected_programs = all_college_programs
+                    print(f"College Administrator role detected - showing all programs ({len(selected_programs)}) for college: {college_id}")
+                else:
+                    print(f"College Administrator role detected - filtering to selected programs: {selected_programs}")
+            elif user_role == "05" and program_id and not selected_programs:  # Program Coordinator
+                selected_programs = [program_id]
+                selected_colleges = []
+                print(f"Program Coordinator role detected - restricting to program: {selected_programs}")
+            
+            print(f"Final selected_colleges: {selected_colleges}")
+            print(f"Final selected_programs: {selected_programs}")
+            
+            # Use the EXACT method names from ResearchOutputPlot class
+            return [
+                self.plot_instance.update_line_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms,
+                    default_years=self.default_years
+                ),
+                self.plot_instance.update_pie_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.update_research_status_bar_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.update_research_type_bar_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.create_publication_bar_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.create_publication_bar_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.update_publication_format_bar_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.update_publication_format_bar_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                ),
+                self.plot_instance.update_sdg_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+            ]
+        
         @self.dash_app.callback(
             [
                 Output('open-total-modal', 'children'),
@@ -557,6 +702,7 @@ class Institutional_Performance_Dash:
             ],
             [
                 Input("data-refresh-interval", "n_intervals"),
+                Input('session-store', 'data'),
                 Input('college', 'value'),
                 Input('program', 'value'),
                 Input('status', 'value'),
@@ -564,44 +710,77 @@ class Institutional_Performance_Dash:
                 Input('terms', 'value')
             ]
         )
-        def refresh_text_buttons(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            if self.user_role in ["02", "03"]:
-                selected_programs = [] 
-
+        def refresh_text_buttons(n_intervals, session_data, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            """Refresh the text buttons with the latest data"""
+            # Get user role from session store
+            if not session_data:
+                user_role = "01"  # Default if no session data
+                college_id = None
+                program_id = None
+            else:
+                user_role = session_data.get('user_role', '01')
+                college_id = session_data.get('college_id')
+                program_id = session_data.get('program_id')
+            
+            print(f"User Role: {user_role}, College: {college_id}, Program: {program_id}")
+            
+            # Apply role-based filters
+            if user_role in ["02", "03"]:  # Director/Head Executive
+                if not selected_colleges and college_id:
+                    selected_colleges = [college_id]
+            elif user_role == "04":  # College Administrator
+                if not selected_colleges and college_id:
+                    selected_colleges = [college_id]
+                if not selected_programs:  # Show all programs from this college by default
+                    all_college_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+                    selected_programs = all_college_programs
+            elif user_role == "05":  # Program Coordinator
+                if not selected_programs and program_id:
+                    selected_programs = [program_id]
+            
+            print(f"Session {user_role}:{college_id or 'all'}:{program_id or 'all'} - Refreshing KPIs with filters: colleges={selected_colleges}, programs={selected_programs}")
+            
+            # Apply default values if needed
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
-
+            
+            # Ensure all values are proper lists
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
-
-            # Apply filters properly
+            
+            # Apply filters with explicit user role consideration
             filter_kwargs = {
                 "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
-
-            if selected_programs and self.user_role not in ("02", "03"):
+            
+            # Based on role, determine whether to filter by college or program
+            if user_role in ["02", "03", "04"]:  # Directors, Head Execs, College Admins
+                if selected_programs:
+                    filter_kwargs["selected_programs"] = selected_programs
+                else:
+                    filter_kwargs["selected_colleges"] = selected_colleges
+            elif user_role == "05":  # Program Coordinators
                 filter_kwargs["selected_programs"] = selected_programs
-            else:
-                filter_kwargs["selected_colleges"] = selected_colleges 
-
+            
+            # Get data specifically for this user's session
             filtered_data = get_data_for_text_displays(**filter_kwargs)
-
-            df_filtered_data = pd.DataFrame(filtered_data).to_dict(orient='records')
-
-            status_counts = {d["status"]: d["total_count"] for d in df_filtered_data}
+            
+            # Rest of your existing code for counting the KPIs...
+            status_counts = {d["status"]: d["total_count"] for d in filtered_data}
             total_research_outputs = sum(status_counts.values())
-
-            print(f'Final selected_colleges: {selected_colleges}')  # Debugging print
-            print(f'Final selected_programs: {selected_programs}')  # Debugging print
-
+            
+            print(f'User Role: {user_role}, College: {college_id}, Program: {program_id}')
+            print(f'Final selected_colleges: {selected_colleges}')
+            print(f'Final selected_programs: {selected_programs}')
+            
             return (
                 [html.H3(f'{total_research_outputs}', className="mb-0")],
                 [html.H3(f'{status_counts.get("READY", 0)}', className="mb-0")],
@@ -611,178 +790,6 @@ class Institutional_Performance_Dash:
                 [html.H3(f'{status_counts.get("PULLOUT", 0)}', className="mb-0")]
             )
 
-        @self.dash_app.callback(
-            Output('college_line_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_lineplot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
-        
-        @self.dash_app.callback(
-            Output('college_pie_chart', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_pie_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('research_type_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_research_type_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_research_type_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-
-        @self.dash_app.callback(
-            Output('research_status_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_research_status_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_research_status_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('nonscopus_scopus_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def create_publication_bar_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.create_publication_bar_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('proceeding_conference_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_publication_format_bar_plot(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_publication_format_bar_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('sdg_bar_plot', 'figure'),
-            [
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_sdg_chart(selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-            return self.plot_instance.update_sdg_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-        
-        @self.dash_app.callback(
-            Output('nonscopus_scopus_graph', 'figure'),
-            [
-                Input('nonscopus_scopus_tabs', 'value'),
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_scopus_graph(tab, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-
-            if tab == 'line':
-                return self.plot_instance.scopus_line_graph(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
-            else:
-                return self.plot_instance.scopus_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-            
-        @self.dash_app.callback(
-            Output('proceeding_conference_graph', 'figure'),
-            [
-                Input('proceeding_conference_tabs', 'value'),
-                Input('college', 'value'),
-                Input('program', 'value'),
-                Input('status', 'value'),
-                Input('years', 'value'),
-                Input('terms', 'value')
-            ]
-        )
-        def update_scopus_graph(tab, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
-            selected_years = selected_years if selected_years else self.default_years
-            selected_terms = default_if_empty(selected_terms, self.default_terms)
-
-            if tab == 'line':
-                return self.plot_instance.publication_format_line_plot(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, self.default_years)
-            else:
-                return self.plot_instance.publication_format_pie_chart(self.user_role, self.palette_dict, selected_colleges, selected_programs, selected_status, selected_years, selected_terms)
-            
         # for total modal
         @self.dash_app.callback(
             [
@@ -1385,3 +1392,119 @@ class Institutional_Performance_Dash:
                 return is_open, download_message, send_file(file_path), {"display": "none"}
 
             return is_open, "", None, download_btn_style
+
+    def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
+        """
+        Get or create user-specific data store in Redis
+        """
+        # Create a unique key for this user's data
+        cache_key = f"inst_perf_dash:{user_id}"
+        
+        # Check if we already have cached data for this user
+        cached_data = self.redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+            
+        # Set up initial data object if no cached data exists
+        user_data = {
+            "user_id": user_id,
+            "role_id": role_id,
+            "college_id": college_id,
+            "program_id": program_id,
+            "selected_colleges": [college_id] if college_id else [],
+            "selected_programs": [program_id] if program_id else [],
+            "selected_status": self.convert_numpy_to_list(self.default_statuses),
+            "selected_years": self.convert_numpy_to_list(self.default_years),
+            "selected_terms": self.convert_numpy_to_list(self.default_terms)
+        }
+        
+        # Cache the data with a reasonable expiration (e.g., 30 minutes)
+        # Use a custom JSON encoder that can handle NumPy types
+        try:
+            json_data = json.dumps(user_data, cls=NumpyEncoder)
+            self.redis_client.setex(cache_key, 1800, json_data)
+        except Exception as e:
+            print(f"Error serializing user data: {e}")
+            # Fall back to basic types if JSON serialization fails
+            simplified_data = {
+                "user_id": str(user_id),
+                "role_id": str(role_id),
+                "college_id": str(college_id) if college_id else None,
+                "program_id": str(program_id) if program_id else None,
+                "selected_colleges": [str(c) for c in ([college_id] if college_id else [])],
+                "selected_programs": [str(p) for p in ([program_id] if program_id else [])],
+                "selected_status": [str(s) for s in self.default_statuses],
+                "selected_years": [int(y) for y in self.default_years],
+                "selected_terms": [str(t) for t in self.default_terms]
+            }
+            self.redis_client.setex(cache_key, 1800, json.dumps(simplified_data))
+            return simplified_data
+        
+        return user_data
+
+    def update_user_data(self, user_id, update_dict):
+        """
+        Update specific fields in the user's data store
+        """
+        cache_key = f"inst_perf_dash:{user_id}"
+        cached_data = self.redis_client.get(cache_key)
+        
+        if cached_data:
+            user_data = json.loads(cached_data)
+            user_data.update(update_dict)
+            self.redis_client.setex(cache_key, 1800, json.dumps(user_data))
+            return user_data
+        
+        return None
+
+    def modify_callbacks(self):
+        """
+        Modify existing callbacks to use user-specific data
+        """
+        # Add dcc.Store to layout for client-side session data
+        if 'shared-data-store' not in [c.id for c in self.dash_app.layout.children if hasattr(c, 'id')]:
+            self.dash_app.layout.children.append(dcc.Store(id='user-session-data'))
+
+        # Here we would add/modify callbacks that need user-specific data
+        # This would be integrated with your existing callbacks
+        
+        @self.dash_app.callback(
+            Output('user-session-data', 'data'),
+            Input('url', 'search'),
+            prevent_initial_call=True
+        )
+        def initialize_user_session(self, search):
+            # Parse URL query parameters
+            parsed = parse_qs(search.lstrip('?'))
+            user_role = parsed.get('user-role', ['02'])[0]  # Default to director
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+            
+            # Store these values in the class instance
+            self.user_role = user_role
+            self.college = college_id
+            self.program = program_id
+            
+            print(f"User ID: {getattr(self, 'user_id', 'anonymous')}, Role: {user_role}, College: {college_id}, Program: {program_id}")
+            
+            # For College Administrator (role 04), get all programs for this college
+            if user_role == "04" and college_id:
+                self.default_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+                print(f"College Administrator role detected - showing programs: {self.default_programs}")
+            # For Program Administrator (role 05), restrict to one program
+            elif user_role == "05" and program_id:
+                self.default_programs = [program_id]
+                print(f"Program Administrator role detected - restricting to program: {self.default_programs}")
+            # For Directors and Head Executives (roles 02/03), show all colleges
+            else:
+                self.default_programs = []
+                if user_role in ["02", "03"]:
+                    print(f"Director/Head Executive role detected - showing all colleges")
+            
+            # Return the user data for the dcc.Store
+            return {
+                "user_role": self.user_role,
+                "college": self.college,
+                "program": self.program,
+                "default_programs": self.default_programs
+            }
