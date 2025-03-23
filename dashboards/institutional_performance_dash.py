@@ -543,23 +543,23 @@ class Institutional_Performance_Dash:
         
         @self.dash_app.callback(
             [Output('college_line_plot', 'figure'),
-            Output('college_pie_chart', 'figure'),
-            Output('research_status_bar_plot', 'figure'),
-            Output('research_type_bar_plot', 'figure'),
-            Output('nonscopus_scopus_graph', 'figure'),
-            Output('nonscopus_scopus_bar_plot', 'figure'),
-            Output('proceeding_conference_graph', 'figure'),
-            Output('proceeding_conference_bar_plot', 'figure'),
-            Output('sdg_bar_plot', 'figure')],
+             Output('college_pie_chart', 'figure'),
+             Output('research_status_bar_plot', 'figure'),
+             Output('research_type_bar_plot', 'figure'),
+             Output('nonscopus_scopus_graph', 'figure'),
+             Output('nonscopus_scopus_bar_plot', 'figure'),
+             Output('proceeding_conference_graph', 'figure'),
+             Output('proceeding_conference_bar_plot', 'figure'),
+             Output('sdg_bar_plot', 'figure')],
             [Input('url', 'search'),
-            Input('college', 'value'),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value'),
-            Input('reset_button', 'n_clicks'),
-            Input('nonscopus_scopus_tabs', 'value'),
-            Input('proceeding_conference_tabs', 'value')])
+             Input('college', 'value'),
+             Input('program', 'value'),
+             Input('status', 'value'),
+             Input('years', 'value'),
+             Input('terms', 'value'),
+             Input('reset_button', 'n_clicks'),
+             Input('nonscopus_scopus_tabs', 'value'),
+             Input('proceeding_conference_tabs', 'value')])
         def update_dash_output(search, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, n_clicks, nonscopus_scopus_tab, proceeding_conference_tab):
             # Get user identity
             try:
@@ -584,23 +584,17 @@ class Institutional_Performance_Dash:
             selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
             
             # Apply role-based filters
-            if user_role in ["02", "03"] and college_id and not selected_colleges:  # Director/Head Executive
+            if user_role in ["02", "03"]:  # Director/Head Executive
+                if not selected_colleges:  # If no colleges selected, show all
+                    selected_colleges = self.default_colleges
+                selected_programs = []  # Directors don't filter by program
+            elif user_role == "04":  # College Administrator
                 selected_colleges = [college_id]
-                selected_programs = []
-                print(f"Director/Head Executive role detected - restricting to college: {selected_colleges}")
-            elif user_role == "04" and college_id:  # College Administrator
-                selected_colleges = [college_id]
-                # If no program is selected, use all programs from this college
-                if not selected_programs:
-                    all_college_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
-                    selected_programs = all_college_programs
-                    print(f"College Administrator role detected - showing all programs ({len(selected_programs)}) for college: {college_id}")
-                else:
-                    print(f"College Administrator role detected - filtering to selected programs: {selected_programs}")
-            elif user_role == "05" and program_id and not selected_programs:  # Program Coordinator
-                selected_programs = [program_id]
+                if not selected_programs:  # Show all programs from this college by default
+                    selected_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+            elif user_role == "05":  # Program Administrator
                 selected_colleges = []
-                print(f"Program Coordinator role detected - restricting to program: {selected_programs}")
+                selected_programs = [program_id]
             
             print(f"Final selected_colleges: {selected_colleges}")
             print(f"Final selected_programs: {selected_programs}")
@@ -1392,6 +1386,62 @@ class Institutional_Performance_Dash:
                 return is_open, download_message, send_file(file_path), {"display": "none"}
 
             return is_open, "", None, download_btn_style
+
+        @self.dash_app.callback(
+            [Output('college-container', 'style'),
+             Output('program-container', 'style'),
+             Output('program', 'options'),
+             Output('college', 'value'),
+             Output('program', 'value')],
+            [Input('url', 'search')]
+        )
+        def update_filter_visibility(search):
+            if not search:
+                raise PreventUpdate
+
+            # Parse URL parameters
+            parsed = parse_qs(search.lstrip('?'))
+            user_role = parsed.get('user-role', ['01'])[0]
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+
+            print(f"User Role: {user_role}, College: {college_id}, Program: {program_id}")
+
+            # Initialize default styles and values
+            college_style = {'display': 'none'}  # Hidden by default
+            program_style = {'display': 'none'}  # Hidden by default
+            program_options = []
+            college_value = []
+            program_value = []
+
+            if user_role in ["02", "03"]:  # Director and Head Executive
+                # Show only college filter
+                college_style = {'display': 'block'}
+                program_style = {'display': 'none'}
+                program_options = []
+                college_value = []  # Don't preselect all colleges
+                program_value = []
+                
+            elif user_role == "04":  # College Administrator
+                # Show only program filter
+                college_style = {'display': 'none'}
+                program_style = {'display': 'block'}
+                program_options = [
+                    {'label': value, 'value': value} 
+                    for value in db_manager.get_unique_values_by('program_id', 'college_id', college_id)
+                ]
+                college_value = [college_id] if college_id else []
+                program_value = []
+                
+            elif user_role == "05":  # Program Administrator
+                # Hide both filters
+                college_style = {'display': 'none'}
+                program_style = {'display': 'none'}
+                program_options = []
+                college_value = [college_id] if college_id else []
+                program_value = [program_id] if program_id else []
+
+            return college_style, program_style, program_options, college_value, program_value
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """
