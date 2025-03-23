@@ -583,11 +583,11 @@ class Institutional_Performance_Dash:
             selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
             selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
             
-            # Apply role-based filters
+            # Apply role-based filters - CRITICAL FIX FOR DIRECTORS
             if user_role in ["02", "03"]:  # Director/Head Executive
                 if not selected_colleges:  # If no colleges selected, show all
                     selected_colleges = self.default_colleges
-                selected_programs = []  # Directors don't filter by program
+                selected_programs = []  # Always empty for Directors - CRITICAL FIX
             elif user_role == "04":  # College Administrator
                 selected_colleges = [college_id]
                 if not selected_programs:  # Show all programs from this college by default
@@ -1472,6 +1472,50 @@ class Institutional_Performance_Dash:
                 program_value = [program_id] if program_id else []
 
             return college_style, program_style, program_options, college_value, program_value
+
+        # Add this callback to reset filters without affecting visualizations
+        @self.dash_app.callback(
+            [Output('college', 'value', allow_duplicate=True),
+             Output('program', 'value', allow_duplicate=True),
+             Output('status', 'value', allow_duplicate=True), 
+             Output('years', 'value', allow_duplicate=True),
+             Output('terms', 'value', allow_duplicate=True)],
+            [Input('reset_button', 'n_clicks')],
+            [State('url', 'search')],
+            prevent_initial_call=True
+        )
+        def reset_filters(n_clicks, search):
+            if not n_clicks:
+                raise PreventUpdate
+        
+            # Parse URL parameters to get role-specific defaults
+            parsed = parse_qs(search.lstrip('?')) if search else {}
+            user_role = parsed.get('user-role', ['01'])[0]
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+            
+            print(f"Resetting filters for role: {user_role}")
+            
+            # Set default values based on user role
+            if user_role in ["02", "03"]:  # Director and Head Executive
+                college_value = []  # Empty - show all colleges
+                program_value = []
+            elif user_role == "04":  # College Administrator
+                college_value = [college_id] if college_id else []  
+                program_value = []  # Reset to no programs selected
+            elif user_role == "05":  # Program Administrator
+                college_value = [college_id] if college_id else []
+                program_value = [program_id] if program_id else []
+            else:
+                college_value = []
+                program_value = []
+            
+            # Clear all other filters (instead of setting to defaults)
+            status_value = []  # Clear status selection
+            years_value = self.default_years  # Keep years as default range
+            terms_value = []  # Clear terms selection
+            
+            return college_value, program_value, status_value, years_value, terms_value
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """
