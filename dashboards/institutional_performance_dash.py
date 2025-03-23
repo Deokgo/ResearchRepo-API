@@ -599,7 +599,53 @@ class Institutional_Performance_Dash:
             print(f"Final selected_colleges: {selected_colleges}")
             print(f"Final selected_programs: {selected_programs}")
             
-            # Use the EXACT method names from ResearchOutputPlot class
+            # Determine which Scopus/Non-Scopus chart to display based on the tab
+            if nonscopus_scopus_tab == 'line':
+                nonscopus_scopus_graph = self.plot_instance.scopus_line_graph(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms,
+                    default_years=self.default_years
+                )
+            else:
+                nonscopus_scopus_graph = self.plot_instance.scopus_pie_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+            
+            # Determine which Publication Format chart to display based on the tab
+            if proceeding_conference_tab == 'line':
+                proceeding_conference_graph = self.plot_instance.publication_format_line_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms,
+                    default_years=self.default_years
+                )
+            else:
+                proceeding_conference_graph = self.plot_instance.publication_format_pie_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+            
+            # Return all visualization components
             return [
                 self.plot_instance.update_line_plot(
                     user_id=user_role,
@@ -638,6 +684,7 @@ class Institutional_Performance_Dash:
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 ),
+                nonscopus_scopus_graph,  # Use the tab-dependent chart
                 self.plot_instance.create_publication_bar_chart(
                     user_id=user_role,
                     college_colors=self.palette_dict,
@@ -647,24 +694,7 @@ class Institutional_Performance_Dash:
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 ),
-                self.plot_instance.create_publication_bar_chart(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                ),
-                self.plot_instance.update_publication_format_bar_plot(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                ),
+                proceeding_conference_graph,  # Use the tab-dependent chart
                 self.plot_instance.update_publication_format_bar_plot(
                     user_id=user_role,
                     college_colors=self.palette_dict,
