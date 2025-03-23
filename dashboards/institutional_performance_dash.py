@@ -746,37 +746,40 @@ class Institutional_Performance_Dash:
                 college_id = session_data.get('college_id')
                 program_id = session_data.get('program_id')
             
-            print(f"User Role: {user_role}, College: {college_id}, Program: {program_id}")
+            print(f"KPI Refresh - User Role: {user_role}, College: {college_id}, Program: {program_id}")
+            
+            # CRITICAL FIX: Always clear program selection for Directors
+            if user_role in ["02", "03"]:
+                selected_programs = []  # Force empty program selection for directors
+                print(f"Director KPI Refresh: Forced program selection clear")
             
             # Apply role-based filters
             if user_role in ["02", "03"]:  # Director/Head Executive
-                if not selected_colleges and college_id:
-                    selected_colleges = [college_id]
+                selected_colleges = selected_colleges or self.default_colleges
+                selected_programs = []  # Always empty for directors
             elif user_role == "04":  # College Administrator
-                if not selected_colleges and college_id:
-                    selected_colleges = [college_id]
+                selected_colleges = [college_id] if college_id else []
                 if not selected_programs:  # Show all programs from this college by default
-                    all_college_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
-                    selected_programs = all_college_programs
+                    selected_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
             elif user_role == "05":  # Program Coordinator
-                if not selected_programs and program_id:
-                    selected_programs = [program_id]
-            
-            print(f"Session {user_role}:{college_id or 'all'}:{program_id or 'all'} - Refreshing KPIs with filters: colleges={selected_colleges}, programs={selected_programs}")
+                selected_colleges = []
+                selected_programs = [program_id] if program_id else []
             
             # Apply default values if needed
-            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)  # Already cleared for directors above
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
             
-            # Ensure all values are proper lists
-            selected_colleges = ensure_list(selected_colleges)
-            selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
-            selected_years = ensure_list(selected_years)
-            selected_terms = ensure_list(selected_terms)
+            # CRITICAL FIX: Convert numpy arrays to lists
+            selected_colleges = self.convert_numpy_to_list(selected_colleges)
+            selected_programs = self.convert_numpy_to_list(selected_programs)
+            selected_status = self.convert_numpy_to_list(selected_status)
+            selected_years = self.convert_numpy_to_list(selected_years)
+            selected_terms = self.convert_numpy_to_list(selected_terms)
+            
+            print(f"KPI Final Filters - Role: {user_role}, Colleges: {selected_colleges}, Programs: {selected_programs}")
             
             # Apply filters with explicit user role consideration
             filter_kwargs = {
@@ -786,7 +789,11 @@ class Institutional_Performance_Dash:
             }
             
             # Based on role, determine whether to filter by college or program
-            if user_role in ["02", "03", "04"]:  # Directors, Head Execs, College Admins
+            if user_role in ["02", "03"]:  # Directors, Head Execs
+                filter_kwargs["selected_colleges"] = selected_colleges
+                # Explicitly ensure no program filtering for directors
+                filter_kwargs["selected_programs"] = []
+            elif user_role == "04":  # College Admins
                 if selected_programs:
                     filter_kwargs["selected_programs"] = selected_programs
                 else:
