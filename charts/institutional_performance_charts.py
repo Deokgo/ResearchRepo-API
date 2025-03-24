@@ -450,6 +450,22 @@ class ResearchOutputPlot:
         if 'level_1' in df_expanded.columns:
             df_expanded.drop(columns=['level_1'], inplace=True)
         sdg_count = df_expanded.groupby(['sdg', entity]).size().reset_index(name='Count')
+
+        # Ensure all SDGs (1-17) are present
+        all_sdgs = pd.DataFrame({'sdg': ["SDG " + str(i) for i in range(1, 18)]})
+        
+        # Create a cross product of all SDGs with all entities to ensure all combinations exist
+        entities = sdg_count[entity].unique()
+        all_combinations = []
+        for sdg in all_sdgs['sdg']:
+            for ent in entities:
+                all_combinations.append({'sdg': sdg, entity: ent})
+        
+        all_combinations_df = pd.DataFrame(all_combinations)
+        
+        # Merge with actual counts
+        sdg_count = pd.merge(all_combinations_df, sdg_count, on=['sdg', entity], how='left')
+        sdg_count['Count'] = sdg_count['Count'].fillna(0)  # Fill missing combinations with zero count
         
         if sdg_count.empty:
             return px.scatter(title="No data available")
@@ -458,11 +474,14 @@ class ResearchOutputPlot:
         self.get_program_colors(df)  # Ensuring color consistency
         color_map = self.program_colors if entity == 'program_id' else college_colors
         
+        # Extract SDG numbers for consistent ordering
+        sdg_count['sdg_num'] = sdg_count['sdg'].str.extract(r'SDG (\d+)').astype(int)
+        
         for value in sdg_count[entity].unique():
             entity_data = sdg_count[sdg_count[entity] == value]
             fig.add_trace(go.Scatter(
-                x=[int(sdg.split(" ")[1]) for sdg in entity_data['sdg']],  # Ensure x values are numeric
-                y=entity_data[entity],
+                x=entity_data['sdg_num'],  # Use the extracted numeric values
+                y=[value] * len(entity_data),
                 mode='markers',
                 marker=dict(
                     size=entity_data['Count'],
@@ -472,22 +491,20 @@ class ResearchOutputPlot:
                     sizemin=4
                 ),
                 name=value,
-                hovertemplate="%{customdata}<br>"
-                            "SDG: %{x}<br>"
+                hovertemplate="College/Program: %{y}<br>"
+                            "SDG: %{customdata}<br>"
                             "Number of Research Outputs: %{marker.size}<extra></extra>",
-                customdata=[value] * len(entity_data)  # Pass the college/program name dynamically
+                customdata=entity_data['sdg'].tolist()  # Pass the full SDG label for hover text
             ))
-
 
         fig.update_layout(
             xaxis_title='SDG Targeted',
             yaxis_title='Programs' if entity == 'program_id' else 'Colleges',
             title=title,
             xaxis=dict(
-                categoryorder="array",
-                categoryarray=["SDG " + str(i) for i in range(1, 18)],  # Ensuring SDG 1 to 17 in order
-                tickvals=list(range(1, 18)),
-                ticktext=["SDG " + str(i) for i in range(1, 18)]
+                tickvals=list(range(1, 18)),  # Tick marks at each SDG number
+                ticktext=["SDG " + str(i) for i in range(1, 18)],  # Labels for each tick
+                range=[0.5, 17.5]  # Ensure full range is visible
             ),
             yaxis=dict(autorange="reversed"),
             showlegend=True,

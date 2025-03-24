@@ -541,26 +541,180 @@ class Institutional_Performance_Dash:
             # Return the current pathname and session data
             return dash.no_update, session_data
         
+        # First callback that handles nonscopus_scopus tab changes and filter updates
+        @self.dash_app.callback(
+            Output('nonscopus_scopus_graph', 'figure'),
+            [Input('nonscopus_scopus_tabs', 'value'),
+            Input('college', 'value'),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value'),
+            Input('reset_button', 'n_clicks')],
+            [State('url', 'search')])
+        def update_nonscopus_scopus_tab(nonscopus_scopus_tab, selected_colleges, selected_programs, 
+                                    selected_status, selected_years, selected_terms, n_clicks, search):
+            # Get user identity
+            try:
+                user_id = get_jwt_identity() or 'anonymous'
+            except Exception as e:
+                print(f"Error getting JWT identity: {e}")
+                user_id = 'anonymous'
+                
+            # Parse URL parameters
+            parsed = parse_qs(search.lstrip('?')) if search else {}
+            user_role = parsed.get('user-role', ['01'])[0]
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+            
+            # Check if reset button was clicked
+            ctx = dash.callback_context
+            if ctx.triggered and 'reset_button' in ctx.triggered[0]['prop_id']:
+                selected_colleges = []
+                selected_programs = []
+                selected_status = self.default_statuses
+                selected_years = self.default_years
+                selected_terms = self.default_terms
+            else:
+                # Process selections and convert numpy arrays to lists
+                selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
+                selected_programs = self.convert_numpy_to_list(ensure_list(selected_programs) or [])
+                selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
+                selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
+                selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+            
+            # Apply role-based filters
+            if user_role in ["02", "03"]:  # Director/Head Executive
+                if not selected_colleges:  # If no colleges selected, show all
+                    selected_colleges = self.default_colleges
+                selected_programs = []  # Always empty for Directors
+            elif user_role == "04":  # College Administrator
+                selected_colleges = [college_id]
+                if not selected_programs:  # Show all programs from this college by default
+                    selected_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+            elif user_role == "05":  # Program Administrator
+                selected_colleges = []
+                selected_programs = [program_id]
+            
+            # Return only the appropriate chart based on tab selection
+            if nonscopus_scopus_tab == 'line':
+                return self.plot_instance.scopus_line_graph(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms,
+                    default_years=self.default_years
+                )
+            else:
+                return self.plot_instance.scopus_pie_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+        # Second callback that handles proceeding_conference tab changes and filter updates
+        @self.dash_app.callback(
+            Output('proceeding_conference_graph', 'figure'),
+            [Input('proceeding_conference_tabs', 'value'),
+            Input('college', 'value'),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value'),
+            Input('reset_button', 'n_clicks')],
+            [State('url', 'search')])
+        def update_proceeding_conference_tab(proceeding_conference_tab, selected_colleges, selected_programs, 
+                                        selected_status, selected_years, selected_terms, n_clicks, search):
+            # Get user identity
+            try:
+                user_id = get_jwt_identity() or 'anonymous'
+            except Exception as e:
+                print(f"Error getting JWT identity: {e}")
+                user_id = 'anonymous'
+                
+            # Parse URL parameters
+            parsed = parse_qs(search.lstrip('?')) if search else {}
+            user_role = parsed.get('user-role', ['01'])[0]
+            college_id = parsed.get('college', [None])[0]
+            program_id = parsed.get('program', [None])[0]
+            
+            # Check if reset button was clicked
+            ctx = dash.callback_context
+            if ctx.triggered and 'reset_button' in ctx.triggered[0]['prop_id']:
+                selected_colleges = []
+                selected_programs = []
+                selected_status = self.default_statuses
+                selected_years = self.default_years
+                selected_terms = self.default_terms
+            else:
+                # Process selections and convert numpy arrays to lists
+                selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
+                selected_programs = self.convert_numpy_to_list(ensure_list(selected_programs) or [])
+                selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
+                selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
+                selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+            
+            # Apply role-based filters
+            if user_role in ["02", "03"]:  # Director/Head Executive
+                if not selected_colleges:  # If no colleges selected, show all
+                    selected_colleges = self.default_colleges
+                selected_programs = []  # Always empty for Directors
+            elif user_role == "04":  # College Administrator
+                selected_colleges = [college_id]
+                if not selected_programs:  # Show all programs from this college by default
+                    selected_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
+            elif user_role == "05":  # Program Administrator
+                selected_colleges = []
+                selected_programs = [program_id]
+                
+            # Return only the appropriate chart based on tab selection
+            if proceeding_conference_tab == 'line':
+                return self.plot_instance.publication_format_line_plot(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms,
+                    default_years=self.default_years
+                )
+            else:
+                return self.plot_instance.publication_format_pie_chart(
+                    user_id=user_role,
+                    college_colors=self.palette_dict,
+                    selected_colleges=selected_colleges,
+                    selected_programs=selected_programs,
+                    selected_status=selected_status,
+                    selected_years=selected_years,
+                    selected_terms=selected_terms
+                )
+
+        # Main callback for all other chart updates - removed the tab inputs
         @self.dash_app.callback(
             [Output('college_line_plot', 'figure'),
-             Output('college_pie_chart', 'figure'),
-             Output('research_status_bar_plot', 'figure'),
-             Output('research_type_bar_plot', 'figure'),
-             Output('nonscopus_scopus_graph', 'figure'),
-             Output('nonscopus_scopus_bar_plot', 'figure'),
-             Output('proceeding_conference_graph', 'figure'),
-             Output('proceeding_conference_bar_plot', 'figure'),
-             Output('sdg_bar_plot', 'figure')],
+            Output('college_pie_chart', 'figure'),
+            Output('research_status_bar_plot', 'figure'),
+            Output('research_type_bar_plot', 'figure'),
+            Output('nonscopus_scopus_bar_plot', 'figure'),
+            Output('proceeding_conference_bar_plot', 'figure'),
+            Output('sdg_bar_plot', 'figure')],
             [Input('url', 'search'),
-             Input('college', 'value'),
-             Input('program', 'value'),
-             Input('status', 'value'),
-             Input('years', 'value'),
-             Input('terms', 'value'),
-             Input('reset_button', 'n_clicks'),
-             Input('nonscopus_scopus_tabs', 'value'),
-             Input('proceeding_conference_tabs', 'value')])
-        def update_dash_output(search, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, n_clicks, nonscopus_scopus_tab, proceeding_conference_tab):
+            Input('college', 'value'),
+            Input('program', 'value'),
+            Input('status', 'value'),
+            Input('years', 'value'),
+            Input('terms', 'value'),
+            Input('reset_button', 'n_clicks')])
+        def update_dash_output(search, selected_colleges, selected_programs, selected_status, 
+                            selected_years, selected_terms, n_clicks):
             # Get user identity
             try:
                 user_id = get_jwt_identity() or 'anonymous'
@@ -599,53 +753,7 @@ class Institutional_Performance_Dash:
             print(f"Final selected_colleges: {selected_colleges}")
             print(f"Final selected_programs: {selected_programs}")
             
-            # Determine which Scopus/Non-Scopus chart to display based on the tab
-            if nonscopus_scopus_tab == 'line':
-                nonscopus_scopus_graph = self.plot_instance.scopus_line_graph(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms,
-                    default_years=self.default_years
-                )
-            else:
-                nonscopus_scopus_graph = self.plot_instance.scopus_pie_chart(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
-            
-            # Determine which Publication Format chart to display based on the tab
-            if proceeding_conference_tab == 'line':
-                proceeding_conference_graph = self.plot_instance.publication_format_line_plot(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms,
-                    default_years=self.default_years
-                )
-            else:
-                proceeding_conference_graph = self.plot_instance.publication_format_pie_chart(
-                    user_id=user_role,
-                    college_colors=self.palette_dict,
-                    selected_colleges=selected_colleges,
-                    selected_programs=selected_programs,
-                    selected_status=selected_status,
-                    selected_years=selected_years,
-                    selected_terms=selected_terms
-                )
-            
-            # Return all visualization components
+            # Return all visualization components EXCEPT the tab-dependent charts
             return [
                 self.plot_instance.update_line_plot(
                     user_id=user_role,
@@ -684,7 +792,6 @@ class Institutional_Performance_Dash:
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 ),
-                nonscopus_scopus_graph,  # Use the tab-dependent chart
                 self.plot_instance.create_publication_bar_chart(
                     user_id=user_role,
                     college_colors=self.palette_dict,
@@ -694,7 +801,6 @@ class Institutional_Performance_Dash:
                     selected_years=selected_years,
                     selected_terms=selected_terms
                 ),
-                proceeding_conference_graph,  # Use the tab-dependent chart
                 self.plot_instance.update_publication_format_bar_plot(
                     user_id=user_role,
                     college_colors=self.palette_dict,
