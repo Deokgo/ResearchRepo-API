@@ -5,6 +5,8 @@ import numpy as np
 import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
+from io import BytesIO
+import base64
 
 def default_if_empty(selected_values, default_values):
     """
@@ -26,16 +28,25 @@ def ensure_list(value):
     return value  # Return as is if already a list or another type
 
 def download_file(df, file):
-    """Handles saving the file and returns the file path."""
-    downloads_folder = str(Path.home() / "Downloads")  # Works for Windows, Mac, Linux
+    """Creates a downloadable file and returns it in a format Dash can use for client-side downloads."""
+    # Create Excel file in memory
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+    
+    # Create a download dictionary that Dash can use
+    content = output.getvalue()
+    b64 = base64.b64encode(content).decode()
+    
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"{file}_{timestamp}.xlsx"
-    file_path = os.path.join(downloads_folder, file_name)
-
-    # Save the file
-    df.to_excel(file_path, index=False)
-
-    return file_path
+    filename = f"{file}_{timestamp}.xlsx"
+    
+    return dict(
+        content=b64,
+        filename=filename,
+        type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        base64=True
+    )
 
 def get_gradient_color(degree, min_degree, max_degree):
     if max_degree == min_degree:

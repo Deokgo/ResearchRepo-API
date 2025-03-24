@@ -1013,13 +1013,13 @@ class Institutional_Performance_Dash:
 
             elif trigger_id == "total-download-btn":
                 if df_filtered_data is not None and not df_filtered_data.empty:
-                    file_path = download_file(df_filtered_data, "total_papers")
+                    download_data = download_file(df_filtered_data, "total_papers")
                     download_message = dbc.Alert(
-                        "The list of research outputs is downloaded. Check your Downloads folder.",
+                        "Your download should begin automatically.",
                         color="success",
                         dismissable=False
                     )
-                    return is_open, download_message, send_file(file_path), {"display": "none"}  
+                    return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
         
@@ -1115,13 +1115,13 @@ class Institutional_Performance_Dash:
                 return False, "", None, download_btn_style
 
             elif trigger_id == "ready-download-btn":
-                file_path = download_file(df_filtered_data, "ready_papers")
+                download_data = download_file(df_filtered_data, "ready_papers")
                 download_message = dbc.Alert(
-                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    "Your download should begin automatically.",
                     color="success",
                     dismissable=False
                 )
-                return is_open, download_message, send_file(file_path), {"display": "none"}
+                return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
 
@@ -1217,13 +1217,13 @@ class Institutional_Performance_Dash:
                 return False, "", None, download_btn_style
 
             elif trigger_id == "submitted-download-btn":
-                file_path = download_file(df_filtered_data, "submitted_papers")
+                download_data = download_file(df_filtered_data, "submitted_papers")
                 download_message = dbc.Alert(
-                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    "Your download should begin automatically.",
                     color="success",
                     dismissable=False
                 )
-                return is_open, download_message, send_file(file_path), {"display": "none"}
+                return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
 
@@ -1319,13 +1319,13 @@ class Institutional_Performance_Dash:
                 return False, "", None, download_btn_style
 
             elif trigger_id == "accepted-download-btn":
-                file_path = download_file(df_filtered_data, "accepted_papers")
+                download_data = download_file(df_filtered_data, "accepted_papers")
                 download_message = dbc.Alert(
-                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    "Your download should begin automatically.",
                     color="success",
                     dismissable=False
                 )
-                return is_open, download_message, send_file(file_path), {"display": "none"}
+                return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
         
@@ -1421,13 +1421,13 @@ class Institutional_Performance_Dash:
                 return False, "", None, download_btn_style
 
             elif trigger_id == "published-download-btn":
-                file_path = download_file(df_filtered_data, "published_papers")
+                download_data = download_file(df_filtered_data, "published_papers")
                 download_message = dbc.Alert(
-                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    "Your download should begin automatically.",
                     color="success",
                     dismissable=False
                 )
-                return is_open, download_message, send_file(file_path), {"display": "none"}
+                return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
             
@@ -1523,13 +1523,13 @@ class Institutional_Performance_Dash:
                 return False, "", None, download_btn_style
 
             elif trigger_id == "pullout-download-btn":
-                file_path = download_file(df_filtered_data, "pullout_papers")
+                download_data = download_file(df_filtered_data, "pullout_papers")
                 download_message = dbc.Alert(
-                    "The list of research outputs is downloaded. Check your Downloads folder.",
+                    "Your download should begin automatically.",
                     color="success",
                     dismissable=False
                 )
-                return is_open, download_message, send_file(file_path), {"display": "none"}
+                return is_open, download_message, download_data, {"display": "none"}
 
             return is_open, "", None, download_btn_style
 
