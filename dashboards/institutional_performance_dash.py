@@ -20,6 +20,7 @@ from flask_jwt_extended import get_jwt_identity
 from flask import session, current_app
 from config import Config
 from services.database_manager import DatabaseManager
+import datetime
 
 class NumpyEncoder(json.JSONEncoder):
     """Special JSON encoder for numpy types"""
@@ -336,7 +337,7 @@ class Institutional_Performance_Dash:
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
             dcc.Store(id='session-store', storage_type='session'),
-            dcc.Interval(id="data-refresh-interval", interval=5000, n_intervals=0),  # 1-second refresh interval
+            dcc.Interval(id="data-refresh-interval", interval=30000, n_intervals=0),  # 30-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dcc.Download(id="total-download-link"), # For download feature (modal content)
             dcc.Download(id="ready-download-link"), # For download feature (modal content)
@@ -700,20 +701,21 @@ class Institutional_Performance_Dash:
         # Main callback for all other chart updates - removed the tab inputs
         @self.dash_app.callback(
             [Output('college_line_plot', 'figure'),
-            Output('college_pie_chart', 'figure'),
-            Output('research_status_bar_plot', 'figure'),
-            Output('research_type_bar_plot', 'figure'),
-            Output('nonscopus_scopus_bar_plot', 'figure'),
-            Output('proceeding_conference_bar_plot', 'figure'),
-            Output('sdg_bar_plot', 'figure')],
-            [Input('url', 'search'),
-            Input('college', 'value'),
-            Input('program', 'value'),
-            Input('status', 'value'),
-            Input('years', 'value'),
-            Input('terms', 'value'),
-            Input('reset_button', 'n_clicks')])
-        def update_dash_output(search, selected_colleges, selected_programs, selected_status, 
+             Output('college_pie_chart', 'figure'),
+             Output('research_status_bar_plot', 'figure'),
+             Output('research_type_bar_plot', 'figure'),
+             Output('nonscopus_scopus_bar_plot', 'figure'),
+             Output('proceeding_conference_bar_plot', 'figure'),
+             Output('sdg_bar_plot', 'figure')],
+            [Input('data-refresh-interval', 'n_intervals'),  # Add the interval directly
+             Input('url', 'search'),
+             Input('college', 'value'),
+             Input('program', 'value'),
+             Input('status', 'value'),
+             Input('years', 'value'),
+             Input('terms', 'value'),
+             Input('reset_button', 'n_clicks')])
+        def update_dash_output(n_intervals, search, selected_colleges, selected_programs, selected_status, 
                             selected_years, selected_terms, n_clicks):
             # Get user identity
             try:
@@ -728,8 +730,6 @@ class Institutional_Performance_Dash:
             college_id = parsed.get('college', [None])[0]
             program_id = parsed.get('program', [None])[0]
             
-            print(f"User ID: {user_id}, Role: {user_role}, College: {college_id}, Program: {program_id}")
-            
             # Process selections and convert numpy arrays to lists
             selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
             selected_programs = self.convert_numpy_to_list(ensure_list(selected_programs) or [])
@@ -737,11 +737,11 @@ class Institutional_Performance_Dash:
             selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
             selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
             
-            # Apply role-based filters - CRITICAL FIX FOR DIRECTORS
+            # Apply role-based filters
             if user_role in ["02", "03"]:  # Director/Head Executive
                 if not selected_colleges:  # If no colleges selected, show all
                     selected_colleges = self.default_colleges
-                selected_programs = []  # Always empty for Directors - CRITICAL FIX
+                selected_programs = []  # Always empty for Directors
             elif user_role == "04":  # College Administrator
                 selected_colleges = [college_id]
                 if not selected_programs:  # Show all programs from this college by default
@@ -750,13 +750,14 @@ class Institutional_Performance_Dash:
                 selected_colleges = []
                 selected_programs = [program_id]
             
-            print(f"Final selected_colleges: {selected_colleges}")
-            print(f"Final selected_programs: {selected_programs}")
-            print(f"Final selected_status: {selected_status}")
-            print(f"Final selected_years: {selected_years}")
-            print(f"Final selected_terms: {selected_terms}")
+            # Get the trigger to see what caused this callback
+            trigger = dash.callback_context.triggered[0]['prop_id'] if dash.callback_context.triggered else None
             
-            # Return all visualization components EXCEPT the tab-dependent charts
+            # Log when interval triggers refresh for debugging
+            if trigger == 'data-refresh-interval.n_intervals':
+                print(f"Auto-refresh triggered at {datetime.datetime.now().strftime('%H:%M:%S')}")
+            
+            # Return all visualization components
             return [
                 self.plot_instance.update_line_plot(
                     user_id=user_role,
