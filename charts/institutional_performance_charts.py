@@ -443,19 +443,33 @@ class ResearchOutputPlot:
                 else f'Distribution of SDG-Targeted Research Across Programs in {selected_colleges[0]}'
                 if user_id not in ("02", "03") 
                 else 'Distribution of SDG-Targeted Research Across Colleges')
+        
+        # Check if 'sdg' column exists in the dataframe
+        if 'sdg' not in df.columns:
+            return px.scatter(title="No SDG data available")
+        
+        # Safely expand SDG data
+        try:
+            df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
+            df_expanded['sdg'] = df_expanded['sdg'].str.strip()
+            df_expanded = df_expanded[df_expanded['sdg'] != 'Not Specified']
+            if 'level_1' in df_expanded.columns:
+                df_expanded.drop(columns=['level_1'], inplace=True)
                 
-        df_expanded = df.set_index(entity)['sdg'].str.split(';').apply(pd.Series).stack().reset_index(name='sdg')
-        df_expanded['sdg'] = df_expanded['sdg'].str.strip()
-        df_expanded = df_expanded[df_expanded['sdg'] != 'Not Specified']
-        if 'level_1' in df_expanded.columns:
-            df_expanded.drop(columns=['level_1'], inplace=True)
-        sdg_count = df_expanded.groupby(['sdg', entity]).size().reset_index(name='Count')
+            # Check if df_expanded is empty after processing
+            if df_expanded.empty:
+                return px.scatter(title="No SDG data available")
+            
+            sdg_count = df_expanded.groupby(['sdg', entity]).size().reset_index(name='Count')
+        except Exception as e:
+            print(f"Error in SDG data expansion: {e}")
+            return px.scatter(title=f"Error processing SDG data: {e}")
 
         # Ensure all SDGs (1-17) are present
         all_sdgs = pd.DataFrame({'sdg': ["SDG " + str(i) for i in range(1, 18)]})
         
         # Create a cross product of all SDGs with all entities to ensure all combinations exist
-        entities = sdg_count[entity].unique()
+        entities = df[entity].unique()  # Use original dataframe for entities
         all_combinations = []
         for sdg in all_sdgs['sdg']:
             for ent in entities:
@@ -463,22 +477,35 @@ class ResearchOutputPlot:
         
         all_combinations_df = pd.DataFrame(all_combinations)
         
-        # Merge with actual counts
-        sdg_count = pd.merge(all_combinations_df, sdg_count, on=['sdg', entity], how='left')
-        sdg_count['Count'] = sdg_count['Count'].fillna(0)  # Fill missing combinations with zero count
+        # Add debug prints
+        print(f"all_combinations_df columns: {all_combinations_df.columns}")
+        print(f"sdg_count columns: {sdg_count.columns}")
         
-        if sdg_count.empty:
-            return px.scatter(title="No data available")
+        # Ensure column names match before merging
+        if 'sdg' in all_combinations_df.columns and 'sdg' in sdg_count.columns and entity in all_combinations_df.columns and entity in sdg_count.columns:
+            # Merge with actual counts
+            result = pd.merge(all_combinations_df, sdg_count, on=['sdg', entity], how='left')
+            result['Count'] = result['Count'].fillna(0)  # Fill missing combinations with zero count
+        else:
+            print("Column mismatch during merge operation")
+            missing_in_combinations = set(['sdg', entity]) - set(all_combinations_df.columns)
+            missing_in_sdg_count = set(['sdg', entity]) - set(sdg_count.columns)
+            print(f"Missing in all_combinations_df: {missing_in_combinations}")
+            print(f"Missing in sdg_count: {missing_in_sdg_count}")
+            return px.scatter(title="Data structure error - missing required columns")
+        
+        if result.empty:
+            return px.scatter(title="No data available after merging")
         
         fig = go.Figure()
         self.get_program_colors(df)  # Ensuring color consistency
         color_map = self.program_colors if entity == 'program_id' else college_colors
         
         # Extract SDG numbers for consistent ordering
-        sdg_count['sdg_num'] = sdg_count['sdg'].str.extract(r'SDG (\d+)').astype(int)
+        result['sdg_num'] = result['sdg'].str.extract(r'SDG (\d+)').astype(int)
         
-        for value in sdg_count[entity].unique():
-            entity_data = sdg_count[sdg_count[entity] == value]
+        for value in result[entity].unique():
+            entity_data = result[result[entity] == value]
             fig.add_trace(go.Scatter(
                 x=entity_data['sdg_num'],  # Use the extracted numeric values
                 y=[value] * len(entity_data),
@@ -487,7 +514,7 @@ class ResearchOutputPlot:
                     size=entity_data['Count'],
                     color=color_map.get(value, 'grey'),
                     sizemode='area',
-                    sizeref=2. * max(sdg_count['Count']) / (100**2),
+                    sizeref=2. * max(result['Count']) / (100**2),
                     sizemin=4
                 ),
                 name=value,

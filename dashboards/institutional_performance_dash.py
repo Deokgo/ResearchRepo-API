@@ -752,6 +752,9 @@ class Institutional_Performance_Dash:
             
             print(f"Final selected_colleges: {selected_colleges}")
             print(f"Final selected_programs: {selected_programs}")
+            print(f"Final selected_status: {selected_status}")
+            print(f"Final selected_years: {selected_years}")
+            print(f"Final selected_terms: {selected_terms}")
             
             # Return all visualization components EXCEPT the tab-dependent charts
             return [
