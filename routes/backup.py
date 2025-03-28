@@ -155,9 +155,9 @@ def set_directory_permissions(directory):
         # On Windows, we don't need to change ownership
         pass
     else:
-        # On Linux/Unix systems, just make it readable
-        # Don't try to change ownership anymore
-        subprocess.run(['chmod', '-R', '755', directory])
+        # Make the directory writable by all users
+        # This is necessary for postgres to write to it
+        subprocess.run(['chmod', '-R', '777', directory], check=False)
 
 @backup.route('/create/<backup_type>', methods=['POST'])
 @admin_required
@@ -219,23 +219,23 @@ def create_backup(backup_type):
             print(f"Using PostgreSQL binaries from: {pg_bin}")
 
             if backup_type == BackupType.FULL:
-                # Use pg_basebackup with sudo as postgres user
-                pg_basebackup_exe = os.path.join(
-                    pg_bin, 
-                    'pg_basebackup.exe' if platform.system() == 'Windows' else 'pg_basebackup'
-                )
+                # First, ensure backup dir permissions are set correctly before running pg_basebackup
+                os.makedirs(backup_dir, exist_ok=True)
+                os.makedirs(db_backup_dir, exist_ok=True)
+                os.makedirs(files_backup_dir, exist_ok=True)
                 
-                if platform.system() == 'Windows':
-                    # Windows doesn't use sudo
-                    backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
-                else:
-                    # Linux uses sudo to run as postgres
-                    backup_command = f'sudo -u postgres "{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                # Use the helper script with sudo privileges
+                pg_basebackup_exe = os.path.join(pg_bin, 'pg_basebackup')
                 
-                print(f"Executing full backup command: {backup_command}")
-                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
+                # Use our helper script instead of directly calling pg_basebackup
+                backup_command = f'/home/ec2-user/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
+                
+                print(f"Executing full backup command through helper script: {backup_command}")
+                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True, env=dict(os.environ, PGPASSWORD=db_pass))
                 
                 if result.returncode != 0:
+                    print(f"Backup stderr: {result.stderr}")
+                    print(f"Backup stdout: {result.stdout}")
                     raise Exception(f"Full backup failed: {result.stderr}")
 
                 # Backup repository files for full backup
