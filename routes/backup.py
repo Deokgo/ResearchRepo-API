@@ -25,8 +25,6 @@ from flask.cli import with_appcontext
 
 backup = Blueprint('backup', __name__)
 
-# Modify the backup path to use PostgreSQL's directory
-BACKUP_DIR = '/var/lib/pgsql/backups'
 
 class BackupType(Enum):
     FULL = 'FULL'
@@ -191,7 +189,7 @@ def create_backup(backup_type):
         backup_id = generate_backup_id(backup_type)
         
         # Create backup directories with absolute paths
-        backup_dir = os.path.abspath(os.path.join(BACKUP_DIR, backup_id))
+        backup_dir = os.path.abspath(os.path.join(os.getcwd(), 'backups', backup_id))
         db_backup_dir = os.path.join(backup_dir, 'database')
         files_backup_dir = os.path.join(backup_dir, 'files')
         
