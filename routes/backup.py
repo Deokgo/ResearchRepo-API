@@ -219,13 +219,19 @@ def create_backup(backup_type):
             print(f"Using PostgreSQL binaries from: {pg_bin}")
 
             if backup_type == BackupType.FULL:
-                # Use pg_basebackup for full backup with WAL
+                # Use pg_basebackup with sudo as postgres user
                 pg_basebackup_exe = os.path.join(
                     pg_bin, 
                     'pg_basebackup.exe' if platform.system() == 'Windows' else 'pg_basebackup'
                 )
-                # We expect pg_basebackup to write a tar archive file named "base.backup"
-                backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                
+                if platform.system() == 'Windows':
+                    # Windows doesn't use sudo
+                    backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                else:
+                    # Linux uses sudo to run as postgres
+                    backup_command = f'sudo -u postgres "{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                
                 print(f"Executing full backup command: {backup_command}")
                 result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
                 
