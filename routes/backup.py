@@ -155,9 +155,9 @@ def set_directory_permissions(directory):
         # On Windows, we don't need to change ownership
         pass
     else:
-        # On Linux/Unix systems
-        subprocess.run(['sudo', 'chown', '-R', 'postgres:postgres', directory])
-        subprocess.run(['sudo', 'chmod', '-R', '700', directory])
+        # On Linux/Unix systems, just make it readable
+        # Don't try to change ownership anymore
+        subprocess.run(['chmod', '-R', '755', directory])
 
 @backup.route('/create/<backup_type>', methods=['POST'])
 @admin_required

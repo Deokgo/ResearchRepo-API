@@ -139,7 +139,7 @@ class Institutional_Performance_Dash:
                 dbc.Label("Select Status:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="status",
-                    options=[{'label': 'PULLED-OUT' if value == 'PULLOUT' else value, 'value': value} 
+                    options=[{'label': 'PULLOUT' if value == 'PULLOUT' else value, 'value': value} 
                             for value in status_order if value in initial_visible_statuses],
                     value=[],
                     inline=True,
@@ -349,7 +349,7 @@ class Institutional_Performance_Dash:
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
             dcc.Store(id='session-store', storage_type='session'),
-            dcc.Interval(id="data-refresh-interval", interval=30000, n_intervals=0),  # 30-second refresh interval
+            dcc.Interval(id="data-refresh-interval", interval=5000, n_intervals=0),  # 30-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dcc.Download(id="total-download-link"), # For download feature (modal content)
             dcc.Download(id="ready-download-link"), # For download feature (modal content)
@@ -1724,14 +1724,13 @@ class Institutional_Performance_Dash:
              Output("years", "min"),
              Output("years", "max"),
              Output("years", "marks"),
-             Output("years", "value"),
              Output("status", "options")],
             [Input("data-refresh-interval", "n_intervals")],
             [State("college", "value"),
              State("program", "value")]
         )
-        def update_all_filters(n_intervals, selected_colleges, selected_programs):
-            """Update all filter options based on database queries"""
+        def update_filter_options(n_intervals, selected_colleges, selected_programs):
+            """Update filter options without changing current selections"""
             # Create a session
             engine = db_manager.engine
             session = Session(engine)
@@ -1826,18 +1825,46 @@ class Institutional_Performance_Dash:
                 # Filter to only include statuses with at least one paper
                 visible_statuses = [status for status in self.ALL_STATUSES if status_counts.get(status, 0) > 0]
                 
-                print(f"Updated terms filter: {all_terms}")
-                print(f"Updated years range: {min_year} to {max_year}")
-                print(f"Status counts: {status_counts}")
-                print(f"Visible statuses in filter: {visible_statuses}")
-                
                 # Create status options list in the correct order
                 status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
                 status_options = [{'label': 'PULLED-OUT' if value == 'PULLOUT' else value, 'value': value} 
                                  for value in status_order if value in visible_statuses]
                 
-                # Return all updated values
-                return term_options, min_year, max_year, marks, self.default_years, status_options
+                print(f"Updated terms filter: {all_terms}")
+                print(f"Updated years range: {min_year} to {max_year}")
+                print(f"Status counts: {status_counts}")
+                print(f"Visible statuses in filter: {visible_statuses}")
+                
+                # Return all updated values EXCEPT the years.value
+                return term_options, min_year, max_year, marks, status_options
+            finally:
+                session.close()
+
+        # Add another callback that ONLY sets the initial default value of the year slider
+        # This callback will NOT be triggered by the interval
+        @self.dash_app.callback(
+            Output("years", "value"),
+            [Input("url", "pathname")],  # Only triggered when the page loads initially
+            prevent_initial_call=False
+        )
+        def set_initial_year_range(pathname):
+            """Set the initial default year range only when the page first loads"""
+            engine = db_manager.engine
+            session = Session(engine)
+            
+            try:
+                # Get min and max years with direct SQL queries
+                min_year_query = session.query(func.min(ResearchOutput.school_year)).filter(ResearchOutput.school_year.isnot(None))
+                max_year_query = session.query(func.max(ResearchOutput.school_year)).filter(ResearchOutput.school_year.isnot(None))
+                
+                min_year = min_year_query.scalar() or 2010  # Default if no data
+                max_year = max_year_query.scalar() or 2025  # Default if no data
+                
+                # Set the default years
+                default_years = [min_year, max_year]
+                
+                print(f"Setting initial year range: {default_years}")
+                return default_years
             finally:
                 session.close()
 
