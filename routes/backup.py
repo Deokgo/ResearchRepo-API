@@ -224,18 +224,31 @@ def create_backup(backup_type):
                 os.makedirs(db_backup_dir, exist_ok=True)
                 os.makedirs(files_backup_dir, exist_ok=True)
                 
-                # Use the helper script with sudo privileges
-                pg_basebackup_exe = os.path.join(pg_bin, 'pg_basebackup')
+                # Detect environment and use appropriate method
+                if platform.system() == 'Windows':
+                    # Use direct pg_basebackup for Windows
+                    pg_basebackup_exe = os.path.join(pg_bin, 'pg_basebackup.exe')
+                    backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                else:
+                    # Use helper script for Linux
+                    backup_command = f'/home/ec2-user/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
                 
-                # Use our helper script instead of directly calling pg_basebackup
-                backup_command = f'/home/ec2-user/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
+                print(f"Executing backup command: {backup_command}")
                 
-                print(f"Executing full backup command through helper script: {backup_command}")
-                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True, env=dict(os.environ, PGPASSWORD=db_pass))
+                # Pass password via environment variable
+                env_vars = os.environ.copy()
+                env_vars['PGPASSWORD'] = db_pass
+                
+                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True, env=env_vars)
                 
                 if result.returncode != 0:
                     print(f"Backup stderr: {result.stderr}")
                     print(f"Backup stdout: {result.stdout}")
+                    # Check debug log
+                    print("Debug log:")
+                    if os.path.exists("/tmp/pg_backup_debug.log"):
+                        with open("/tmp/pg_backup_debug.log", "r") as f:
+                            print(f.read())
                     raise Exception(f"Full backup failed: {result.stderr}")
 
                 # Backup repository files for full backup
