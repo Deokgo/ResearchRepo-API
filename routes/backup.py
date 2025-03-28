@@ -222,27 +222,15 @@ def create_backup(backup_type):
             print(f"Using PostgreSQL binaries from: {pg_bin}")
 
             if backup_type == BackupType.FULL:
-                # First, ensure backup dir permissions are set correctly before running pg_basebackup
-                os.makedirs(backup_dir, exist_ok=True)
-                os.makedirs(db_backup_dir, exist_ok=True)
-                os.makedirs(files_backup_dir, exist_ok=True)
-                
-                # Detect environment and use appropriate method
-                if platform.system() == 'Windows':
-                    # Use direct pg_basebackup for Windows
-                    pg_basebackup_exe = os.path.join(pg_bin, 'pg_basebackup.exe')
-                    backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
-                else:
-                    # Use helper script for Linux
-                    backup_command = f'/usr/local/bin/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
-                
-                print(f"Executing backup command: {backup_command}")
-                
-                # Pass password via environment variable
-                env_vars = os.environ.copy()
-                env_vars['PGPASSWORD'] = db_pass
-                
-                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True, env=env_vars)
+                # Use pg_basebackup for full backup with WAL
+                pg_basebackup_exe = os.path.join(
+                    pg_bin, 
+                    'pg_basebackup.exe' if platform.system() == 'Windows' else 'pg_basebackup'
+                )
+                # We expect pg_basebackup to write a tar archive file named "base.backup"
+                backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
+                print(f"Executing full backup command: {backup_command}")
+                result = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
                 
                 if result.returncode != 0:
                     print(f"Backup stderr: {result.stderr}")
