@@ -234,7 +234,7 @@ def create_backup(backup_type):
                     backup_command = f'"{pg_basebackup_exe}" -h {host} -U {db_user} -D "{db_backup_dir}" -Ft -z -Xs'
                 else:
                     # Use helper script for Linux
-                    backup_command = f'/home/ec2-user/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
+                    backup_command = f'/usr/local/bin/pg_backup_helper.sh "{db_backup_dir}" "{pg_bin}" "{host}" "{db_user}"'
                 
                 print(f"Executing backup command: {backup_command}")
                 
