@@ -21,6 +21,10 @@ from flask import session, current_app
 from config import Config
 from services.database_manager import DatabaseManager
 import datetime
+from sqlalchemy import func, distinct
+from sqlalchemy.orm import Session
+from models import ResearchOutput, Status, Publication
+
 
 class NumpyEncoder(json.JSONEncoder):
     """Special JSON encoder for numpy types"""
@@ -60,7 +64,7 @@ class Institutional_Performance_Dash:
         self.palette_dict = db_manager.get_college_colors()
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_programs = []
-        self.default_statuses = db_manager.get_unique_values('status')
+        self.default_statuses = ["READY", "SUBMITTED", "ACCEPTED", "PUBLISHED", "PULLOUT"]
         self.default_terms = db_manager.get_unique_values('term')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
 
@@ -121,14 +125,22 @@ class Institutional_Performance_Dash:
             className="mb-4",
         )
 
+        # Define all statuses for data retrieval
+        self.ALL_STATUSES = ["READY", "SUBMITTED", "ACCEPTED", "PUBLISHED", "PULLOUT"]
+        self.default_statuses = self.ALL_STATUSES
+        
+        # For the status filter, only add options that should be visible initially
+        # We'll update this dynamically later
         status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
+        initial_visible_statuses = db_manager.get_unique_values('status')
+        
         status = html.Div(
             [
                 dbc.Label("Select Status:", style={"color": "#08397C"}),
                 dbc.Checklist(
                     id="status",
                     options=[{'label': 'PULLED-OUT' if value == 'PULLOUT' else value, 'value': value} 
-                            for value in status_order if value in db_manager.get_unique_values('status')],
+                            for value in status_order if value in initial_visible_statuses],
                     value=[],
                     inline=True,
                 ),
@@ -749,7 +761,7 @@ class Institutional_Performance_Dash:
             elif user_role == "05":  # Program Administrator
                 selected_colleges = []
                 selected_programs = [program_id]
-            
+            print("Updating dash using status:",selected_status)
             # Get the trigger to see what caused this callback
             trigger = dash.callback_context.triggered[0]['prop_id'] if dash.callback_context.triggered else None
             
@@ -845,7 +857,13 @@ class Institutional_Performance_Dash:
             ]
         )
         def refresh_text_buttons(n_intervals, session_data, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
-            """Refresh the text buttons with the latest data"""
+            # CRITICAL FIX: Get database values but ALWAYS include all KNOWN statuses
+            db_statuses = db_manager.get_unique_values('status')
+            all_known_statuses = ["READY", "SUBMITTED", "ACCEPTED", "PUBLISHED", "PULLOUT"]
+            
+            # Combine database values with known values to ensure we don't miss any
+            self.default_statuses = np.unique(np.concatenate([db_statuses, all_known_statuses]))
+            
             # Get user role from session store
             if not session_data:
                 user_role = "01"  # Default if no session data
@@ -878,7 +896,10 @@ class Institutional_Performance_Dash:
             # Apply default values if needed
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)  # Already cleared for directors above
-            selected_status = default_if_empty(selected_status, self.default_statuses)
+            
+            # CRITICAL FIX: Always query for ALL known statuses for KPIs
+            selected_status = all_known_statuses  # Force all statuses for KPI counts
+            
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
             
@@ -893,7 +914,7 @@ class Institutional_Performance_Dash:
             
             # Apply filters with explicit user role consideration
             filter_kwargs = {
-                "selected_status": selected_status,
+                "selected_status": selected_status,  # This now includes ALL statuses
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -911,11 +932,17 @@ class Institutional_Performance_Dash:
             elif user_role == "05":  # Program Coordinators
                 filter_kwargs["selected_programs"] = selected_programs
             
-            # Get data specifically for this user's session
+            # Get data specifically for this user's session - ALWAYS include ALL statuses
             filtered_data = get_data_for_text_displays(**filter_kwargs)
             
-            # Rest of your existing code for counting the KPIs...
+            # Process results consistently
             status_counts = {d["status"]: d["total_count"] for d in filtered_data}
+            
+            # Ensure all statuses are represented (even with zero count)
+            for status in all_known_statuses:
+                if status not in status_counts:
+                    status_counts[status] = 0
+            
             total_research_outputs = sum(status_counts.values())
             
             print(f'User Role: {user_role}, College: {college_id}, Program: {program_id}')
@@ -1633,6 +1660,186 @@ class Institutional_Performance_Dash:
             terms_value = []  # Clear terms selection
             
             return college_value, program_value, status_value, years_value, terms_value
+
+        @self.dash_app.callback(
+            Output("shared-data-store", "data"),
+            [Input("data-refresh-interval", "n_intervals")],
+            [State("college", "value"),
+             State("program", "value"),
+             State("status", "value"),
+             State("years", "value"),
+             State("terms", "value")]
+        )
+        def refresh_data(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+            """Fetch fresh data at regular intervals and store in shared data store"""
+            # Use the predefined list of all statuses
+            print(f"Using predefined statuses: {self.default_statuses}")
+            
+            # Process filters as before
+            selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+            selected_programs = default_if_empty(selected_programs, self.default_programs)
+            
+            # If user has selected specific statuses, use those
+            # Otherwise use ALL predefined statuses
+            if selected_status and len(selected_status) > 0:
+                selected_status = ensure_list(selected_status)
+            else:
+                selected_status = self.default_statuses
+            
+            selected_years = selected_years if selected_years else self.default_years
+            selected_terms = default_if_empty(selected_terms, self.default_terms)
+            
+            # Apply role-based restrictions
+            if self.user_role in ["02", "03"]:
+                selected_programs = []
+            
+            # Convert values to lists if they're not already
+            selected_colleges = ensure_list(selected_colleges)
+            selected_programs = ensure_list(selected_programs)
+            selected_status = ensure_list(selected_status)
+            selected_years = ensure_list(selected_years)
+            selected_terms = ensure_list(selected_terms)
+            
+            # Apply filters properly
+            filter_kwargs = {
+                "selected_status": selected_status,
+                "selected_years": selected_years,
+                "selected_terms": selected_terms
+            }
+
+            if selected_programs and self.user_role not in ("02", "03"):
+                filter_kwargs["selected_programs"] = selected_programs
+            else:
+                filter_kwargs["selected_colleges"] = selected_colleges  
+
+            # Get fresh data
+            fresh_data = get_data_for_modal_contents(**filter_kwargs)
+            
+            # Print a refresh notification for debugging
+            print(f"Data refreshed at {datetime.datetime.now().strftime('%H:%M:%S')} with statuses: {selected_status}")
+            
+            return fresh_data
+        @self.dash_app.callback(
+            [Output("terms", "options"), 
+             Output("years", "min"),
+             Output("years", "max"),
+             Output("years", "marks"),
+             Output("years", "value"),
+             Output("status", "options")],
+            [Input("data-refresh-interval", "n_intervals")],
+            [State("college", "value"),
+             State("program", "value")]
+        )
+        def update_all_filters(n_intervals, selected_colleges, selected_programs):
+            """Update all filter options based on database queries"""
+            # Create a session
+            engine = db_manager.engine
+            session = Session(engine)
+            
+            try:
+                # Get terms with direct SQL query
+                terms_query = session.query(distinct(ResearchOutput.term)).filter(ResearchOutput.term.isnot(None))
+                all_terms = sorted([term[0] for term in terms_query.all() if term[0]])
+                term_options = [{'label': value, 'value': value} for value in all_terms]
+                
+                # Get min and max years with direct SQL queries
+                min_year_query = session.query(func.min(ResearchOutput.school_year)).filter(ResearchOutput.school_year.isnot(None))
+                max_year_query = session.query(func.max(ResearchOutput.school_year)).filter(ResearchOutput.school_year.isnot(None))
+                
+                min_year = min_year_query.scalar() or 2010  # Default if no data
+                max_year = max_year_query.scalar() or 2024  # Default if no data
+                
+                # Update default years and terms attributes
+                self.default_years = [min_year, max_year]
+                self.default_terms = all_terms
+                
+                # Create marks for the year slider
+                marks = {
+                    min_year: str(min_year),
+                    max_year: str(max_year)
+                }
+                
+                # Process college/program filters based on role
+                selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
+                selected_programs = default_if_empty(selected_programs, self.default_programs)
+                
+                # Apply role-based restrictions
+                if self.user_role in ["02", "03"]:
+                    selected_programs = []
+                
+                # Convert values to lists
+                selected_colleges = ensure_list(selected_colleges)
+                selected_programs = ensure_list(selected_programs)
+                
+                # Get status counts directly with SQL query
+                status_counts_query = session.query(
+                    Status.status, 
+                    func.count(Status.status).label('count')
+                ).join(
+                    Publication, 
+                    Status.publication_id == Publication.publication_id
+                ).join(
+                    ResearchOutput,
+                    Publication.research_id == ResearchOutput.research_id
+                )
+                
+                # Apply college/program filters if needed
+                if selected_programs and self.user_role not in ("02", "03"):
+                    status_counts_query = status_counts_query.filter(
+                        ResearchOutput.program_id.in_(selected_programs)
+                    )
+                elif selected_colleges:
+                    status_counts_query = status_counts_query.filter(
+                        ResearchOutput.college_id.in_(selected_colleges)
+                    )
+                
+                # Group by status and execute query
+                status_counts_result = status_counts_query.group_by(Status.status).all()
+                
+                # Convert to dictionary
+                status_counts = {status: count for status, count in status_counts_result}
+                
+                # Add READY status count from ResearchOutput table (papers with no Publication)
+                ready_count_query = session.query(
+                    func.count(ResearchOutput.research_id)
+                ).outerjoin(
+                    Publication, 
+                    ResearchOutput.research_id == Publication.research_id
+                ).filter(
+                    Publication.research_id == None
+                )
+                
+                # Apply the same filters
+                if selected_programs and self.user_role not in ("02", "03"):
+                    ready_count_query = ready_count_query.filter(
+                        ResearchOutput.program_id.in_(selected_programs)
+                    )
+                elif selected_colleges:
+                    ready_count_query = ready_count_query.filter(
+                        ResearchOutput.college_id.in_(selected_colleges)
+                    )
+                
+                ready_count = ready_count_query.scalar() or 0
+                if ready_count > 0:
+                    status_counts['READY'] = ready_count
+                
+                # Filter to only include statuses with at least one paper
+                visible_statuses = [status for status in self.ALL_STATUSES if status_counts.get(status, 0) > 0]
+                
+                print(f"Updated terms filter: {all_terms}")
+                print(f"Updated years range: {min_year} to {max_year}")
+                print(f"Status counts: {status_counts}")
+                print(f"Visible statuses in filter: {visible_statuses}")
+                
+                # Create status options list in the correct order
+                status_order = ['READY', 'SUBMITTED', 'ACCEPTED', 'PUBLISHED', 'PULLOUT']
+                status_options = [{'label': 'PULLED-OUT' if value == 'PULLOUT' else value, 'value': value} 
+                                 for value in status_order if value in visible_statuses]
+                
+                # Return all updated values
+                return term_options, min_year, max_year, marks, self.default_years, status_options
+            finally:
+                session.close()
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """
