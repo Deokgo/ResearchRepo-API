@@ -14,6 +14,8 @@ from models import (
     ResearchTypes,
     PublicationFormat,
     UserEngagement,
+    Program,
+    College
 )
 from services import auth_services
 import os
@@ -28,7 +30,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import pandas as pd
 from io import StringIO
-
+import re
 
 paper = Blueprint('paper', __name__)
 UPLOAD_FOLDER = './research_repository'
@@ -831,6 +833,7 @@ def bulk_upload_papers():
         # Get the current user's identity
         user_id = get_jwt_identity()
         user = Account.query.get(user_id)
+        user_prog = UserProfile.query.get(user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
 
@@ -868,13 +871,221 @@ def bulk_upload_papers():
 
         print(f"Processing {len(df)} rows")  # Debug log
 
-        # Process each row
+        # Validation errors collection
+        validation_errors = []
+        
+        # First pass: validate all rows before committing any changes
+        for index, row in df.iterrows():
+            row_num = index + 1
+            try:
+                # Check if research_id already exists
+                existing_research = ResearchOutput.query.filter_by(research_id=row['research_id'].strip()).first()
+                if existing_research:
+                    validation_errors.append(f"Row {row_num}: Research ID '{row['research_id'].strip()}' already exists in the database\n")
+                    continue
+
+                # Get user's program and college IDs for validation
+                user_program_id = user_prog.program_id
+                user_college_id = user_prog.college_id
+
+                # Validate user's program and college authorization
+                # First validate that college_id and program_id exist in the database
+                college = College.query.filter_by(college_id=str(row['college_id']).strip()).first()
+                if not college:
+                    validation_errors.append(f"Row {row_num}: College ID '{row['college_id'].strip()}' does not exist in the database\n")
+                    continue
+
+                program = Program.query.filter_by(program_id=str(row['program_id']).strip()).first()
+                if not program:
+                    validation_errors.append(f"Row {row_num}: Program ID '{row['program_id'].strip()}' does not exist in the database\n")
+                    continue
+
+                # Then proceed with authorization check
+                if str(row['program_id']).strip() != str(user_program_id) or str(row['college_id']).strip() != str(user_college_id):
+                    validation_errors.append(f"Row {row_num}: You are not authorized to add papers for program ID {row['program_id'].strip()} and college ID {row['college_id'].strip()}\n")
+                    continue
+                
+                # Validate research_type FD condition for adviser and panel
+                research_type = str(row['research_type']).strip()
+                has_adviser = pd.notna(row.get('adviser'))
+                has_panel = pd.notna(row.get('panels'))
+
+                if research_type not in ["FD", "CD", "CM", "GF", "MT"]:
+                    validation_errors.append(f"Row {row_num}: Research type '{research_type}' is invalid\n")
+                    continue
+
+                # Validate that FD research type must have both adviser and panels
+                if research_type == "FD" and (not has_adviser or not has_panel):
+                    validation_errors.append(f"Row {row_num}: Research type 'FD' must have both adviser and panel fields filled\n")
+                    continue
+
+                if research_type != "FD" and (has_adviser or has_panel):
+                    validation_errors.append(f"Row {row_num}: Research type '{research_type}' should not have adviser or panel\n")
+                    continue
+
+                # Validate term (should only be 1, 2, or 3)
+                if str(row['term']).strip() not in {'1', '2', '3'}:
+                    validation_errors.append(f"Row {row_num}: Term '{row['term']}' is invalid. It must be 1, 2, or 3.\n")
+                    continue
+
+                # Validate school_year format (YYYY-YYYY) with a one-year interval
+                school_year_pattern = re.compile(r'^\d{4}-\d{4}$')
+                school_year = str(row['school_year']).strip()
+
+                if not school_year_pattern.match(school_year):
+                    validation_errors.append(f"Row {row_num}: School year '{school_year}' is not in the correct format (YYYY-YYYY)\n")
+                    continue
+
+                start_year, end_year = map(int, school_year.split('-'))
+                if end_year - start_year != 1:
+                    validation_errors.append(f"Row {row_num}: School year '{school_year}' does not have a valid one-year interval\n")
+                    continue
+
+                # Define valid SDG values
+                valid_sdgs = {f"SDG {i}" for i in range(1, 18)}
+
+                # Validate SDG format
+                if 'sdg' in row and pd.notna(row['sdg']):
+                    sdg_values = [sdg.strip() for sdg in str(row['sdg']).split(';')]
+                    
+                    # Check if each SDG is valid
+                    invalid_sdgs = [sdg for sdg in sdg_values if sdg not in valid_sdgs]
+                    
+                    if invalid_sdgs:
+                        validation_errors.append(f"Row {row_num}: Invalid SDG(s) found: {', '.join(invalid_sdgs)}. Valid format: 'SDG 1; SDG 2; ... SDG 17'\n")
+                        continue  # Skip this row if SDG validation fails
+
+                # Validate adviser exists in same college
+                if has_adviser:
+                    adviser_name = row['adviser'].strip()
+                    
+                    # Validate adviser name format (LastName, FirstName MiddleInitial.)
+                    if ',' not in adviser_name:
+                        validation_errors.append(f"Row {row_num}: Adviser '{adviser_name}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                        continue
+                        
+                    parts = adviser_name.split(',')
+                    if len(parts) == 2:
+                        adviser_last_name = parts[0].strip()
+                        first_part = parts[1].strip()
+                        
+                        # Process name parts
+                        words = first_part.split()
+                        adviser_middle_name = words[-1][0] if words and words[-1].endswith('.') else ''
+                        adviser_first_name = ' '.join(words[:-1]) if words and words[-1].endswith('.') else first_part
+                        
+                        # Check if adviser exists in the database and in the same college
+                        adviser = UserProfile.query.filter(
+                            UserProfile.last_name == adviser_last_name,
+                            UserProfile.first_name == adviser_first_name,
+                            UserProfile.college_id == row['college_id'].strip()
+                        ).first()
+                        
+                        if not adviser:
+                            validation_errors.append(f"Row {row_num}: Adviser '{adviser_name}' not found in the college with ID {row['college_id'].strip()}\n")
+                            continue
+                    else:
+                        validation_errors.append(f"Row {row_num}: Adviser '{adviser_name}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                        continue
+
+                # Validate authors exist in database
+                if pd.notna(row['authors']):
+                    authors_list = [author.strip() for author in str(row['authors']).split(';')]
+                    
+                    # Check if any authors are in an invalid format
+                    for author_str in authors_list:
+                        if ',' not in author_str:
+                            validation_errors.append(f"Row {row_num}: Author '{author_str}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                            continue
+                    
+                    # Continue with detailed author validation
+                    for author_str in authors_list:
+                        parts = author_str.split(',')
+                        if len(parts) == 2:
+                            last_name = parts[0].strip()
+                            first_part = parts[1].strip()
+                            
+                            words = first_part.split()
+                            middle_name = words[-1][0] if words and words[-1].endswith('.') else ''
+                            first_name = ' '.join(words[:-1]) if words and words[-1].endswith('.') else first_part
+                            
+                            # Check if author exists in UserProfile
+                            author = UserProfile.query.filter(
+                                UserProfile.last_name == last_name,
+                                UserProfile.first_name == first_name
+                            ).first()
+                            
+                            if not author:
+                                validation_errors.append(f"Row {row_num}: Author '{author_str}' not found in the database\n")
+                                break  # Skip to next row if any author is not found
+                        else:
+                            validation_errors.append(f"Row {row_num}: Author '{author_str}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                            break  # Skip to next row if any author has invalid format
+                    
+                    # If we found an error with any author, continue to next row
+                    if any(f"Row {row_num}: Author" in error for error in validation_errors):
+                        continue
+
+                # Validate panels exist in database
+                if has_panel:
+                    panel_list = [panel.strip() for panel in str(row['panels']).split(';')]
+                    
+                    # Check if any panels are in an invalid format
+                    for panel_str in panel_list:
+                        if ',' not in panel_str:
+                            validation_errors.append(f"Row {row_num}: Panel member '{panel_str}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                            continue
+                    
+                    # Continue with detailed panel validation
+                    for panel_str in panel_list:
+                        parts = panel_str.split(',')
+                        if len(parts) == 2:
+                            panel_last_name = parts[0].strip()
+                            first_part = parts[1].strip()
+                            
+                            words = first_part.split()
+                            panel_middle_name = words[-1][0] if words and words[-1].endswith('.') else ''
+                            panel_first_name = ' '.join(words[:-1]) if words and words[-1].endswith('.') else first_part
+                            
+                            # Check if panel exists in UserProfile
+                            panel = UserProfile.query.filter(
+                                UserProfile.last_name == panel_last_name,
+                                UserProfile.first_name == panel_first_name
+                            ).first()
+                            
+                            if not panel:
+                                validation_errors.append(f"Row {row_num}: Panel member '{panel_str}' not found in the database\n")
+                                break  # Skip to next row if any panel member is not found
+                        else:
+                            validation_errors.append(f"Row {row_num}: Panel member '{panel_str}' does not follow the format 'LastName, FirstName MiddleInitial.'\n")
+                            break  # Skip to next row if any panel has invalid format
+                    
+                    # If we found an error with any panel, continue to next row
+                    if any(f"Row {row_num}: Panel" in error for error in validation_errors):
+                        continue
+
+            except Exception as row_error:
+                validation_errors.append(f"Row {row_num}: Validation error: {str(row_error)}\n")
+        
+        # Check if there are validation errors after checking all rows
+        if validation_errors:
+            return jsonify({
+                "error": validation_errors
+            }), 400
+        
+        # List to store successfully added research IDs for audit log
+        successfully_added_research_ids = []
+                
+        # If all validations pass, proceed with adding the records
         for index, row in df.iterrows():
             try:
                 print(f"Processing row {index + 1}")
+                
+                # Get research ID and clean it
+                research_id = row['research_id'].strip()
 
                 # Extract starting year from school year format (YYYY-YYYY)
-                school_year = str(row['school_year']).split('-')[0]
+                school_year = str(row['school_year']).strip().split('-')[0]
 
                 # Process adviser information if provided
                 adviser_first_name = None
@@ -904,14 +1115,14 @@ def bulk_upload_papers():
 
                 # Create new research output with adviser information
                 new_research = ResearchOutput(
-                    research_id=row['research_id'],
-                    college_id=row['college_id'],
-                    program_id=row['program_id'],
-                    title=row['title'],
-                    abstract=row['abstract'],
+                    research_id=research_id,
+                    college_id=row['college_id'].strip(),
+                    program_id=row['program_id'].strip(),
+                    title=row['title'].strip(),
+                    abstract=row['abstract'].strip(),
                     school_year=school_year,
                     term=int(row['term']),
-                    research_type_id=row['research_type'],
+                    research_type_id=row['research_type'].strip(),
                     date_uploaded=datetime.now(),
                     adviser_first_name=adviser_first_name,
                     adviser_middle_name=adviser_middle_name,
@@ -940,7 +1151,7 @@ def bulk_upload_papers():
                                 panel_middle_name = ''
                             
                             new_panel = Panel(
-                                research_id=row['research_id'],
+                                research_id=research_id,
                                 panel_first_name=panel_first_name,
                                 panel_middle_name=panel_middle_name,
                                 panel_last_name=panel_last_name,
@@ -949,7 +1160,7 @@ def bulk_upload_papers():
                             db.session.add(new_panel)
 
                 # Process SDGs
-                if pd.notna(row['sdg']):
+                if pd.notna(row.get('sdg')):
                     sdg_entries = str(row['sdg']).split(';')
                     for sdg_entry in sdg_entries:
                         sdg_entry = sdg_entry.strip()
@@ -957,7 +1168,7 @@ def bulk_upload_papers():
                             sdg_number = sdg_entry[4:].strip()
                             if sdg_number.isdigit():
                                 new_sdg = SDG(
-                                    research_id=row['research_id'],
+                                    research_id=research_id,
                                     sdg=f"SDG {sdg_number}"
                                 )
                                 db.session.add(new_sdg)
@@ -968,7 +1179,7 @@ def bulk_upload_papers():
                     for keyword in keywords_list:
                         if keyword:
                             new_keyword = Keywords(
-                                research_id=row['research_id'],
+                                research_id=research_id,
                                 keyword=keyword
                             )
                             db.session.add(new_keyword)
@@ -997,7 +1208,7 @@ def bulk_upload_papers():
                                 middle_name = ''
                             
                             new_author = ResearchOutputAuthor(
-                                research_id=row['research_id'],
+                                research_id=research_id,
                                 author_order=idx,
                                 author_first_name=first_name,
                                 author_middle_name=middle_name,
@@ -1006,16 +1217,37 @@ def bulk_upload_papers():
                             )
                             db.session.add(new_author)
 
+                # Add the research ID to the list of successfully added research IDs
+                successfully_added_research_ids.append(research_id)
+                
                 # Commit all changes for this row if everything is successful
                 db.session.commit()
-                print(f"Successfully added research output {row['research_id']} with all related data")
+                print(f"Successfully added research output {research_id} with all related data")
 
             except Exception as row_error:
                 print(f"Error processing row {index + 1}: {str(row_error)}")
                 db.session.rollback()
                 return jsonify({"error": f"Error in row {index + 1}: {str(row_error)}"}), 500
 
-        return jsonify({"message": "Papers uploaded successfully"}), 201
+        # Log the audit trail after all research outputs have been added successfully
+        if successfully_added_research_ids:
+            # Create a comma-separated string of all added research IDs
+            research_ids_str = ", ".join(successfully_added_research_ids)
+            
+            # Log the audit trail
+            auth_services.log_audit_trail(
+                email=user.email,
+                role=user.role.role_name,
+                table_name='Research_Output',
+                record_id=successfully_added_research_ids[0],  # Use the first ID as the main record
+                operation='CREATE',  # Changed from UPDATE to CREATE since this is adding new papers
+                action_desc=f"Added research papers: {research_ids_str}"
+            )
+
+        return jsonify({
+            "message": "Papers uploaded successfully", 
+            "research_ids": successfully_added_research_ids
+        }), 201
 
     except Exception as e:
         print(f"Unexpected error in bulk_upload: {str(e)}")
