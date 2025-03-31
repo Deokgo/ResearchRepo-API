@@ -976,31 +976,27 @@ class Institutional_Performance_Dash:
                 State("total-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1069,13 +1065,12 @@ class Institutional_Performance_Dash:
                 State("ready-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1084,19 +1079,16 @@ class Institutional_Performance_Dash:
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,  
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1171,13 +1163,12 @@ class Institutional_Performance_Dash:
                 State("submitted-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1186,19 +1177,16 @@ class Institutional_Performance_Dash:
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1273,13 +1261,12 @@ class Institutional_Performance_Dash:
                 State("accepted-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1288,19 +1275,16 @@ class Institutional_Performance_Dash:
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1375,13 +1359,12 @@ class Institutional_Performance_Dash:
                 State("published-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1390,19 +1373,16 @@ class Institutional_Performance_Dash:
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
@@ -1477,13 +1457,12 @@ class Institutional_Performance_Dash:
                 State("pullout-modal", "is_open"),
                 State("college", "value"),
                 State("program", "value"),
-                State("status", "value"),
                 State("years", "value"),
                 State("terms", "value")
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1492,19 +1471,16 @@ class Institutional_Performance_Dash:
 
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_programs = default_if_empty(selected_programs, self.default_programs)
-            selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
-            selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
 
             # Apply filters properly
             filter_kwargs = {
-                "selected_status": selected_status,
                 "selected_years": selected_years,
                 "selected_terms": selected_terms
             }
