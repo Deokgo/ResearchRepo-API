@@ -24,6 +24,7 @@ import datetime
 from sqlalchemy import func, distinct
 from sqlalchemy.orm import Session
 from models import ResearchOutput, Status, Publication
+from components.DashboardHeader import DashboardHeader
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -1867,6 +1868,41 @@ class Institutional_Performance_Dash:
                 return default_years
             finally:
                 session.close()
+
+        @self.dash_app.callback(
+            Output("dynamic-header", "children"),
+            Input("url", "search"),
+            prevent_initial_call=True  
+        )
+        def update_header(search):
+            if search:
+                params = parse_qs(search.lstrip("?"))
+                user_role = params.get("user-role", ["Guest"])[0]
+                college = params.get("college", [""])[0]
+                program = params.get("program", [""])[0]
+
+            style = None
+
+            if user_role in ["02", "03"]:
+                style = {"display": "block"}
+                college = ""
+                program = ""
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
+            elif user_role == "04":
+                style = {"display": "none"}
+                self.college = college
+                self.program = program
+                header = DashboardHeader(left_text=f"{college}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
+            elif user_role == "05":
+                style = {"display": "none"}
+                self.college = college
+                self.program = program
+                header = DashboardHeader(left_text=f"{program}", title="INSTITUTIONAL PERFORMANCE DASHBOARD")
+            else:
+                # Default case for any other role
+                header = DashboardHeader(title="INSTITUTIONAL PERFORMANCE DASHBOARD")
+
+            return header
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """

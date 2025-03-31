@@ -241,7 +241,6 @@ def visualize_sdg_impact(selected_programs, selected_status, selected_years, sdg
     :param sdg_dropdown_value: Selected SDG filter (string, "ALL" for no filtering)
     :return: Plotly figure object
     """
-    print("Selected SDG:", sdg_dropdown_value)  # Debugging
 
     # Convert numpy arrays or strings to lists
     if isinstance(selected_status, np.ndarray):
@@ -670,7 +669,6 @@ def create_conference_participation_bar_chart(selected_programs, selected_status
             margin=dict(l=10, r=10, t=30, b=10)
         )
         return fig
-    print(df)
     # Determine grouping based on filters
     if sdg_dropdown_value != "ALL":
         group_column = 'program'
@@ -749,8 +747,6 @@ def create_local_vs_foreign_donut_chart(selected_programs, selected_status, sele
         college_filter=[selected_college],
         program_filter=selected_programs
     )
-    print("here yung local vs foreign")
-    print(df)
     total_unfiltered_rows = len(df)
     # Ensure df is a DataFrame
     if not isinstance(df, pd.DataFrame):
