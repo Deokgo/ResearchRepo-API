@@ -350,7 +350,7 @@ class Institutional_Performance_Dash:
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
             dcc.Store(id='session-store', storage_type='session'),
-            dcc.Interval(id="data-refresh-interval", interval=5000, n_intervals=0),  # 30-second refresh interval
+            dcc.Interval(id="data-refresh-interval", interval=30000, n_intervals=0),  # 30-second refresh interval
             dcc.Store(id="shared-data-store"),  # Shared data store to hold the updated dataset
             dcc.Download(id="total-download-link"), # For download feature (modal content)
             dcc.Download(id="ready-download-link"), # For download feature (modal content)
