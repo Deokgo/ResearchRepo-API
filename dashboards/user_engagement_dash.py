@@ -386,7 +386,7 @@ class UserEngagementDash:
 
         return fig
     
-    def create_user_funnel(self,selected_colleges, start_date, end_date):
+    def create_user_funnel(self, selected_colleges, start_date, end_date):
         """Generates a user-focused engagement funnel visualization using Plotly."""
         
         # Ensure selected_colleges is a list
@@ -397,7 +397,6 @@ class UserEngagementDash:
 
         # Fetch funnel data
         funnel_data = get_user_funnel_data(start_date, end_date, college_ids=selected_colleges)
-
 
         # Convert to DataFrame
         df = pd.DataFrame(funnel_data)
@@ -427,29 +426,13 @@ class UserEngagementDash:
             print("Debug: Missing necessary columns in user funnel data.")
             return go.Figure()
 
-        # Map stages to metric names
-        stage_mapping = {
-            'Total User Interactions': 'total_views',
-            'Total Unique Users Viewed': 'total_unique_views',
-            'Total Users Downloaded': 'total_downloads'
-        }
-
-        df['Metric'] = df['stage'].map(stage_mapping)
-        df = df.dropna(subset=['Metric'])
-
-        # Set correct order
-        df['Metric'] = pd.Categorical(df['Metric'], 
-                                    categories=['total_views', 'total_unique_views', 'total_downloads'], 
-                                    ordered=True)
-        df = df.sort_values('Metric')
-
-        # Create funnel chart
+        # Create funnel chart with direct labels from database
         fig = px.funnel(df, 
                         x='total', 
-                        y='Metric', 
+                        y='stage', 
                         orientation='h',  
                         title='User Activity: Interaction Breakdown',
-                        labels={'Metric': 'Stage', 'total': 'Count'})
+                        labels={'stage': 'Stage', 'total': 'Count'})
         
         # Update layout
         fig.update_layout(
@@ -790,7 +773,7 @@ class UserEngagementDash:
         return fig
 
     
-    def create_research_funnel(self,selected_colleges, start_date, end_date):
+    def create_research_funnel(self, selected_colleges, start_date, end_date):
         """Generates a research-focused engagement funnel visualization using Plotly."""
         
         # Ensure selected_colleges is a list
@@ -829,29 +812,13 @@ class UserEngagementDash:
             print("Debug: Missing necessary columns in research funnel data.")
             return go.Figure()
 
-        # Map stages to metric names
-        stage_mapping = {
-            'Total Research Papers Viewed': 'total_views',
-            'Total Unique Research Papers Viewed': 'total_unique_views',
-            'Total Research Papers Downloaded': 'total_downloads'
-        }
-
-        df['Metric'] = df['stage'].map(stage_mapping)
-        df = df.dropna(subset=['Metric'])
-
-        # Set correct order
-        df['Metric'] = pd.Categorical(df['Metric'], 
-                                    categories=['total_views', 'total_unique_views', 'total_downloads'], 
-                                    ordered=True)
-        df = df.sort_values('Metric')
-
-        # Create funnel chart
+        # Create funnel chart with direct labels from database
         fig = px.funnel(df, 
                         x='total', 
-                        y='Metric', 
+                        y='stage', 
                         orientation='h',  
                         title='Research Activity: Interaction Breakdown',
-                        labels={'Metric': 'Stage', 'total': 'Count'})
+                        labels={'stage': 'Stage', 'total': 'Count'})
         
         # Update layout
         fig.update_layout(
