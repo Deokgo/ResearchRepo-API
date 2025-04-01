@@ -1701,7 +1701,6 @@ class Institutional_Performance_Dash:
             [Output("terms", "options"), 
              Output("years", "min"),
              Output("years", "max"),
-             Output("years", "marks"),
              Output("status", "options")],
             [Input("data-refresh-interval", "n_intervals")],
             [State("college", "value"),
@@ -1731,10 +1730,12 @@ class Institutional_Performance_Dash:
                 self.default_terms = all_terms
                 
                 # Create marks for the year slider
+                """
                 marks = {
                     min_year: str(min_year),
                     max_year: str(max_year)
                 }
+                """
                 
                 # Process college/program filters based on role
                 selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
@@ -1814,7 +1815,7 @@ class Institutional_Performance_Dash:
                 print(f"Visible statuses in filter: {visible_statuses}")
                 
                 # Return all updated values EXCEPT the years.value
-                return term_options, min_year, max_year, marks, status_options
+                return term_options, min_year, max_year, status_options
             finally:
                 session.close()
 
