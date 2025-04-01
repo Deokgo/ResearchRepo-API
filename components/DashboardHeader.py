@@ -1,8 +1,11 @@
 import dash_bootstrap_components as dbc
-from dash import html
+from dash import html, dcc
 from datetime import datetime
 
-def DashboardHeader(left_text=None, title=None):
+def DashboardHeader(left_text=None, title=None, id_prefix=""):
+    # Create unique ID for the timestamp div
+    timestamp_id = f"{id_prefix}-timestamp" if id_prefix else "timestamp"
+    
     return dbc.Row([
         # Left Section
         dbc.Col(
@@ -49,18 +52,21 @@ def DashboardHeader(left_text=None, title=None):
             }
         ),  
 
-        # Right Section
+        # Right Section - Timestamp with updateable ID
         dbc.Col(
-            html.P(f"as of {datetime.now():%B %d, %Y %I:%M %p}", 
-                   style={
-                       "color": "#6c757d",
-                       "fontSize": "16px",
-                       "fontWeight": "500",
-                       "opacity": "0.8",
-                       "whiteSpace": "nowrap",
-                       "overflow": "hidden",
-                       "textOverflow": "ellipsis"
-                   }),
+            html.Div(
+                html.P(f"as of {datetime.now():%B %d, %Y %I:%M %p}", 
+                       style={
+                           "color": "#6c757d",
+                           "fontSize": "16px",
+                           "fontWeight": "500",
+                           "opacity": "0.8",
+                           "whiteSpace": "nowrap",
+                           "overflow": "hidden",
+                           "textOverflow": "ellipsis"
+                       }),
+                id=timestamp_id
+            ),
             style={
                 "background": "white",
                 "display": "flex",
@@ -71,7 +77,7 @@ def DashboardHeader(left_text=None, title=None):
             }
         )  
 
-    ], id="content-row", style={
+    ], id=f"{id_prefix}-content-row" if id_prefix else "content-row", style={
         "height": "5vh",
         "display": "flex",
         "alignItems": "center",

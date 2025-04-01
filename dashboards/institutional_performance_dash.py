@@ -25,6 +25,7 @@ from sqlalchemy import func, distinct
 from sqlalchemy.orm import Session
 from models import ResearchOutput, Status, Publication
 from components.DashboardHeader import DashboardHeader
+from datetime import datetime
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -768,7 +769,7 @@ class Institutional_Performance_Dash:
             
             # Log when interval triggers refresh for debugging
             if trigger == 'data-refresh-interval.n_intervals':
-                print(f"Auto-refresh triggered at {datetime.datetime.now().strftime('%H:%M:%S')}")
+                print(f"Auto-refresh triggered at {datetime.now().strftime('%H:%M:%S')}")
             
             # Return all visualization components
             return [
@@ -1693,7 +1694,7 @@ class Institutional_Performance_Dash:
             fresh_data = get_data_for_modal_contents(**filter_kwargs)
             
             # Print a refresh notification for debugging
-            print(f"Data refreshed at {datetime.datetime.now().strftime('%H:%M:%S')} with statuses: {selected_status}")
+            print(f"Data refreshed at {datetime.now().strftime('%H:%M:%S')} with statuses: {selected_status}")
             
             return fresh_data
         @self.dash_app.callback(
@@ -1879,6 +1880,22 @@ class Institutional_Performance_Dash:
                 header = DashboardHeader(title="INSTITUTIONAL PERFORMANCE DASHBOARD")
 
             return header
+
+        @self.dash_app.callback(
+            Output("timestamp", "children"),
+            [Input("data-refresh-interval", "n_intervals")]
+        )
+        def update_timestamp(n):
+            return html.P(f"as of {datetime.now():%B %d, %Y %I:%M %p}", 
+                         style={
+                             "color": "#6c757d",
+                             "fontSize": "16px",
+                             "fontWeight": "500",
+                             "opacity": "0.8",
+                             "whiteSpace": "nowrap",
+                             "overflow": "hidden",
+                             "textOverflow": "ellipsis"
+                         })
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """

@@ -691,6 +691,23 @@ class SDG_Impact_College:
                 print(f"Error getting proceeding count: {e}")
                 return f"Error retrieving data: {str(e)}", "danger"
 
+        @self.dash_app.callback(
+            Output("timestamp", "children"),  
+            [Input("data-refresh-interval", "n_intervals")]  
+        )
+        def update_timestamp(n_intervals):
+            # Use datetime.datetime.now() instead of datetime.now()
+            return html.P(f"as of {datetime.datetime.now():%B %d, %Y %I:%M %p}", 
+                         style={
+                             "color": "#6c757d",
+                             "fontSize": "16px",
+                             "fontWeight": "500",
+                             "opacity": "0.8",
+                             "whiteSpace": "nowrap",
+                             "overflow": "hidden",
+                             "textOverflow": "ellipsis"
+                         })
+
     def convert_numpy_to_list(self, value):
         """Convert numpy arrays and values to Python native types for JSON serialization"""
         if isinstance(value, np.ndarray):

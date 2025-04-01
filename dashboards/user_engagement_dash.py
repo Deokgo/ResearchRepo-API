@@ -204,7 +204,7 @@ class UserEngagementDash:
         ], width=10, className="p-3", style={"marginLeft": "16.67%"})
 
         self.dash_app.layout = dbc.Container([
-            dcc.Interval(id="data-refresh-interval", interval=1000, n_intervals=0),
+            dcc.Interval(id="data-refresh-interval", interval=30000, n_intervals=0),
             dbc.Row([sidebar, 
                      main_content], className="g-0")
         ], fluid=True,style={
@@ -283,13 +283,18 @@ class UserEngagementDash:
                             var_name='Metric', 
                             value_name='Count')
 
-        # Create the line chart using Plotly
+        # Create the line chart using Plotly with custom colors
         fig = px.line(df_melted, 
                     x='date', 
                     y='Count', 
                     color='Metric', 
                     title='User Engagement Over Time (Views, Downloads, Unique Views)',
-                    labels={'date': 'Date', 'Count': 'Count', 'Metric': 'Metric'})
+                    labels={'date': 'Date', 'Count': 'Count', 'Metric': 'Metric'},
+                    color_discrete_map={
+                        'total_views': 'green',
+                        'total_unique_views': 'blue',
+                        'total_downloads': 'lightblue'
+                    })
 
         # Set the figure layout to be responsive to its container
         fig.update_layout(
@@ -1017,24 +1022,26 @@ class UserEngagementDash:
             Output('college_line_plot', 'figure'),
             [
                 Input('college', 'value'),
-                Input('date-range-dropdown', 'value')
+                Input('date-range-dropdown', 'value'),
+                Input("data-refresh-interval", "n_intervals")
             ]
         )
-        def update_linechart(selected_colleges,selected_range):
+        def update_linechart(selected_colleges, selected_range, n_intervals):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
-              # Default to last 7 days
+            # Default to last 7 days
             start,end = self.get_date_range(selected_range)
-           
+            
             return self.update_line_plot(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
         
         @self.dash_app.callback(
             Output('user-funnel-chart', 'figure'),
             [
                 Input('college', 'value'),
-                Input('date-range-dropdown', 'value')
+                Input('date-range-dropdown', 'value'),
+                Input("data-refresh-interval", "n_intervals")
             ]
         )
-        def update_linechart(selected_colleges,selected_range):
+        def update_user_funnel(selected_colleges, selected_range, n_intervals):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             start,end = self.get_date_range(selected_range)
             return self.create_user_funnel(selected_colleges, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
@@ -1043,10 +1050,11 @@ class UserEngagementDash:
             Output('research-funnel-chart', 'figure'),
             [
                 Input('college', 'value'),
-                Input('date-range-dropdown', 'value')
+                Input('date-range-dropdown', 'value'),
+                Input("data-refresh-interval", "n_intervals")
             ]
         )
-        def update_linechart(selected_colleges,selected_range):
+        def update_research_funnel(selected_colleges, selected_range, n_intervals):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             start,end = self.get_date_range(selected_range)
             return self.create_research_funnel(selected_colleges, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
@@ -1055,13 +1063,14 @@ class UserEngagementDash:
             Output('active-days', 'figure'),
             [
                 Input('college', 'value'),
-                Input('date-range-dropdown', 'value')
+                Input('date-range-dropdown', 'value'),
+                Input("data-refresh-interval", "n_intervals")
             ]
         )
-        def update_linechart(selected_colleges, selected_range):
+        def update_area_chart(selected_colleges, selected_range, n_intervals):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             start,end = self.get_date_range(selected_range)
-           
+            
             return self.create_area_chart(selected_colleges,start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
         
         @self.dash_app.callback(
@@ -1133,3 +1142,20 @@ class UserEngagementDash:
                 body = "No details available for this metric."
             
             return True, title, body
+
+        @self.dash_app.callback(
+            Output("timestamp", "children"),  
+            [Input("data-refresh-interval", "n_intervals")]  
+        )
+        def update_timestamp(n):
+            # Generate a new timestamp each time the callback is triggered
+            return html.P(f"as of {datetime.now():%B %d, %Y %I:%M %p}", 
+                         style={
+                             "color": "#6c757d",
+                             "fontSize": "16px",
+                             "fontWeight": "500",
+                             "opacity": "0.8",
+                             "whiteSpace": "nowrap",
+                             "overflow": "hidden",
+                             "textOverflow": "ellipsis"
+                         })
