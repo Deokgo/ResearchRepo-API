@@ -175,18 +175,14 @@ class UserEngagementDash:
                     html.Div(id="modal-body")  # Dynamic KPI Description
                 ]),
                 dbc.ModalFooter(
-                    dbc.Button("Close", id="close-modal", className="ms-auto", n_clicks=0)
+                    dbc.Button("Close", id="close-modal", className="ms-auto", n_clicks=0),
+                    style={"display": "none"}  # Hide the footer
                 ),
             ],
             id="kpi-modal",
             is_open=False,  # Start closed
-            size = "xl" # Large modal for better graph view
+            size="xl"  # Large modal for better graph view
         )
-
-        
-        
-
-
 
         sidebar = dbc.Col([  # Added array brackets
             html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),
