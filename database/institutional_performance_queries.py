@@ -1,39 +1,52 @@
 from config import Session
 from sqlalchemy import text
+from sqlalchemy import bindparam
+from sqlalchemy.dialects.postgresql import ARRAY, TEXT, INTEGER
 
 import numpy as np
 
-def get_data_for_performance_overview(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_performance_overview(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
     session = Session()
     try:
+        print({
+            'DEBUG': 'get_data_for_performance_overview',
+            'selected_colleges': selected_colleges,
+            'selected_status': selected_status,
+            'selected_years': selected_years,
+            'selected_terms': selected_terms,
+            'selected_pub_format': selected_pub_format
+        })
+
         if selected_colleges == None:
             query = text("""
                 SELECT 
                     program_id, year 
-                FROM get_data_for_performance_overview_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_performance_overview_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
                 SELECT 
                     college_id, program_id, year 
-                FROM get_data_for_performance_overview(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_performance_overview(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -41,7 +54,7 @@ def get_data_for_performance_overview(selected_colleges=None, selected_programs=
     finally:
         session.close()
 
-def get_data_for_research_type_bar_plot(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_research_type_bar_plot(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -51,27 +64,29 @@ def get_data_for_research_type_bar_plot(selected_colleges=None, selected_program
             query = text("""
                 SELECT 
                     program_id, research_type 
-                FROM get_data_for_research_type_bar_plot_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_research_type_bar_plot_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
                 SELECT 
                     college_id, program_id, research_type 
-                FROM get_data_for_research_type_bar_plot(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_research_type_bar_plot(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -79,7 +94,7 @@ def get_data_for_research_type_bar_plot(selected_colleges=None, selected_program
     finally:
         session.close()
 
-def get_data_for_research_status_bar_plot(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_research_status_bar_plot(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -89,27 +104,29 @@ def get_data_for_research_status_bar_plot(selected_colleges=None, selected_progr
             query = text("""
                 SELECT 
                     program_id, status 
-                FROM get_data_for_research_status_bar_plot_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_research_status_bar_plot_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
                 SELECT 
                     college_id, program_id, status 
-                FROM get_data_for_research_status_bar_plot(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_research_status_bar_plot(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -117,7 +134,7 @@ def get_data_for_research_status_bar_plot(selected_colleges=None, selected_progr
     finally:
         session.close()
 
-def get_data_for_scopus_section(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_scopus_section(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -125,25 +142,27 @@ def get_data_for_scopus_section(selected_colleges=None, selected_programs=None, 
     try:
         if selected_colleges == None:
             query = text("""
-                SELECT * FROM get_data_for_scopus_section_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_scopus_section_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
-                SELECT * FROM get_data_for_scopus_section(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_scopus_section(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -151,7 +170,7 @@ def get_data_for_scopus_section(selected_colleges=None, selected_programs=None, 
     finally:
         session.close()
 
-def get_data_for_jounal_section(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_jounal_section(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -159,25 +178,27 @@ def get_data_for_jounal_section(selected_colleges=None, selected_programs=None, 
     try:
         if selected_colleges == None:
             query = text("""
-                SELECT * FROM get_data_for_jounal_section_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_jounal_section_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
-                SELECT * FROM get_data_for_jounal_section(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_jounal_section(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -185,7 +206,7 @@ def get_data_for_jounal_section(selected_colleges=None, selected_programs=None, 
     finally:
         session.close()
 
-def get_data_for_sdg(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_sdg(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -196,33 +217,36 @@ def get_data_for_sdg(selected_colleges=None, selected_programs=None, selected_st
         selected_programs = selected_programs.tolist() if hasattr(selected_programs, 'tolist') else selected_programs
         selected_status = selected_status.tolist() if hasattr(selected_status, 'tolist') else selected_status
         selected_terms = selected_terms.tolist() if hasattr(selected_terms, 'tolist') else selected_terms
+        selected_pub_format = selected_pub_format.tolist() if hasattr(selected_pub_format, 'tolist') else selected_pub_format
         
         # Check if selected_colleges is None (not using == for numpy arrays)
         if selected_colleges is None:
             query = text("""
                 SELECT
                     program_id, sdg 
-                FROM get_data_for_sdg_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_sdg_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
                 SELECT
                     college_id, program_id, sdg 
-                FROM get_data_for_sdg(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                FROM get_data_for_sdg(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -230,7 +254,7 @@ def get_data_for_sdg(selected_colleges=None, selected_programs=None, selected_st
     finally:
         session.close()
 
-def get_data_for_modal_contents(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_modal_contents(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -238,25 +262,27 @@ def get_data_for_modal_contents(selected_colleges=None, selected_programs=None, 
     try:
         if selected_colleges == None:
             query = text("""
-                SELECT * FROM get_data_for_modal_contents_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_modal_contents_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
-                SELECT * FROM get_data_for_modal_contents(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_modal_contents(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]
@@ -264,7 +290,7 @@ def get_data_for_modal_contents(selected_colleges=None, selected_programs=None, 
     finally:
         session.close()
 
-def get_data_for_text_displays(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None):
+def get_data_for_text_displays(selected_colleges=None, selected_programs=None, selected_status=None, selected_years=None, selected_terms=None, selected_pub_format=None):
     """
     Fetches filtered dataset based on the given parameters.
     """
@@ -272,25 +298,27 @@ def get_data_for_text_displays(selected_colleges=None, selected_programs=None, s
     try:
         if selected_colleges == None:
             query = text("""
-                SELECT * FROM get_data_for_text_displays_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_text_displays_bycollege(:selected_programs, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_programs': selected_programs,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
         else:
             query = text("""
-                SELECT * FROM get_data_for_text_displays(:selected_colleges, :selected_status, :selected_years, :selected_terms)
+                SELECT * FROM get_data_for_text_displays(:selected_colleges, :selected_status, :selected_years, :selected_terms, :selected_pub_format)
             """)
 
             result = session.execute(query, {
                 'selected_colleges': selected_colleges,
                 'selected_status': selected_status,
                 'selected_years': selected_years,
-                'selected_terms': selected_terms
+                'selected_terms': selected_terms,
+                'selected_pub_format': selected_pub_format
             })
 
         filtered_data_with_term = [dict(row) for row in result.mappings()]

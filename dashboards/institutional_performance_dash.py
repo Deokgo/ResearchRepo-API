@@ -69,6 +69,7 @@ class Institutional_Performance_Dash:
         self.default_statuses = ["READY", "SUBMITTED", "ACCEPTED", "PUBLISHED", "PULLOUT"]
         self.default_terms = db_manager.get_unique_values('term')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+        self.default_pub_format = db_manager.get_unique_values('journal')[db_manager.get_unique_values('journal') != "unpublished"]
 
         self.selected_colleges = []
         self.selected_programs = []
@@ -174,12 +175,23 @@ class Institutional_Performance_Dash:
             className="d-grid gap-2",
         )
 
+        pub_formats = sorted([value for value in db_manager.get_unique_values('journal') if value.lower() != 'unpublished'])
+        pub_form = html.Div( [
+            dbc.Label("Select Publication Type/s:", style={"color": "#08397C"}),
+            dbc.Checklist(
+                id='pub_form',
+                options=[{'label': value, 'value': value} for value in pub_formats],
+                value=[],
+                inline=True,
+            ),
+        ], className="mb-4", )
+
         controls = dbc.Col(
             dbc.Card(
                 [
                     html.H4("Filters", style={"margin": "10px 0px", "color": "red"}),  # Set the color to red
                     html.Div(
-                        [college, program, status, term, slider, button], 
+                        [college, program, status, pub_form, term, slider, button], 
                         style={"font-size": "0.85rem", "padding": "5px"}  # Reduce font size and padding
                     ),
                 ],
@@ -565,10 +577,11 @@ class Institutional_Performance_Dash:
             Input('status', 'value'),
             Input('years', 'value'),
             Input('terms', 'value'),
+            Input('pub_form', 'value'),
             Input('reset_button', 'n_clicks')],
             [State('url', 'search')])
         def update_nonscopus_scopus_tab(nonscopus_scopus_tab, selected_colleges, selected_programs, 
-                                    selected_status, selected_years, selected_terms, n_clicks, search):
+                                    selected_status, selected_years, selected_terms, selected_pub_format, n_clicks, search):
             # Get user identity
             try:
                 user_id = get_jwt_identity() or 'anonymous'
@@ -590,6 +603,7 @@ class Institutional_Performance_Dash:
                 selected_status = self.default_statuses
                 selected_years = self.default_years
                 selected_terms = self.default_terms
+                selected_pub_format = self.default_pub_format
             else:
                 # Process selections and convert numpy arrays to lists
                 selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
@@ -597,6 +611,7 @@ class Institutional_Performance_Dash:
                 selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
                 selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
                 selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+                selected_pub_format = self.convert_numpy_to_list(ensure_list(selected_pub_format) or self.default_pub_format)
             
             # Apply role-based filters
             if user_role in ["02", "03"]:  # Director/Head Executive
@@ -621,7 +636,8 @@ class Institutional_Performance_Dash:
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms,
-                    default_years=self.default_years
+                    default_years=self.default_years,
+                    selected_pub_format=selected_pub_format
                 )
             else:
                 return self.plot_instance.scopus_pie_chart(
@@ -631,7 +647,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 )
 
         # Second callback that handles proceeding_conference tab changes and filter updates
@@ -643,10 +660,11 @@ class Institutional_Performance_Dash:
             Input('status', 'value'),
             Input('years', 'value'),
             Input('terms', 'value'),
+            Input('pub_form', 'value'),
             Input('reset_button', 'n_clicks')],
             [State('url', 'search')])
         def update_proceeding_conference_tab(proceeding_conference_tab, selected_colleges, selected_programs, 
-                                        selected_status, selected_years, selected_terms, n_clicks, search):
+                                        selected_status, selected_years, selected_terms, selected_pub_format, n_clicks, search):
             # Get user identity
             try:
                 user_id = get_jwt_identity() or 'anonymous'
@@ -668,6 +686,7 @@ class Institutional_Performance_Dash:
                 selected_status = self.default_statuses
                 selected_years = self.default_years
                 selected_terms = self.default_terms
+                selected_pub_format = self.default_pub_format
             else:
                 # Process selections and convert numpy arrays to lists
                 selected_colleges = self.convert_numpy_to_list(ensure_list(selected_colleges) or [])
@@ -675,6 +694,7 @@ class Institutional_Performance_Dash:
                 selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
                 selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
                 selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+                selected_pub_format = self.convert_numpy_to_list(ensure_list(selected_pub_format) or self.default_pub_format)
             
             # Apply role-based filters
             if user_role in ["02", "03"]:  # Director/Head Executive
@@ -699,7 +719,8 @@ class Institutional_Performance_Dash:
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms,
-                    default_years=self.default_years
+                    default_years=self.default_years,
+                    selected_pub_format=selected_pub_format
                 )
             else:
                 return self.plot_instance.publication_format_pie_chart(
@@ -709,7 +730,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 )
 
         # Main callback for all other chart updates - removed the tab inputs
@@ -728,9 +750,10 @@ class Institutional_Performance_Dash:
              Input('status', 'value'),
              Input('years', 'value'),
              Input('terms', 'value'),
+             Input('pub_form', 'value'),
              Input('reset_button', 'n_clicks')])
         def update_dash_output(n_intervals, search, selected_colleges, selected_programs, selected_status, 
-                            selected_years, selected_terms, n_clicks):
+                            selected_years, selected_terms, selected_pub_format, n_clicks):
             # Get user identity
             try:
                 user_id = get_jwt_identity() or 'anonymous'
@@ -750,6 +773,8 @@ class Institutional_Performance_Dash:
             selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
             selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
             selected_terms = self.convert_numpy_to_list(ensure_list(selected_terms) or self.default_terms)
+            selected_pub_format = self.convert_numpy_to_list(ensure_list(selected_pub_format) or self.default_pub_format)
+            print(f"selected_pub_format: {selected_pub_format}")
             
             # Apply role-based filters
             if user_role in ["02", "03"]:  # Director/Head Executive
@@ -781,7 +806,8 @@ class Institutional_Performance_Dash:
                     selected_status=selected_status,
                     selected_years=selected_years,
                     selected_terms=selected_terms,
-                    default_years=self.default_years
+                    default_years=self.default_years, 
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.update_pie_chart(
                     user_id=user_role,
@@ -790,7 +816,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.update_research_status_bar_plot(
                     user_id=user_role,
@@ -799,7 +826,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.update_research_type_bar_plot(
                     user_id=user_role,
@@ -808,7 +836,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.create_publication_bar_chart(
                     user_id=user_role,
@@ -817,7 +846,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.update_publication_format_bar_plot(
                     user_id=user_role,
@@ -826,7 +856,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 ),
                 self.plot_instance.update_sdg_chart(
                     user_id=user_role,
@@ -835,7 +866,8 @@ class Institutional_Performance_Dash:
                     selected_programs=selected_programs,
                     selected_status=selected_status,
                     selected_years=selected_years,
-                    selected_terms=selected_terms
+                    selected_terms=selected_terms,
+                    selected_pub_format=selected_pub_format
                 )
             ]
         
@@ -855,10 +887,11 @@ class Institutional_Performance_Dash:
                 Input('program', 'value'),
                 Input('status', 'value'),
                 Input('years', 'value'),
-                Input('terms', 'value')
+                Input('terms', 'value'),
+                Input('pub_form', 'value')
             ]
         )
-        def refresh_text_buttons(n_intervals, session_data, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def refresh_text_buttons(n_intervals, session_data, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
             # CRITICAL FIX: Get database values but ALWAYS include all KNOWN statuses
             db_statuses = db_manager.get_unique_values('status')
             all_known_statuses = ["READY", "SUBMITTED", "ACCEPTED", "PUBLISHED", "PULLOUT"]
@@ -904,6 +937,7 @@ class Institutional_Performance_Dash:
             
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
             
             # CRITICAL FIX: Convert numpy arrays to lists
             selected_colleges = self.convert_numpy_to_list(selected_colleges)
@@ -911,6 +945,7 @@ class Institutional_Performance_Dash:
             selected_status = self.convert_numpy_to_list(selected_status)
             selected_years = self.convert_numpy_to_list(selected_years)
             selected_terms = self.convert_numpy_to_list(selected_terms)
+            selected_pub_format = self.convert_numpy_to_list(selected_pub_format)
             
             print(f"KPI Final Filters - Role: {user_role}, Colleges: {selected_colleges}, Programs: {selected_programs}")
             
@@ -918,7 +953,8 @@ class Institutional_Performance_Dash:
             filter_kwargs = {
                 "selected_status": selected_status,  # This now includes ALL statuses
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
             
             # Based on role, determine whether to filter by college or program
@@ -978,11 +1014,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -990,16 +1027,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1067,11 +1107,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1082,16 +1123,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1165,11 +1209,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1180,16 +1225,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1263,11 +1311,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1278,16 +1327,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1361,11 +1413,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1376,16 +1429,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1459,11 +1515,12 @@ class Institutional_Performance_Dash:
                 State("college", "value"),
                 State("program", "value"),
                 State("years", "value"),
-                State("terms", "value")
+                State("terms", "value"),
+                State('pub_form', 'value')
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms):
+        def toggle_modal(open_clicks, close_clicks, download_clicks, is_open, selected_colleges, selected_programs, selected_years, selected_terms, selected_pub_format):
             ctx = dash.callback_context
             trigger_id = ctx.triggered_id
 
@@ -1474,16 +1531,19 @@ class Institutional_Performance_Dash:
             selected_programs = default_if_empty(selected_programs, self.default_programs)
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
 
             selected_colleges = ensure_list(selected_colleges)
             selected_programs = ensure_list(selected_programs)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
 
             # Apply filters properly
             filter_kwargs = {
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1601,7 +1661,8 @@ class Institutional_Performance_Dash:
              Output('program', 'value', allow_duplicate=True),
              Output('status', 'value', allow_duplicate=True), 
              Output('years', 'value', allow_duplicate=True),
-             Output('terms', 'value', allow_duplicate=True)],
+             Output('terms', 'value', allow_duplicate=True),
+             Output('pub_form', 'value', allow_duplicate=True)],
             [Input('reset_button', 'n_clicks')],
             [State('url', 'search')],
             prevent_initial_call=True
@@ -1636,8 +1697,9 @@ class Institutional_Performance_Dash:
             status_value = []  # Clear status selection
             years_value = self.default_years  # Keep years as default range
             terms_value = []  # Clear terms selection
+            pub_format_value = []  # Clear publication format selection
             
-            return college_value, program_value, status_value, years_value, terms_value
+            return college_value, program_value, status_value, years_value, terms_value, pub_format_value
 
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
@@ -1646,9 +1708,10 @@ class Institutional_Performance_Dash:
              State("program", "value"),
              State("status", "value"),
              State("years", "value"),
-             State("terms", "value")]
+             State("terms", "value"),
+             State('pub_form', 'value')]
         )
-        def refresh_data(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+        def refresh_data(n_intervals, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
             """Fetch fresh data at regular intervals and store in shared data store"""
             # Use the predefined list of all statuses
             print(f"Using predefined statuses: {self.default_statuses}")
@@ -1666,6 +1729,7 @@ class Institutional_Performance_Dash:
             
             selected_years = selected_years if selected_years else self.default_years
             selected_terms = default_if_empty(selected_terms, self.default_terms)
+            selected_pub_format = default_if_empty(selected_pub_format, self.default_pub_format)
             
             # Apply role-based restrictions
             if self.user_role in ["02", "03"]:
@@ -1677,12 +1741,14 @@ class Institutional_Performance_Dash:
             selected_status = ensure_list(selected_status)
             selected_years = ensure_list(selected_years)
             selected_terms = ensure_list(selected_terms)
+            selected_pub_format = ensure_list(selected_pub_format)
             
             # Apply filters properly
             filter_kwargs = {
                 "selected_status": selected_status,
                 "selected_years": selected_years,
-                "selected_terms": selected_terms
+                "selected_terms": selected_terms,
+                "selected_pub_format": selected_pub_format
             }
 
             if selected_programs and self.user_role not in ("02", "03"):
@@ -1697,11 +1763,13 @@ class Institutional_Performance_Dash:
             print(f"Data refreshed at {datetime.now().strftime('%H:%M:%S')} with statuses: {selected_status}")
             
             return fresh_data
+        
         @self.dash_app.callback(
             [Output("terms", "options"), 
              Output("years", "min"),
              Output("years", "max"),
-             Output("status", "options")],
+             Output("status", "options"),
+             Output('pub_form', 'options')],
             [Input("data-refresh-interval", "n_intervals")],
             [State("college", "value"),
              State("program", "value")]
@@ -1717,6 +1785,7 @@ class Institutional_Performance_Dash:
                 terms_query = session.query(distinct(ResearchOutput.term)).filter(ResearchOutput.term.isnot(None))
                 all_terms = sorted([term[0] for term in terms_query.all() if term[0]])
                 term_options = [{'label': value, 'value': value} for value in all_terms]
+                pub_form_option = [{'label': value, 'value': value} for value in self.default_pub_format]
                 
                 # Get min and max years with direct SQL queries
                 min_year_query = session.query(func.min(ResearchOutput.school_year)).filter(ResearchOutput.school_year.isnot(None))
@@ -1815,7 +1884,7 @@ class Institutional_Performance_Dash:
                 print(f"Visible statuses in filter: {visible_statuses}")
                 
                 # Return all updated values EXCEPT the years.value
-                return term_options, min_year, max_year, status_options
+                return term_options, min_year, max_year, status_options, pub_form_option
             finally:
                 session.close()
 
@@ -1920,7 +1989,8 @@ class Institutional_Performance_Dash:
             "selected_programs": [program_id] if program_id else [],
             "selected_status": self.convert_numpy_to_list(self.default_statuses),
             "selected_years": self.convert_numpy_to_list(self.default_years),
-            "selected_terms": self.convert_numpy_to_list(self.default_terms)
+            "selected_terms": self.convert_numpy_to_list(self.default_terms),
+            "selected_pub_format": self.convert_numpy_to_list(self.default_pub_format)
         }
         
         # Cache the data with a reasonable expiration (e.g., 30 minutes)

@@ -32,15 +32,16 @@ class ResearchOutputPlot:
                 self.program_colors[program] = chosen_color
                 used_colors.add(chosen_color)  # Mark as used
     
-    def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
+    def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
         
         if user_id in ["02", "03"]:
-            filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_performance_overview(selected_colleges, None, selected_status, selected_years, selected_terms, selected_pub_format)
             df = pd.DataFrame(filtered_data_with_term)
             if df.empty:
                 return px.bar(title="No data available")
@@ -60,7 +61,7 @@ class ResearchOutputPlot:
                 color_discrete_map = college_colors if isinstance(college_colors, dict) else {}
         
         elif user_id in ["04", "05"]:
-            filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_performance_overview(None, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format)
             df = pd.DataFrame(filtered_data_with_term)
             if df.empty:
                 return px.bar(title="No data available")
@@ -126,18 +127,19 @@ class ResearchOutputPlot:
         
         return fig_line
 
-    def update_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
         
         # Determine the filtering parameters based on user_id
         colleges, programs = (selected_colleges, None) if user_id in ["02", "03"] else (None, selected_programs)
         
         # Fetch data
-        filtered_data_with_term = get_data_for_performance_overview(colleges, programs, selected_status, selected_years, selected_terms)
+        filtered_data_with_term = get_data_for_performance_overview(colleges, programs, selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data_with_term)
 
         if df.empty:
@@ -181,17 +183,18 @@ class ResearchOutputPlot:
         
         return fig_pie
     
-    def update_research_type_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_research_type_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         filter_college = selected_colleges if user_id in ["02", "03"] else None
         filter_program = selected_programs if user_id in ["04", "05"] else None
         
-        df = pd.DataFrame(get_data_for_research_type_bar_plot(filter_college, filter_program, selected_status, selected_years, selected_terms))
+        df = pd.DataFrame(get_data_for_research_type_bar_plot(filter_college, filter_program, selected_status, selected_years, selected_terms, selected_pub_format))
         if df.empty:
             return px.bar(title="No data available")
         
@@ -239,12 +242,13 @@ class ResearchOutputPlot:
         
         return fig
     
-    def update_research_status_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_research_status_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         data_params = {
             "02": (selected_colleges, None),
@@ -257,7 +261,7 @@ class ResearchOutputPlot:
             return px.bar(title="Invalid User ID")
 
         filtered_data_with_term = get_data_for_research_status_bar_plot(
-            *data_params[user_id], selected_status, selected_years, selected_terms
+            *data_params[user_id], selected_status, selected_years, selected_terms, selected_pub_format
         )
 
         df = pd.DataFrame(filtered_data_with_term)
@@ -308,15 +312,16 @@ class ResearchOutputPlot:
 
         return fig
     
-    def create_publication_bar_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def create_publication_bar_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
         
         data_func_args = (selected_colleges, None) if user_id in ["02", "03"] else (None, selected_programs)
-        df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms))
+        df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms, selected_pub_format))
         if 'scopus' in df.columns:
             df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
         
@@ -355,18 +360,19 @@ class ResearchOutputPlot:
         
         return fig_bar
     
-    def update_publication_format_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_publication_format_bar_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         # Determine filtering based on user_id
         if user_id in ["02", "03"]:
-            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms, selected_pub_format)
         else:
-            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format)
         
         # Convert data to DataFrame
         df = pd.DataFrame(filtered_data_with_term)
@@ -412,12 +418,13 @@ class ResearchOutputPlot:
         
         return fig_bar
     
-    def update_sdg_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def update_sdg_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
         
         user_filters = {
             "02": (selected_colleges, None),
@@ -429,7 +436,7 @@ class ResearchOutputPlot:
         if user_id not in user_filters:
             return px.scatter(title="Invalid User ID")
         
-        filtered_data = get_data_for_sdg(*user_filters[user_id], selected_status, selected_years, selected_terms)
+        filtered_data = get_data_for_sdg(*user_filters[user_id], selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data)
         
         if df.empty:
@@ -544,19 +551,20 @@ class ResearchOutputPlot:
         
         return fig
 
-    def scopus_line_graph(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
+    def scopus_line_graph(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
         
         # Determine filter parameters based on user_id
         college_filter = selected_colleges if user_id in ["02", "03"] else None
         program_filter = selected_programs if user_id in ["04", "05"] else None
         
         # Fetch data
-        filtered_data = get_data_for_scopus_section(college_filter, program_filter, selected_status, selected_years, selected_terms)
+        filtered_data = get_data_for_scopus_section(college_filter, program_filter, selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data)
         if 'scopus' in df.columns:
             df = df[df['scopus'] != 'N/A']  # Filter out 'N/A' values
@@ -611,19 +619,20 @@ class ResearchOutputPlot:
         
         return fig_line
     
-    def scopus_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def scopus_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         # Determine filtering criteria based on user_id
         colleges = selected_colleges if user_id in ["02", "03"] else None
         programs = selected_programs if user_id in ["04", "05"] else None
         
         # Fetch and process data
-        filtered_data_with_term = get_data_for_scopus_section(colleges, programs, selected_status, selected_years, selected_terms)
+        filtered_data_with_term = get_data_for_scopus_section(colleges, programs, selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data_with_term)
         if 'scopus' in df.columns:
             df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
@@ -662,18 +671,19 @@ class ResearchOutputPlot:
         
         return fig_pie
     
-    def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years):
+    def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         # Determine data filtering based on user_id
         if user_id in ["02", "03"]:
-            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms, selected_pub_format)
         else:  # Covers both user_id "04" and "05"
-            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format)
 
         # Convert data to DataFrame and apply filters
         df = pd.DataFrame(filtered_data_with_term)
@@ -736,18 +746,19 @@ class ResearchOutputPlot:
 
         return fig_line
 
-    def publication_format_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms):
+    def publication_format_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
         selected_status = ensure_list(selected_status)
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
+        selected_pub_format = ensure_list(selected_pub_format)
 
         # Determine the filtering parameters based on user_id
         if user_id in ["02", "03"]:
-            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(selected_colleges, None, selected_status, selected_years, selected_terms, selected_pub_format)
         else:  # For user_id "04" and "05"
-            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms)
+            filtered_data_with_term = get_data_for_jounal_section(None, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format)
 
         # Convert data to DataFrame and apply filters
         df = pd.DataFrame(filtered_data_with_term)
