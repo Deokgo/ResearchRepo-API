@@ -11,6 +11,8 @@ import random
 class ResearchOutputPlot:
     def __init__(self):
         self.program_colors = {}
+        self.scopus_colors = {}
+        self.pub_format_colors = {}
         self.all_sdgs = [f"SDG {i}" for i in range(1, 18)]  # Ensuring correct order
     
     def get_program_colors(self, df):
@@ -32,6 +34,34 @@ class ResearchOutputPlot:
                 self.program_colors[program] = chosen_color
                 used_colors.add(chosen_color)  # Mark as used
     
+    def assign_colors(self, df, column_name):
+        unique_values = df[column_name].unique()
+        available_colors = px.colors.qualitative.T10  # Colorblind-friendly palette
+
+        # Determine which dictionary to update
+        if column_name == 'scopus':
+            target_dict = self.scopus_colors
+        elif column_name == 'journal':
+            target_dict = self.pub_format_colors
+        else:
+            target_dict = self.program_colors
+
+        used_colors = set(target_dict.values())  # Track assigned colors
+
+        for value in unique_values:
+            if value not in target_dict:
+                # Find an unused color from the palette
+                unused_colors = [color for color in available_colors if color not in used_colors]
+
+                if unused_colors:
+                    chosen_color = unused_colors.pop(0)  # Take the first unused color
+                else:
+                    # Generate a random distinct color if all predefined colors are used
+                    chosen_color = f"rgb({random.randint(0,255)},{random.randint(0,255)},{random.randint(0,255)})"
+
+                target_dict[value] = chosen_color
+                used_colors.add(chosen_color)
+    
     def update_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
@@ -51,7 +81,7 @@ class ResearchOutputPlot:
                 grouped_df = df.groupby(['program_id', 'year']).size().reset_index(name='TitleCount')
                 color_column = 'program_id'
                 title = f'Number of Research Outputs for {selected_colleges[0]}'
-                self.get_program_colors(grouped_df)
+                self.assign_colors(grouped_df, 'program_id')
                 color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
             else:
                 label = {'college_id': 'Colleges'}
@@ -78,7 +108,7 @@ class ResearchOutputPlot:
                 color_column = 'program_id'
                 title = 'Number of Research Outputs per Program'
             
-            self.get_program_colors(df)
+            self.assign_colors(df, 'program_id')
             color_discrete_map = self.program_colors if isinstance(self.program_colors, dict) else {}
 
         # Dynamically determine the first available year and add year[0] - 1 if applicable
@@ -147,7 +177,7 @@ class ResearchOutputPlot:
         
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
             detail_counts = df[df['college_id'] == selected_colleges[0]].groupby('program_id').size()
-            self.get_program_colors(df)
+            self.assign_colors(df, 'program_id')
             title, color_map = f'Research Output Distribution for {selected_colleges[0]}', self.program_colors
         elif user_id in ["04", "05"] and len(selected_programs) == 1:
             detail_counts = df[df['program_id'] == selected_programs[0]].groupby('year').size().reset_index(name='count')
@@ -155,7 +185,7 @@ class ResearchOutputPlot:
         else:
             detail_counts = df.groupby('college_id' if user_id in ["02", "03"] else 'program_id').size().reset_index(name='count')
             title = 'Research Output Distribution by College' if user_id in ["02", "03"] else 'Research Outputs per Program'
-            self.get_program_colors(df)
+            self.assign_colors(df, 'program_id')
             color_map = self.program_colors if user_id not in ("02", "03") else college_colors
         
         # Create the pie chart
@@ -212,7 +242,7 @@ class ResearchOutputPlot:
         pivot_df = status_count.pivot(index='research_type', columns=group_col, values='Count').fillna(0)
         
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
-            self.get_program_colors(df)
+            self.assign_colors(df, 'program_id')
             color_map = self.program_colors
         elif user_id == "05":
             unique_values = status_count[group_col].unique()
@@ -325,6 +355,9 @@ class ResearchOutputPlot:
         if 'scopus' in df.columns:
             df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
         
+        # Assign colors for scopus column
+        self.assign_colors(df, 'scopus')
+        
         if df.empty:
             return px.bar(title="No data available")
         
@@ -336,13 +369,13 @@ class ResearchOutputPlot:
             title = 'Scopus vs. Non-Scopus per College' if x_axis == 'college_id' else 'Scopus vs. Non-Scopus per Program'
         
         if user_id in ["04", "05"]:
-            self.get_program_colors(df)
+            self.assign_colors(df, 'program_id')
         
         grouped_df = df.groupby(['scopus', x_axis]).size().reset_index(name='Count')
         
         fig_bar = px.bar(
             grouped_df, x=x_axis, y='Count', color='scopus', barmode='group', 
-            color_discrete_map=college_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}
+            color_discrete_map=self.scopus_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}
         )
         
         fig_bar.update_layout(
@@ -378,6 +411,9 @@ class ResearchOutputPlot:
         df = pd.DataFrame(filtered_data_with_term)
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+        
+        # Assign colors for scopus column
+        self.assign_colors(df, 'journal')
 
         if df.empty:
             return px.bar(title="No Data Available")
@@ -398,7 +434,7 @@ class ResearchOutputPlot:
         # Create bar chart
         fig_bar = px.bar(
             grouped_df, x=x_axis, y='Count', color='journal', barmode='group',
-            color_discrete_map=college_colors, labels={'journal': 'Publication Type'}
+            color_discrete_map=self.pub_format_colors, labels={'journal': 'Publication Type'}
         )
         
         # Adjust layout
@@ -505,7 +541,7 @@ class ResearchOutputPlot:
             return px.scatter(title="No data available after merging")
         
         fig = go.Figure()
-        self.get_program_colors(df)  # Ensuring color consistency
+        self.assign_colors(df, 'program_id')  # Ensuring color consistency
         color_map = self.program_colors if entity == 'program_id' else college_colors
         
         # Extract SDG numbers for consistent ordering
@@ -558,52 +594,43 @@ class ResearchOutputPlot:
         selected_years = ensure_list(selected_years)
         selected_terms = ensure_list(selected_terms)
         selected_pub_format = ensure_list(selected_pub_format)
-        
-        # Determine filter parameters based on user_id
+
         college_filter = selected_colleges if user_id in ["02", "03"] else None
         program_filter = selected_programs if user_id in ["04", "05"] else None
-        
-        # Fetch data
+
         filtered_data = get_data_for_scopus_section(college_filter, program_filter, selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data)
+        
         if 'scopus' in df.columns:
-            df = df[df['scopus'] != 'N/A']  # Filter out 'N/A' values
+            df = df[df['scopus'] != 'N/A']
 
-        # Handle empty DataFrame case
         if df.empty:
             return px.line(title="No data available")
-        
-        # Group and ensure numeric types
+
+        # Assign colors for scopus column
+        self.assign_colors(df, 'scopus')
+
         grouped_df = df.groupby(['scopus', 'year']).size().reset_index(name='Count')
         grouped_df[['year', 'Count']] = grouped_df[['year', 'Count']].astype(int)
 
-        # Ensure the first year - 1 exists with count 0 if the first year is in selected_years
         if not grouped_df.empty:
             first_year = default_years[0]
-            
             if first_year in selected_years:
                 previous_year = first_year - 1
-                
-                # Get unique scopus categories
                 scopus_categories = grouped_df['scopus'].unique()
-                
-                # Create missing rows
                 missing_rows = pd.DataFrame({'scopus': scopus_categories, 'year': previous_year, 'Count': 0})
-                
-                # Append to the dataframe
                 grouped_df = pd.concat([missing_rows, grouped_df], ignore_index=True)
 
-        # Create the line chart
         fig_line = px.line(
             grouped_df, x='year', y='Count', color='scopus',
-            color_discrete_map=college_colors, labels={'scopus': 'Scopus vs. Non-Scopus'}, markers=True
+            color_discrete_map=self.scopus_colors,
+            labels={'scopus': 'Scopus vs. Non-Scopus'}, markers=True
         )
 
         fig_line.update_traces(
             line=dict(width=1.5),
             marker=dict(size=5),
-            hovertemplate="Year: %{x}<br>"
-                        "Publications: %{y}<extra></extra>"
+            hovertemplate="Year: %{x}<br>Publications: %{y}<extra></extra>"
         )
 
         fig_line.update_layout(
@@ -616,9 +643,10 @@ class ResearchOutputPlot:
             yaxis=dict(automargin=True, tickfont=dict(size=10)),
             legend=dict(font=dict(size=9))
         )
-        
+
         return fig_line
-    
+
+
     def scopus_pie_chart(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, selected_pub_format):
         selected_colleges = ensure_list(selected_colleges)
         selected_programs = ensure_list(selected_programs)
@@ -627,40 +655,39 @@ class ResearchOutputPlot:
         selected_terms = ensure_list(selected_terms)
         selected_pub_format = ensure_list(selected_pub_format)
 
-        # Determine filtering criteria based on user_id
         colleges = selected_colleges if user_id in ["02", "03"] else None
         programs = selected_programs if user_id in ["04", "05"] else None
-        
-        # Fetch and process data
+
         filtered_data_with_term = get_data_for_scopus_section(colleges, programs, selected_status, selected_years, selected_terms, selected_pub_format)
         df = pd.DataFrame(filtered_data_with_term)
-        if 'scopus' in df.columns:
-            df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
 
-        # Handle empty DataFrame case
+        if 'scopus' in df.columns:
+            df = df[df['scopus'] != 'N/A']
+
         if df.empty:
             return px.pie(title="No Data Available", template='plotly_white')
-        
+
+        # Assign colors for scopus column
+        self.assign_colors(df, 'scopus')
+
         grouped_df = df.groupby(['scopus']).size().reset_index(name='Count')
 
-        # Create pie chart
         fig_pie = px.pie(
             grouped_df,
             names='scopus',
             values='Count',
             color='scopus',
-            color_discrete_map=college_colors,
+            color_discrete_map=self.scopus_colors,
             labels={'scopus': 'Scopus vs. Non-Scopus'}
         )
 
-        # Adjust layout and styling
         fig_pie.update_traces(
             textfont=dict(size=9),
             insidetextfont=dict(size=9),
             marker=dict(line=dict(width=0.5)),
-            hovertemplate="%{label}<br>"
-                        "Number of Publications:</b> %{value}<br>"
+            hovertemplate="%{label}<br>Number of Publications: %{value}<br>"
         )
+
         fig_pie.update_layout(
             title=dict(text='Scopus vs. Non-Scopus Research Distribution', font=dict(size=12)),
             template='plotly_white',
@@ -668,7 +695,7 @@ class ResearchOutputPlot:
             margin=dict(l=5, r=5, t=30, b=30),
             legend=dict(font=dict(size=9))
         )
-        
+
         return fig_pie
     
     def publication_format_line_plot(self, user_id, college_colors, selected_colleges, selected_programs, selected_status, selected_years, selected_terms, default_years, selected_pub_format):
@@ -689,6 +716,9 @@ class ResearchOutputPlot:
         df = pd.DataFrame(filtered_data_with_term)
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
+
+        # Assign colors to journals before plotting
+        self.assign_colors(df, 'journal')
 
         # Handle empty DataFrame case
         if df.empty:
@@ -720,7 +750,7 @@ class ResearchOutputPlot:
             x='year',
             y='Count',
             color='journal',
-            color_discrete_map=college_colors,
+            color_discrete_map=self.pub_format_colors,
             labels={'journal': 'Publication Type'},
             markers=True
         )
@@ -765,6 +795,9 @@ class ResearchOutputPlot:
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
 
+        # Assign colors to journals before plotting
+        self.assign_colors(df, 'journal')
+
         # Handle empty DataFrame case
         if df.empty:
             return px.pie(title="No Data Available", template='plotly_white')
@@ -778,7 +811,7 @@ class ResearchOutputPlot:
             names='journal',
             values='Count',
             color='journal',
-            color_discrete_map=college_colors,
+            color_discrete_map=self.pub_format_colors,
             labels={'journal': 'Publication Type'}
         )
 
