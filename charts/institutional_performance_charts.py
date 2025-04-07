@@ -15,25 +15,6 @@ class ResearchOutputPlot:
         self.pub_format_colors = {}
         self.all_sdgs = [f"SDG {i}" for i in range(1, 18)]  # Ensuring correct order
     
-    def get_program_colors(self, df):
-        unique_programs = df['program_id'].unique()
-        available_colors = px.colors.qualitative.T10  # Colorblind-friendly palette
-        used_colors = set(self.program_colors.values())  # Track assigned colors
-
-        for program in unique_programs:
-            if program not in self.program_colors:
-                # Find an unused color from the palette
-                unused_colors = [color for color in available_colors if color not in used_colors]
-
-                if unused_colors:
-                    chosen_color = unused_colors.pop(0)  # Take the first unused color
-                else:
-                    # Generate a random distinct color if all predefined colors are used
-                    chosen_color = f"rgb({random.randint(0,255)},{random.randint(0,255)},{random.randint(0,255)})"
-
-                self.program_colors[program] = chosen_color
-                used_colors.add(chosen_color)  # Mark as used
-    
     def assign_colors(self, df, column_name):
         unique_values = df[column_name].unique()
         available_colors = px.colors.qualitative.T10  # Colorblind-friendly palette
