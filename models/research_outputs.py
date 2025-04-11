@@ -23,3 +23,4 @@ class ResearchOutput(BaseModel):
     )
     school_year = db.Column(db.String(4))
     term = db.Column(db.String(1))
+    remarks = db.Column(db.String(1000))

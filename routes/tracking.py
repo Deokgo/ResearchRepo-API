@@ -165,43 +165,60 @@ def get_next_status(research_id):
 
 
 
-@track.route('research_status/pullout/<research_id>',methods=['POST'])    
+@track.route('research_status/pullout/<research_id>', methods=['POST'])    
 @jwt_required()
 def pullout_paper(research_id):
-    publication = Publication.query.filter(Publication.research_id==research_id).first()
-    if publication is None:
-        return jsonify({"message": "No publication."}), 400
-    
-    current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
-    if current_status.status is None:
-        return jsonify({"message": "No submission occured."}), 400
-    elif current_status.status == "PUBLISHED":
-        return jsonify({"message": "Paper already published"}), 400
-    else:
-        changed_status, error = insert_status(current_status.publication_id, "PULLOUT")
-        if error:
-                return jsonify({"error": "Database error occurred", "details": error}), 500
-        research_info = ResearchOutput.query.filter(ResearchOutput.research_id==research_id).first()
-            # Send email asynchronously (optional)
-        send_notification_email("[NOTIFICATION] NEW PULLED OUT PAPER",
-                                f'Research paper entitled: {research_info.title} from {research_info.college_id} {research_info.program_id if research_info.program_id !=None else ""} has been pulled out.')
+    try:
+        data = request.form
 
-        # Get the current user for audit trail
+        print("Incoming form data:", data)
+
+        publication = Publication.query.filter(Publication.research_id==research_id).first()
+        if publication is None:
+            return jsonify({"message": "No publication."}), 400
+        
+        current_status = Status.query.filter(Status.publication_id == publication.publication_id).order_by(desc(Status.timestamp)).first()
+        if not current_status or current_status.status is None:
+            return jsonify({"message": "No submission occurred."}), 400
+        elif current_status.status == "PUBLISHED":
+            return jsonify({"message": "Paper already published"}), 400
+        
+        Status.query.filter_by(publication_id=publication.publication_id).delete()
+
+        db.session.delete(publication)
+        db.session.commit()
+
+        research_info = ResearchOutput.query.filter(ResearchOutput.research_id==research_id).first()
+        if not research_info:
+            return jsonify({"error": "Research info not found"}), 404
+        
+        # Update remarks
+        if data.get('user_remarks'):
+            research_info.remarks = data.get('user_remarks')
+            db.session.commit()
+
+        # Send email asynchronously (optional)
+        send_notification_email("[NOTIFICATION] NEW PULLED OUT PAPER",
+                                f'Research paper entitled: {research_info.title} from {research_info.college_id} {research_info.program_id if research_info.program_id !=None else ""}, Remarks: {data.get("user_remarks")}.')
+
         current_user = Account.query.get(get_jwt_identity())
         if not current_user:
             return jsonify({"error": "Current user not found"}), 404
 
-        # Log audit trail here
         log_audit_trail(
             email=current_user.email,
             role=current_user.role.role_name,
             table_name='Publication and Status',
-            record_id=research_id,
-            operation='UPDATE',
-            action_desc='Updated research output status'
+            record_id=publication.publication_id,
+            operation='DELETE',
+            action_desc=f'Dropped Publication Details: {publication.publication_name}'
         )
-            
-        return jsonify({"message": "Status entry created successfully", "status_id": changed_status.status_id}), 201
+
+        return jsonify({"message": f'Publication Dropped successfully'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Something went wrong", "details": str(e)}), 500
 
 
 @track.route('/publication/<research_id>', methods=['GET', 'POST', 'PUT'])
