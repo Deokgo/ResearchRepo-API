@@ -347,18 +347,17 @@ class Institutional_Performance_Dash:
             dbc.Row(
                 [
                     dbc.Col(KPI_Card("Research Output(s)", "0", id="open-total-modal", icon="fas fa-book-open", color="primary"), width="auto"),
-                    dbc.Col(KPI_Card("Ready for Publication", "0", id="open-ready-modal", icon="fas fa-file-import", color="info"),width="auto"),
+                    dbc.Col(KPI_Card("Ready for Publication", "0", id="open-ready-modal", icon="fas fa-file-import", color="info"), width="auto"),
                     dbc.Col(KPI_Card("Submitted Paper(s)", "0", id="open-submitted-modal", icon="fas fa-file-export", color="warning"), width="auto"),
                     dbc.Col(KPI_Card("Accepted Paper(s)", "0", id="open-accepted-modal", icon="fas fa-check-circle", color="success"), width="auto"),
                     dbc.Col(KPI_Card("Published Paper(s)", "0", id="open-published-modal", icon="fas fa-file-alt", color="danger"), width="auto"),
-                    dbc.Col(KPI_Card("Pulled-out Paper(s)", "0", id="open-pullout-modal", icon="fas fa-file-excel", color="secondary"), width="auto")
+                    dbc.Col(KPI_Card("Pulled-out Paper(s)", "0", id="open-pullout-modal", icon="fas fa-file-excel", color="secondary"), width="auto", style={"display": "none"}),
                 ],
                 className="g-2",  # Mas maliit na gap
                 justify="center",
                 style={"padding-top": "0", "padding-bottom": "0", "margin-top": "-10px"}  # Tinaas ang row
             ),
         ], className="p-0", style={"padding-top": "0", "padding-bottom": "0"})
-
 
         self.dash_app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
