@@ -394,6 +394,17 @@ class Institutional_Performance_Dash:
                                 ),
                                 style={"height": "calc(100vh - 50px)", "overflow": "hidden"}
                             ),
+                            # Add this right after the dashboard-tabs div:
+                            html.Div(
+                                id="selected-filters-display",
+                                style={
+                                    "margin-top": "10px", 
+                                    "padding": "10px", 
+                                    "background-color": "#f8f9fa", 
+                                    "border-radius": "5px",
+                                    "font-size": "0.85rem"
+                                }
+                            ),
                             # Modals for each button
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Research Output(s)")),
@@ -1965,6 +1976,72 @@ class Institutional_Performance_Dash:
                              "overflow": "hidden",
                              "textOverflow": "ellipsis"
                          })
+        
+        @self.dash_app.callback(
+            Output("selected-filters-display", "children"),
+            [
+                Input("college", "value"),
+                Input("program", "value"),
+                Input("status", "value"),
+                Input("pub_form", "value"),
+                Input("terms", "value"),
+                Input("years", "value")
+            ]
+        )
+        def update_selected_filters_display(colleges, programs, statuses, pub_formats, terms, years):
+            """
+            Update the selected filters display at the bottom of the dashboard
+            """
+            if not any([colleges, programs, statuses, pub_formats, terms]):
+                return html.P("No filters selected. Displaying all data within the selected years.", style={"color": "#6c757d"})
+            
+            filter_sections = []
+            
+            # Add colleges section if any selected
+            if colleges:
+                filter_sections.append(html.Div([
+                    html.Strong("Colleges: "),
+                    html.Span(", ".join(colleges))
+                ], style={"margin-bottom": "5px"}))
+            
+            # Add programs section if any selected
+            if programs:
+                filter_sections.append(html.Div([
+                    html.Strong("Programs: "),
+                    html.Span(", ".join(programs))
+                ], style={"margin-bottom": "5px"}))
+            
+            # Add statuses section if any selected
+            if statuses:
+                filter_sections.append(html.Div([
+                    html.Strong("Status: "),
+                    html.Span(", ".join(statuses))
+                ], style={"margin-bottom": "5px"}))
+            
+            # Add publication formats section if any selected
+            if pub_formats:
+                filter_sections.append(html.Div([
+                    html.Strong("Publication Types: "),
+                    html.Span(", ".join(pub_formats))
+                ], style={"margin-bottom": "5px"}))
+            
+            # Add terms section if any selected
+            if terms:
+                filter_sections.append(html.Div([
+                    html.Strong("Terms: "),
+                    html.Span(", ".join(terms))
+                ], style={"margin-bottom": "5px"}))
+            
+            # Always include years
+            filter_sections.append(html.Div([
+                html.Strong("Years: "),
+                html.Span(f"{years[0]} - {years[1]}")
+            ], style={"margin-bottom": "5px"}))
+            
+            return html.Div([
+                html.H6("Selected Filters:", style={"color": "#08397C", "margin-bottom": "8px"}),
+                html.Div(filter_sections)
+            ])
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """
