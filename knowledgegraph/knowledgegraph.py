@@ -1009,9 +1009,13 @@ def create_kg_area(flask_app):
          Output('threshold-store', 'data')],
         [Input('parent-sdg-store', 'data'),
          Input('year-slider', 'value'),
-         Input('college-dropdown', 'value')]
+         Input('college-dropdown', 'value'),
+         Input('threshold-slider', 'value')]
     )
-    def update_threshold_range(parent_sdg, year_range, selected_colleges):
+    def update_threshold_range(parent_sdg, year_range, selected_colleges, current_threshold):
+        ctx = callback_context
+        triggered_by = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+        
         if parent_sdg:
             try:
                 research_areas_df = get_filtered_research_area_counts(
@@ -1030,22 +1034,30 @@ def create_kg_area(flask_app):
                         min_threshold,
                         int(research_areas_df['study_count'].quantile(0.25))
                     )
-
+                    
+                    # If triggered by threshold slider, keep the current value
+                    # Otherwise, use the default value
+                    value_to_use = current_threshold if triggered_by == 'threshold-slider' else default_value
+                    
+                    # Create marks dictionary with min, max and current value
                     marks = {
                         min_threshold: {'label': str(min_threshold), 'style': {'color': '#08397C'}},
-                        default_value: {'label': str(default_value), 'style': {'color': '#08397C'}},
                         max_threshold: {'label': str(max_threshold), 'style': {'color': '#08397C'}}
                     }
-
-                    return max_threshold, default_value, marks, default_value
+                    
+                    # Add mark for current value if different from min/max
+                    if value_to_use != min_threshold and value_to_use != max_threshold:
+                        marks[value_to_use] = {'label': str(value_to_use), 'style': {'color': '#08397C', 'fontWeight': 'bold'}}
+                    
+                    return max_threshold, value_to_use, marks, value_to_use
 
             except Exception as e:
                 print(f"Error updating threshold: {e}")
                 import traceback
                 print(traceback.format_exc())
 
-        return dash.no_update, 1, dash.no_update, 1
-    
+            return dash.no_update, 1, dash.no_update, 1
+
     dash_app.clientside_callback(
         """
         function(n_clicks, research_id) {
