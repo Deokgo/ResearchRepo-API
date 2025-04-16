@@ -15,6 +15,9 @@ from . import db_manager
 from services.sdg_colors import sdg_colors
 import json
 from dash import clientside_callback
+import dash_bootstrap_components as dbc
+from dash import callback_context
+import os
 
 # Enable dragging featureF
 dragmode = 'pan'  # Allows users to move the graph freely
@@ -291,7 +294,10 @@ def create_kg_area(flask_app):
     edge_trace, sdg_images = build_traces(G, [], pos=pos, show_labels=True)
 
     # Initialize Dash app
-    dash_app = Dash(__name__, server=flask_app, url_base_pathname='/knowledgegraph/')
+    dash_app = Dash(__name__, 
+                   server=flask_app, 
+                   url_base_pathname='/knowledgegraph/',
+                   external_stylesheets=[dbc.themes.BOOTSTRAP])  # Add Bootstrap theme
 
     # Define styles as Python dictionaries
     styles = {
@@ -514,19 +520,19 @@ def create_kg_area(flask_app):
                 ),
             ], id='threshold-container', style={'display': 'none'}),
 
-            # Instructions below filters
+            # Tour button
             html.Div([
-                html.P('💡 How to use the Knowledge Graph:', style=styles['instructions_title']),
-                html.Ul([
-                    html.Li('Click on any SDG icon to view its research areas'),
-                    html.Li('In SDG detail view:'),
-                    html.Ul([
-                        html.Li('Pan by dragging the graph'),
-                        html.Li('Zoom using mouse wheel or pinch gesture'),
-                        html.Li('Click research areas to view related studies'),
-                        html.Li('Click the same SDG again to return to overview')
-                    ], style=styles['instructions_sublist'])
-                ], style=styles['instructions_list'])
+                dbc.Button(
+                    "💡 Take a Tour", 
+                    id='tour-button',
+                    color="primary",
+                    className="w-100 mb-0",
+                    style={
+                        'backgroundColor': '#08397C',
+                        'fontSize': '14px',
+                        'borderRadius': '4px'
+                    }
+                ),
             ], style=styles['instructions_container']),
             
         ], style=styles['filter_container']),
@@ -565,6 +571,87 @@ def create_kg_area(flask_app):
         # Side Panel for Studies
         html.Div(id='side-panel', style={'display': 'none'}),
         
+        # Tour Modal - place it outside other containers at the layout root level
+        dbc.Modal(
+            [
+                dbc.ModalHeader("Knowledge Graph Tour", close_button=True),
+                dbc.ModalBody([
+                    # Page 1
+                    html.Div([
+                        html.H4("Overall SDG View", className="text-center", style={"marginTop": "0", "marginBottom": "10px"}),
+                        html.Img(
+                            src="/static/assets/sdg_tour/overallsdg.png",
+                            style={"width": "100%", "marginBottom": "10px", "maxHeight": "300px", "objectFit": "contain"}
+                        ),
+                        html.Div([
+                            html.H5("Understanding the Overall SDG View", style={"marginTop": "0", "marginBottom": "5px"}),
+                            html.Ul([
+                                html.Li("Each icon represents a Sustainable Development Goal (SDG)"),
+                                html.Li("The size of each icon indicates the volume of research for that SDG"),
+                                html.Li("Click on any SDG icon to explore its research areas in detail"),
+                                html.Li("Use the filters on the left to refine by year range and college")
+                            ], style={"marginBottom": "0", "paddingLeft": "20px"})
+                        ], style={"backgroundColor": "#f8f9fa", "padding": "10px", "borderRadius": "5px"})
+                    ], id="tour-page-1"),
+                    
+                    # Page 2
+                    html.Div([
+                        html.H4("SDG Detail View", className="text-center", style={"marginTop": "0", "marginBottom": "10px"}),
+                        html.Img(
+                            src="/static/assets/sdg_tour/sdgdetails.png",
+                            style={"width": "100%", "marginBottom": "10px", "maxHeight": "300px", "objectFit": "contain"}
+                        ),
+                        html.Div([
+                            html.H5("Exploring a Specific SDG", style={"marginTop": "0", "marginBottom": "5px"}),
+                            html.Ul([
+                                html.Li("The central icon is the selected SDG"),
+                                html.Li("Surrounding nodes represent research areas related to this SDG"),
+                                html.Li("Larger research area nodes indicate more studies in that area"),
+                                html.Li("Click on the same SDG again to return to the overall view")
+                            ], style={"marginBottom": "0", "paddingLeft": "20px"})
+                        ], style={"backgroundColor": "#f8f9fa", "padding": "10px", "borderRadius": "5px"})
+                    ], id="tour-page-2", style={"display": "none"}),
+                    
+                    # Page 3
+                    html.Div([
+                        html.H4("Research Studies View", className="text-center", style={"marginTop": "0", "marginBottom": "10px"}),
+                        html.Img(
+                            src="/static/assets/sdg_tour/studyview.png",
+                            style={"width": "100%", "marginBottom": "10px", "maxHeight": "300px", "objectFit": "contain"}
+                        ),
+                        html.Div([
+                            html.H5("Viewing Research Studies", style={"marginTop": "0", "marginBottom": "5px"}),
+                            html.Ul([
+                                html.Li("Click on any research area to see related studies"),
+                                html.Li("The side panel shows all studies in the selected research area"),
+                                html.Li("Click 'View Details' to see the full study information"),
+                                html.Li("Click the X to close the studies panel")
+                            ], style={"marginBottom": "0", "paddingLeft": "20px"})
+                        ], style={"backgroundColor": "#f8f9fa", "padding": "10px", "borderRadius": "5px"})
+                    ], id="tour-page-3", style={"display": "none"}),
+                    
+                    # Navigation buttons centered at the bottom with reduced margin
+                    html.Div([
+                        dbc.Button("← Previous", id="prev-page", color="primary", 
+                                  className="me-2", style={"backgroundColor": "#08397C"}),
+                        dbc.Button("Next →", id="next-page", color="primary",
+                                  style={"backgroundColor": "#08397C"}),
+                    ], style={"display": "flex", "justifyContent": "center", "marginTop": "10px"})
+                ]),
+            ],
+            id="tour-modal",
+            size="lg",
+            is_open=False,
+            centered=True,
+            style={
+                "zIndex": 9999,
+                "maxWidth": "800px",
+                "position": "fixed",
+                "top": "50%",
+                "left": "50%",
+                "transform": "translate(-50%, -50%)"
+            }
+        ),
     ], style=styles['main_container'])
 
     # Add a simple callback to test clicks
@@ -978,5 +1065,76 @@ def create_kg_area(flask_app):
         State({'type': 'research-id', 'index': MATCH}, 'children'),
         prevent_initial_call=True
     )
+
+    # Make sure this callback is defined AFTER the layout
+    @dash_app.callback(
+        Output("tour-modal", "is_open"),
+        [Input("tour-button", "n_clicks")],
+        [State("tour-modal", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_tour_modal(n_clicks, is_open):
+        print(f"Toggle tour modal callback triggered. n_clicks: {n_clicks}, is_open: {is_open}")
+        if n_clicks:
+            print(f"Opening tour modal, current state: {is_open}, setting to: {not is_open}")
+            return not is_open
+        return is_open
+
+    # Update the callback to also disable the Next button on the last page
+    @dash_app.callback(
+        [Output("tour-page-1", "style"), 
+         Output("tour-page-2", "style"), 
+         Output("tour-page-3", "style"),
+         Output("prev-page", "disabled"),
+         Output("next-page", "disabled")],
+        [Input("prev-page", "n_clicks"), 
+         Input("next-page", "n_clicks"),
+         Input("tour-button", "n_clicks")],
+        [State("tour-page-1", "style"), 
+         State("tour-page-2", "style"), 
+         State("tour-page-3", "style")],
+        prevent_initial_call=True
+    )
+    def navigate_tour(prev_clicks, next_clicks, tour_button_clicks, page1_style, page2_style, page3_style):
+        print(f"Navigate tour callback triggered")
+        ctx = callback_context
+        if not ctx.triggered:
+            return {"display": "block"}, {"display": "none"}, {"display": "none"}, True, False
+        
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        print(f"Button clicked: {button_id}")
+        
+        # Reset to first page when opening tour
+        if button_id == "tour-button":
+            print("Tour button clicked - resetting to first page")
+            return {"display": "block"}, {"display": "none"}, {"display": "none"}, True, False
+        
+        # Determine current page
+        current_page = 1
+        if page2_style and page2_style.get("display") == "block":
+            current_page = 2
+        elif page3_style and page3_style.get("display") == "block":
+            current_page = 3
+        
+        print(f"Current page: {current_page}")
+        
+        # Navigate
+        if button_id == "next-page" and current_page < 3:
+            current_page += 1
+        elif button_id == "prev-page" and current_page > 1:
+            current_page -= 1
+        
+        print(f"New page: {current_page}")
+        
+        # Set styles based on current page
+        page1_display = {"display": "block"} if current_page == 1 else {"display": "none"}
+        page2_display = {"display": "block"} if current_page == 2 else {"display": "none"}
+        page3_display = {"display": "block"} if current_page == 3 else {"display": "none"}
+        
+        # Enable/disable buttons
+        prev_disabled = current_page == 1
+        next_disabled = current_page == 3  # Disable Next button on last page
+        
+        return page1_display, page2_display, page3_display, prev_disabled, next_disabled
 
     return dash_app
