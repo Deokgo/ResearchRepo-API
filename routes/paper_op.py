@@ -29,8 +29,12 @@ from flask_cors import cross_origin
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import pandas as pd
-from io import StringIO
+from io import StringIO, BytesIO
 import re
+import pikepdf
+from pikepdf import Pdf
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
 paper = Blueprint('paper', __name__)
 UPLOAD_FOLDER = './research_repository'
@@ -500,6 +504,66 @@ def update_paper(research_id):
     finally:
         db.session.close()
 
+def add_footer_to_pdf(input_path, source_url="https://mmcl-researchrepository.com/"):
+    """
+    Adds a footer to each page of a PDF file with source URL and download date
+    """
+    try:
+        # Get current date in Philippine timezone
+        philippine_tz = pytz.timezone('Asia/Manila')
+        current_date = datetime.now(philippine_tz).strftime("%B %d, %Y")
+        
+        # Footer text
+        footer_text = f"Downloaded from {source_url} on {current_date}"
+        
+        # Create an in-memory output PDF
+        output_buffer = BytesIO()
+        
+        # Use pikepdf for the operation
+        with pikepdf.open(input_path) as pdf:
+            # For each page in the PDF
+            for i, page in enumerate(pdf.pages):
+                # Get the MediaBox which defines page boundaries
+                mediabox = page.MediaBox
+                
+                # Calculate page dimensions properly
+                x0, y0, x1, y1 = [float(mediabox[i]) for i in range(4)]
+                width = x1 - x0
+                height = y1 - y0
+                
+                # Create a new PDF with ReportLab to draw the footer
+                temp_buffer = BytesIO()
+                c = canvas.Canvas(temp_buffer, pagesize=(width, height))
+                
+                # Set font properties for better visibility
+                c.setFont("Helvetica", 10)
+                c.setFillColorRGB(0.3, 0.3, 0.3)  # Darker gray for better visibility
+                
+                # Position at bottom of page (higher y value to be visible)
+                y_position = 30  # Higher position from bottom
+                c.drawCentredString(width/2, y_position, footer_text)
+                c.save()
+                
+                # Get the content as a PDF
+                temp_buffer.seek(0)
+                overlay_pdf = pikepdf.open(temp_buffer)
+                
+                # Apply the overlay to the current page
+                page.add_overlay(overlay_pdf.pages[0])
+            
+            # Save the modified PDF to the output buffer
+            pdf.save(output_buffer)
+        
+        # Return buffer at beginning for reading
+        output_buffer.seek(0)
+        return output_buffer
+        
+    except Exception as e:
+        # Print detailed error for debugging
+        print(f"Error adding footer to PDF: {str(e)}")
+        traceback.print_exc()  # Print the full traceback for debugging
+        return None
+
 @paper.route('/view_manuscript/<research_id>', methods=['GET'])
 def view_manuscript(research_id):
     try:
@@ -516,8 +580,20 @@ def view_manuscript(research_id):
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
 
-        # Send the file for viewing and downloading
-        return send_file(file_path, as_attachment=False)
+        # Add footer to the PDF
+        pdf_with_footer = add_footer_to_pdf(file_path)
+        
+        if pdf_with_footer:
+            # Send the modified file with footer
+            return send_file(
+                pdf_with_footer, 
+                mimetype='application/pdf',
+                as_attachment=False,
+                download_name=f"{research_id}_manuscript.pdf"
+            )
+        else:
+            # If footer addition fails, fall back to original file
+            return send_file(file_path, as_attachment=False)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
@@ -665,8 +741,20 @@ def view_extended_abstract(research_id):
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
 
-        # Send the file for viewing
-        return send_file(file_path, as_attachment=False)
+        # Add footer to the PDF
+        pdf_with_footer = add_footer_to_pdf(file_path)
+        
+        if pdf_with_footer:
+            # Send the modified file with footer
+            return send_file(
+                pdf_with_footer, 
+                mimetype='application/pdf',
+                as_attachment=False,
+                download_name=f"{research_id}_extended_abstract.pdf"
+            )
+        else:
+            # If footer addition fails, fall back to original file
+            return send_file(file_path, as_attachment=False)
     except Exception as e:
         print(str(e))
         return jsonify({"error": str(e)}), 500
