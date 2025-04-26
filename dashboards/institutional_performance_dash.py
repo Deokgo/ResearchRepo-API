@@ -394,15 +394,12 @@ class Institutional_Performance_Dash:
                                 ),
                                 style={"height": "calc(100vh - 50px)", "overflow": "hidden"}
                             ),
-                            # Add this right after the dashboard-tabs div:
                             html.Div(
                                 id="selected-filters-display",
                                 style={
-                                    "margin-top": "10px", 
-                                    "padding": "10px", 
-                                    "background-color": "#f8f9fa", 
-                                    "border-radius": "5px",
-                                    "font-size": "0.85rem"
+                                    "margin-top": "10px",
+                                    "margin-bottom": "10px",
+                                    "width": "100%"
                                 }
                             ),
                             # Modals for each button
@@ -1990,58 +1987,158 @@ class Institutional_Performance_Dash:
         )
         def update_selected_filters_display(colleges, programs, statuses, pub_formats, terms, years):
             """
-            Update the selected filters display at the bottom of the dashboard
+            Update the selected filters display in a single line format
             """
             if not any([colleges, programs, statuses, pub_formats, terms]):
-                return html.P("No filters selected. Displaying all data within the selected years.", style={"color": "#6c757d"})
+                return html.Div([
+                    html.I(className="fas fa-info-circle me-2"),
+                    html.Span("No specific filters selected. Displaying all data within the selected years."),
+                ], style={
+                    "padding": "10px",
+                    "background-color": "#e9ecef",
+                    "border-left": "4px solid #6c757d",
+                    "border-radius": "4px",
+                    "color": "#495057",
+                    "font-style": "italic"
+                })
             
-            filter_sections = []
+            filter_tags = []
             
-            # Add colleges section if any selected
+            # Color mappings for different filter types
+            colors = {
+                "colleges": {"bg": "#cfe2ff", "border": "#0d6efd", "text": "#084298"},
+                "programs": {"bg": "#d1e7dd", "border": "#198754", "text": "#0f5132"},
+                "statuses": {"bg": "#fff3cd", "border": "#ffc107", "text": "#664d03"},
+                "pub_formats": {"bg": "#f8d7da", "border": "#dc3545", "text": "#842029"},
+                "terms": {"bg": "#e2e3e5", "border": "#6c757d", "text": "#41464b"},
+                "years": {"bg": "#dff1fb", "border": "#0dcaf0", "text": "#055160"}
+            }
+            
+            # Add colleges as tags
             if colleges:
-                filter_sections.append(html.Div([
-                    html.Strong("Colleges: "),
-                    html.Span(", ".join(colleges))
-                ], style={"margin-bottom": "5px"}))
+                for college in colleges:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-university me-1", style={"font-size": "0.75rem"}),
+                        college
+                    ], style={
+                        "background-color": colors["colleges"]["bg"],
+                        "border": f"1px solid {colors['colleges']['border']}",
+                        "color": colors["colleges"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
             
-            # Add programs section if any selected
+            # Add programs as tags
             if programs:
-                filter_sections.append(html.Div([
-                    html.Strong("Programs: "),
-                    html.Span(", ".join(programs))
-                ], style={"margin-bottom": "5px"}))
+                for program in programs:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-graduation-cap me-1", style={"font-size": "0.75rem"}),
+                        program
+                    ], style={
+                        "background-color": colors["programs"]["bg"],
+                        "border": f"1px solid {colors['programs']['border']}",
+                        "color": colors["programs"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
             
-            # Add statuses section if any selected
+            # Add statuses as tags
             if statuses:
-                filter_sections.append(html.Div([
-                    html.Strong("Status: "),
-                    html.Span(", ".join(statuses))
-                ], style={"margin-bottom": "5px"}))
+                for status in statuses:
+                    status_icon = {
+                        "READY": "fas fa-file-import",
+                        "SUBMITTED": "fas fa-file-export",
+                        "ACCEPTED": "fas fa-check-circle",
+                        "PUBLISHED": "fas fa-file-alt",
+                        "PULLOUT": "fas fa-file-excel"
+                    }.get(status, "fas fa-tag")
+                    
+                    filter_tags.append(html.Span([
+                        html.I(className=f"{status_icon} me-1", style={"font-size": "0.75rem"}),
+                        status
+                    ], style={
+                        "background-color": colors["statuses"]["bg"],
+                        "border": f"1px solid {colors['statuses']['border']}",
+                        "color": colors["statuses"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
             
-            # Add publication formats section if any selected
+            # Add publication formats as tags
             if pub_formats:
-                filter_sections.append(html.Div([
-                    html.Strong("Publication Types: "),
-                    html.Span(", ".join(pub_formats))
-                ], style={"margin-bottom": "5px"}))
+                for pub_format in pub_formats:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-book me-1", style={"font-size": "0.75rem"}),
+                        pub_format
+                    ], style={
+                        "background-color": colors["pub_formats"]["bg"],
+                        "border": f"1px solid {colors['pub_formats']['border']}",
+                        "color": colors["pub_formats"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
             
-            # Add terms section if any selected
+            # Add terms as tags
             if terms:
-                filter_sections.append(html.Div([
-                    html.Strong("Terms: "),
-                    html.Span(", ".join(terms))
-                ], style={"margin-bottom": "5px"}))
+                for term in terms:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-calendar-alt me-1", style={"font-size": "0.75rem"}),
+                        term
+                    ], style={
+                        "background-color": colors["terms"]["bg"],
+                        "border": f"1px solid {colors['terms']['border']}",
+                        "color": colors["terms"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
             
-            # Always include years
-            filter_sections.append(html.Div([
-                html.Strong("Years: "),
-                html.Span(f"{years[0]} - {years[1]}")
-            ], style={"margin-bottom": "5px"}))
+            # Add years as a single tag
+            if years:
+                filter_tags.append(html.Span([
+                    html.I(className="fas fa-clock me-1", style={"font-size": "0.75rem"}),
+                    f"{years[0]} - {years[1]}"
+                ], style={
+                    "background-color": colors["years"]["bg"],
+                    "border": f"1px solid {colors['years']['border']}",
+                    "color": colors["years"]["text"],
+                    "margin": "0 5px 0 0",
+                    "padding": "3px 8px",
+                    "border-radius": "16px",
+                    "display": "inline-block",
+                    "font-size": "0.75rem"
+                }))
             
+            # Create the single-line filter display
             return html.Div([
-                html.H6("Selected Filters:", style={"color": "#08397C", "margin-bottom": "8px"}),
-                html.Div(filter_sections)
-            ])
+                html.Span([
+                    html.I(className="fas fa-filter me-2", style={"color": "#08397C"}),
+                    "Active Filters: "
+                ], style={"font-weight": "600", "color": "#08397C", "margin-right": "10px", "white-space": "nowrap"}),
+                html.Div(filter_tags, style={"display": "inline-flex", "flex-wrap": "wrap", "align-items": "center"})
+            ], style={
+                "display": "flex",
+                "align-items": "center",
+                "padding": "8px 15px",
+                "background-color": "#f8f9fa",
+                "border-radius": "8px",
+                "border": "1px solid #dee2e6",
+                "box-shadow": "0 1px 3px rgba(0,0,0,0.05)"
+            })
 
     def get_user_specific_data(self, user_id, role_id, college_id=None, program_id=None):
         """
