@@ -68,6 +68,7 @@ class SDG_Impact_College:
         self.default_programs = []
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+        self.default_pub_format = db_manager.get_unique_values('journal')[db_manager.get_unique_values('journal') != "unpublished"]
         
         # Add user database managers dictionary
         self.user_db_managers = {}
@@ -168,6 +169,18 @@ class SDG_Impact_College:
             ],
              className="mb-4",
         )
+
+        pub_formats = sorted([value for value in db_manager.get_unique_values('journal') if value.lower() != 'unpublished'])
+        pub_form = html.Div( [
+            dbc.Label("Select Publication Type/s:", style={"color": "#08397C"}),
+            dbc.Checklist(
+                id='pub_form',
+                options=[{'label': value, 'value': value} for value in pub_formats],
+                value=[],
+                inline=True,
+            ),
+        ], className="mb-4", )
+
         # Collage Section
         self.collage = dbc.Container([
             dbc.Row([
@@ -310,6 +323,7 @@ class SDG_Impact_College:
             college,
             program,
             status,
+            pub_form,
             slider,
             button
         ], width=2, className="p-3", 
@@ -364,12 +378,13 @@ class SDG_Impact_College:
             [Output('program', 'value'),
             Output('status', 'value'),
             Output('years', 'value'),
-            Output('sdg-dropdown', 'value')],
+            Output('sdg-dropdown', 'value'),
+            Output('pub_form', 'value')],
             [Input('reset_button', 'n_clicks')],
             prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')], "ALL"
+            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')], "ALL",[]
 
         # Update header based on URL parameters
         @self.dash_app.callback(

@@ -34,6 +34,7 @@ class SDG_Impact_Dash:
         self.default_colleges = db_manager.get_unique_values('college_id')
         self.default_statuses = db_manager.get_unique_values('status')
         self.default_years = [db_manager.get_min_value('year'), db_manager.get_max_value('year')]
+        self.default_pub_format = db_manager.get_unique_values('journal')[db_manager.get_unique_values('journal') != "unpublished"]
         
 
         self.set_layout()
@@ -119,6 +120,24 @@ class SDG_Impact_Dash:
             ],
              className="mb-4",
         )
+
+        pub_formats = sorted([value for value in db_manager.get_unique_values('journal') if value.lower() != 'unpublished'])
+        pub_form = html.Div( [
+            dbc.Label("Select Publication Type/s:", style={"color": "#08397C"}),
+            dbc.Checklist(
+                id='pub_form',
+                options=[{'label': value, 'value': value} for value in pub_formats],
+                value=[],
+                inline=True,
+            ),
+        ], className="mb-4", )
+
+        pub_form_container = html.Div(
+            id="pub_form_container",
+            children=[pub_form]
+        )
+
+
         # Collage Section
         self.collage = dbc.Container([
             dbc.Row([
@@ -262,6 +281,7 @@ class SDG_Impact_Dash:
             sdgs,
             college,
             status,
+            pub_form_container,
             slider,
             button
         ], width=2, className="p-3", 
@@ -276,9 +296,11 @@ class SDG_Impact_Dash:
                     ("Institutional SDG Impact", self.collage),
                     ("Global Research Proceedings", self.map),
                     ("Research Trends and Collaboration", self.trend)
-                ]
+                ],
+                tabs_id="tabs"  # Now you can pass an id here
             )),
         ], width=10, className="p-3", style={"marginLeft": "16.67%"})
+
 
 
 
@@ -299,15 +321,25 @@ class SDG_Impact_Dash:
 
     def add_callbacks(self):
         @self.dash_app.callback(
+            Output("pub_form_container", "style"),
+            Input("tabs", "active_tab")  # This refers to the id of the Tabs component
+        )
+        def toggle_pub_form(active_tab):
+            if active_tab == "tab-2":  # "tab-2" corresponds to the second tab
+                return {"display": "none"}
+            else:
+                return {"display": "block"}
+        @self.dash_app.callback(
             [Output('college', 'value'),
             Output('status', 'value'),
             Output('years', 'value'),
-            Output('sdg-dropdown', 'value')],
+            Output('sdg-dropdown', 'value'),
+            Output('pub_form', 'value')],
             [Input('reset_button', 'n_clicks')],
             prevent_initial_call=True
         )
         def reset_filters(n_clicks):
-            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')], "ALL"
+            return [], [], [db_manager.get_min_value('year'), db_manager.get_max_value('year')], "ALL",[]
 
         @self.dash_app.callback(
             Output("dynamic-header", "children"),
@@ -335,42 +367,52 @@ class SDG_Impact_Dash:
             return DashboardHeader(left_text=college, title=f"SDG IMPACT DASHBOARD ")
     
         @self.dash_app.callback(
-            Output('sdg-time-series', 'figure'),                
+            Output('sdg-time-series', 'figure'),
             [Input('college', 'value'), 
             Input('status', 'value'), 
             Input('years', 'value'),
-            Input('sdg-dropdown', 'value')]
-            )
-        def update_all(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]
+        )
+        def update_all(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return create_sdg_plot(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
-        
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return create_sdg_plot(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
+
         @self.dash_app.callback(
-            Output('sdg-pie', 'figure'),                
+            Output('sdg-pie', 'figure'),
             [Input('college', 'value'), 
             Input('status', 'value'), 
             Input('years', 'value'),
-            Input('sdg-dropdown', 'value')]
-            )
-        def update_all(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]
+        )
+        def update_all_pie(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return visualize_sdg_impact(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return visualize_sdg_impact(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
+
         @self.dash_app.callback(
             Output('sdg-research-type', 'figure'),
             [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
+            Input('status', 'value'), 
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]  # <--- Added here
         )
-        def update_fig1(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        def update_fig1(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return create_sdg_research_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value)
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return create_sdg_research_chart(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
         @self.dash_app.callback(
             Output('sdg-map', 'figure'),
             [Input('college', 'value'), 
@@ -423,39 +465,50 @@ class SDG_Impact_Dash:
         @self.dash_app.callback(
             Output('word-cloud', 'figure'),
             [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
+            Input('status', 'value'), 
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]  # Added pub_form here
         )
-        def update_fig(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        def update_fig(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return get_word_cloud(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return get_word_cloud(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
+
         @self.dash_app.callback(
             Output('research-areas', 'figure'),
             [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
+            Input('status', 'value'), 
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]  # Added pub_form here
         )
-        def update_fig(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        def update_fig(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return generate_research_area_visualization(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return generate_research_area_visualization(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
+
         @self.dash_app.callback(
             Output('sdg-graph', 'figure'),
             [Input('college', 'value'), 
-             Input('status', 'value'), 
-             Input('years', 'value'),
-             Input('sdg-dropdown', 'value')]
+            Input('status', 'value'), 
+            Input('years', 'value'),
+            Input('sdg-dropdown', 'value'),
+            Input('pub_form', 'value')]  # Added pub_form here
         )
-        def update_fig(selected_colleges, selected_status, selected_years,sdg_dropdown_value):
+        def update_fig(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form):
             selected_colleges = default_if_empty(selected_colleges, self.default_colleges)
             selected_status = default_if_empty(selected_status, self.default_statuses)
             selected_years = selected_years if selected_years else self.default_years
-            return generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+            selected_pub_form = default_if_empty(selected_pub_form, self.default_pub_format)
+            return generate_sdg_bipartite_graph(selected_colleges, selected_status, selected_years, sdg_dropdown_value, selected_pub_form)
+
         @self.dash_app.callback([
                 Output("alert-message", "children"),
                 Output("alert-message", "color")],  # ✅ Change color dynamically

@@ -21,7 +21,7 @@ from config import stop_words,lemmatizer
 from collections import Counter
 from nltk.tag import pos_tag
 
-def create_sdg_plot(selected_programs, selected_status, selected_years, sdg_dropdown_value,selected_college):
+def create_sdg_plot(selected_programs, selected_status, selected_years, sdg_dropdown_value,selected_college,selected_pub_form):
     all_sdgs = [f'SDG {i}' for i in range(1, 18)]
     
     if isinstance(selected_programs, np.ndarray):
@@ -36,6 +36,7 @@ def create_sdg_plot(selected_programs, selected_status, selected_years, sdg_drop
         end_year=max_year,
         sdg_filter=[sdg_dropdown_value] if sdg_dropdown_value != "ALL" else None,
         status_filter=selected_status,
+        pub_format_filter=selected_pub_form,
         college_filter=[selected_college],
         program_filter=selected_programs
     )
