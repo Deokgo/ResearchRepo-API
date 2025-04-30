@@ -379,11 +379,12 @@ class Institutional_Performance_Dash:
                     ),
                     dbc.Col(
                         html.Div([
-                            html.Div(id="dynamic-header", style={"margin-bottom": "20px", "padding-top": "10px"}),
+                            # Modified this area to reduce space between elements
+                            html.Div(id="dynamic-header", style={"margin-bottom": "5px", "padding-top": "10px"}),
                             html.Div(
                                 id="selected-filters-display",
                                 style={
-                                    "margin-top": "10px",
+                                    "margin-top": "5px", # Reduced from 10px
                                     "margin-bottom": "10px",
                                     "width": "100%"
                                 }
