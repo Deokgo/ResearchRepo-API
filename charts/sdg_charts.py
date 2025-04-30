@@ -296,7 +296,7 @@ def create_sdg_research_chart(selected_colleges, selected_status, selected_years
             title=f"Research Type Distribution for {sdg_dropdown_value}",
             labels={"research_type_name": "Research Type", "research_count": "Research Count", "sdg": "SDG"},
             template="plotly_white",
-            color_discrete_sequence=px.colors.qualitative.Set2,
+            color_discrete_sequence=px.colors.qualitative.Safe,
             barmode="stack",
             category_orders={"sdg": all_sdgs}  # Ensures SDGs are ordered correctly
         )

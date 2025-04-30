@@ -287,19 +287,30 @@ class SDG_Impact_Dash:
         ], width=2, className="p-3", 
         style={"background": "#d3d8db", "height": "100vh", "position": "fixed", "left": 0, "top": 0, "zIndex": 1000})
 
-
         main_content = dbc.Col([
             dcc.Location(id="url", refresh=False),
             html.Div(id="dynamic-header"),
+            
+            html.Div(
+                id="selected-filters-display",
+                style={
+                    "margin-top": "10px",
+                    "margin-bottom": "10px",
+                    "width": "100%"
+                }
+            ),
+            
             html.Div(id="tabs-container", children=Tabs(
                 tabs_data=[
                     ("Institutional SDG Impact", self.collage),
                     ("Global Research Proceedings", self.map),
                     ("Research Trends and Collaboration", self.trend)
                 ],
-                tabs_id="tabs"  # Now you can pass an id here
+                tabs_id="tabs"
             )),
+            
         ], width=10, className="p-3", style={"marginLeft": "16.67%"})
+
 
 
 
@@ -365,6 +376,164 @@ class SDG_Impact_Dash:
             else:
                 view="Unknown"
             return DashboardHeader(left_text=college, title=f"SDG IMPACT DASHBOARD ")
+        
+                # --- Your callback ---
+        @self.dash_app.callback(
+            Output("selected-filters-display", "children"),
+            [
+                Input("college", "value"),
+                Input("status", "value"),
+                Input("pub_form", "value"),
+                Input('sdg-dropdown', 'value'),
+                Input("years", "value")
+            ]
+        )
+        def update_selected_filters_display(colleges,statuses, pub_formats, sdg_dropdown,years):
+            """
+            Update the selected filters display in a single line format
+            """
+            print("Callback triggered:", colleges,  statuses, pub_formats,sdg_dropdown, years)
+
+            if not any([colleges, statuses, pub_formats,sdg_dropdown, years]):
+                return html.Div([
+                    html.I(className="fas fa-info-circle me-2"),
+                    html.Span("No specific filters selected. Displaying all data within the selected years."),
+                ], style={
+                    "padding": "10px",
+                    "background-color": "#e9ecef",
+                    "border-left": "4px solid #6c757d",
+                    "border-radius": "4px",
+                    "color": "#495057",
+                    "font-style": "italic"
+                })
+
+            filter_tags = []
+
+            colors = {
+                "colleges": {"bg": "#cfe2ff", "border": "#0d6efd", "text": "#084298"},
+                "programs": {"bg": "#d1e7dd", "border": "#198754", "text": "#0f5132"},
+                "statuses": {"bg": "#fff3cd", "border": "#ffc107", "text": "#664d03"},
+                "pub_formats": {"bg": "#f8d7da", "border": "#dc3545", "text": "#842029"},
+                "sdg_dropdown": {"bg": "#e2e3e5", "border": "#6c757d", "text": "#41464b"},
+                "years": {"bg": "#dff1fb", "border": "#0dcaf0", "text": "#055160"}
+            }
+
+            # Add SDG as tags
+            if sdg_dropdown:
+                if sdg_dropdown=="ALL":
+                    sdg_dropdown="ALL SDG"
+                filter_tags.append(html.Span([
+                    html.I(className="fas fa-bullseye me-1", style={"font-size": "0.75rem"}),
+                    sdg_dropdown
+                ], style={
+                    "background-color": colors["sdg_dropdown"]["bg"],
+                    "border": f"1px solid {colors['sdg_dropdown']['border']}",
+                    "color": colors["sdg_dropdown"]["text"],
+                    "margin": "0 5px 0 0",
+                    "padding": "3px 8px",
+                    "border-radius": "16px",
+                    "display": "inline-block",
+                    "font-size": "0.75rem"
+                }))
+
+
+            # Colleges
+            if colleges:
+                for college in colleges:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-university me-1", style={"font-size": "0.75rem"}),
+                        college
+                    ], style={
+                        "background-color": colors["colleges"]["bg"],
+                        "border": f"1px solid {colors['colleges']['border']}",
+                        "color": colors["colleges"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+
+          
+            # Statuses
+            if statuses:
+                for status in statuses:
+                    status_icon = {
+                        "READY": "fas fa-file-import",
+                        "SUBMITTED": "fas fa-file-export",
+                        "ACCEPTED": "fas fa-check-circle",
+                        "PUBLISHED": "fas fa-file-alt",
+                        "PULLOUT": "fas fa-file-excel"
+                    }.get(status, "fas fa-tag")
+
+                    filter_tags.append(html.Span([
+                        html.I(className=f"{status_icon} me-1", style={"font-size": "0.75rem"}),
+                        status
+                    ], style={
+                        "background-color": colors["statuses"]["bg"],
+                        "border": f"1px solid {colors['statuses']['border']}",
+                        "color": colors["statuses"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+
+            # Publication formats
+            if pub_formats:
+                for pub_format in pub_formats:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-book me-1", style={"font-size": "0.75rem"}),
+                        pub_format
+                    ], style={
+                        "background-color": colors["pub_formats"]["bg"],
+                        "border": f"1px solid {colors['pub_formats']['border']}",
+                        "color": colors["pub_formats"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+
+            # Years
+            if years:
+                filter_tags.append(html.Span([
+                    html.I(className="fas fa-clock me-1", style={"font-size": "0.75rem"}),
+                    f"{years[0]} - {years[1]}"
+                ], style={
+                    "background-color": colors["years"]["bg"],
+                    "border": f"1px solid {colors['years']['border']}",
+                    "color": colors["years"]["text"],
+                    "margin": "0 5px 0 0",
+                    "padding": "3px 8px",
+                    "border-radius": "16px",
+                    "display": "inline-block",
+                    "font-size": "0.75rem"
+                }))
+
+            # Final display
+            return html.Div([
+                html.Span([
+                    html.I(className="fas fa-filter me-2", style={"color": "#08397C"}),
+                    "Active Filters: "
+                ], style={"font-weight": "600", "color": "#08397C", "margin-right": "10px", "white-space": "nowrap"}),
+
+                html.Div(filter_tags, style={
+                    "display": "inline-flex",
+                    "flex-wrap": "wrap",
+                    "align-items": "center"
+                })
+            ], style={
+                "display": "flex",
+                "align-items": "center",
+                "padding": "8px 15px",
+                "background-color": "#f8f9fa",
+                "border-radius": "8px",
+                "border": "1px solid #dee2e6",
+                "box-shadow": "0 1px 3px rgba(0,0,0,0.05)"
+            })
     
         @self.dash_app.callback(
             Output('sdg-time-series', 'figure'),
@@ -524,7 +693,5 @@ class SDG_Impact_Dash:
             selected_years = selected_years if selected_years else self.default_years
 
             return get_total_proceeding_count(selected_colleges, selected_status, selected_years,sdg_dropdown_value)
+        
 
-
-
- 

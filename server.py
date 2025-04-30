@@ -84,7 +84,7 @@ app = Flask(__name__,
 
 CORS(app, resources={
     r"/*": {
-        "origins": "https://mmcl-researchrepository.com",  # Specify your exact frontend domain
+        "origins": "http://localhost:3000",  # Specify your exact frontend domain
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True,  # Enable this for authenticated requests
@@ -203,4 +203,4 @@ if __name__ == "__main__":
     import threading
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0",debug=True, port=5000)

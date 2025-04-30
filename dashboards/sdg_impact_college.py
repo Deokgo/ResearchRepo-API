@@ -181,6 +181,11 @@ class SDG_Impact_College:
             ),
         ], className="mb-4", )
 
+        pub_form_container = html.Div(
+            id="pub_form_container",
+            children=[pub_form]
+        )
+
         # Collage Section
         self.collage = dbc.Container([
             dbc.Row([
@@ -323,32 +328,37 @@ class SDG_Impact_College:
             college,
             program,
             status,
-            pub_form,
+            pub_form_container,
             slider,
             button
         ], width=2, className="p-3", 
         style={"background": "#d3d8db", "height": "100vh", "position": "fixed", "left": 0, "top": 0, "zIndex": 1000})
 
 
-        main_content = dbc.Col(
-            [
-                dcc.Location(id="url", refresh=False),  # Track URL changes
-                html.Div(id="dynamic-header"),  # Placeholder for dynamic DashboardHeader
-                html.Div(
-                    id="tabs-container",
-                    children=Tabs(  # Default Tabs
-                        tabs_data=[
-                            ("Institutional SDG Impact", self.collage),
-                            ("Global Research Proceedings", self.map),
-                            ("Research Trends and Collaboration",self.trend)
-                        ]
-                    )
-                ),
-            ],
-            width=10,  # Takes remaining space
-            className="p-3",
-            style={"marginLeft": "16.67%"}  # Pushes main content to the right of sidebar
-        )
+        main_content = dbc.Col([
+            dcc.Location(id="url", refresh=False),
+            html.Div(id="dynamic-header"),
+
+            html.Div(
+                id="selected-filters-display",
+                style={
+                    "margin-top": "10px",
+                    "margin-bottom": "10px",
+                    "width": "100%"
+                }
+            ),
+            
+            html.Div(id="tabs-container", children=Tabs(
+                tabs_data=[
+                    ("Institutional SDG Impact", self.collage),
+                    ("Global Research Proceedings", self.map),
+                    ("Research Trends and Collaboration", self.trend)
+                ],
+                tabs_id="tabs"
+            )),
+            
+        ], width=10, className="p-3", style={"marginLeft": "16.67%"})
+
 
 
 
@@ -373,6 +383,15 @@ class SDG_Impact_College:
 
 
     def add_callbacks(self):
+        @self.dash_app.callback(
+            Output("pub_form_container", "style"),
+            Input("tabs", "active_tab")  # This refers to the id of the Tabs component
+        )
+        def toggle_pub_form(active_tab):
+            if active_tab == "tab-2":  # "tab-2" corresponds to the second tab
+                return {"display": "none"}
+            else:
+                return {"display": "block"}
         # Reset button callback
         @self.dash_app.callback(
             [Output('program', 'value'),
@@ -470,31 +489,32 @@ class SDG_Impact_College:
             # Return the user data for the dcc.Store
             return user_data
         
+
+        
         # Update shared data store based on user session
         @self.dash_app.callback(
             Output("shared-data-store", "data"),
             [Input("data-refresh-interval", "n_intervals"),
-             Input("user-session-data", "data"),
-             Input("college", "value"),
-             Input("program", "value"),
-             Input("status", "value"),
-             Input("years", "value"),
-             Input("sdg-dropdown", "value"),
-             Input("reset_button", "n_clicks")],
+            Input("user-session-data", "data"),
+            Input("college", "value"),
+            Input("program", "value"),
+            Input("status", "value"),
+            Input("years", "value"),
+            Input("sdg-dropdown", "value"),
+            Input("reset_button", "n_clicks"),
+            Input('pub_form', 'value')],
             prevent_initial_call=False
         )
         def refresh_data(n_intervals, user_data, selected_college, selected_programs, 
-                         selected_status, selected_years, sdg_value, reset_clicks):
-            # Get current user ID
+                        selected_status, selected_years, sdg_value, reset_clicks, selected_pub_format):
             try:
                 from flask_jwt_extended import get_jwt_identity
                 user_id = get_jwt_identity() or 'anonymous'
             except Exception as e:
                 print(f"Error getting JWT identity in refresh_data: {e}")
                 user_id = 'anonymous'
-            
+
             if not user_data:
-                # Create a basic user data structure if none exists
                 print("Warning: No user data available")
                 user_data = {
                     "user_id": user_id,
@@ -502,41 +522,32 @@ class SDG_Impact_College:
                     "college_id": selected_college or self.college,
                     "selected_programs": [],
                     "selected_status": self.default_statuses,
-                    "selected_years": self.default_years
+                    "selected_years": self.default_years,
+                    "selected_pub_format": self.default_pub_format
                 }
-            
-            # Check if reset button was clicked
+
             ctx = dash.callback_context
             if ctx.triggered and 'reset_button' in ctx.triggered[0]['prop_id']:
                 selected_programs = []
                 selected_status = self.default_statuses
                 selected_years = self.default_years
                 sdg_value = "ALL"
-            
-            # Extract college ID from user data - CRITICAL for user separation
-            college_id = user_data.get('college_id')
-            if not college_id and selected_college:
-                college_id = selected_college
-            elif not college_id:
-                college_id = self.college
-            
+                selected_pub_format = self.default_pub_format
+
+            college_id = user_data.get('college_id') or selected_college or self.college
             print(f"Refresh data for user {user_id} using college_id: {college_id}")
-            
-            # Process selections and convert numpy arrays to lists
+
             selected_programs = self.convert_numpy_to_list(ensure_list(selected_programs) or [])
             selected_status = self.convert_numpy_to_list(ensure_list(selected_status) or self.default_statuses)
             selected_years = self.convert_numpy_to_list(ensure_list(selected_years) or self.default_years)
-            
-            # For college administrator, always use their college and let them select programs
+            selected_pub_format = self.convert_numpy_to_list(ensure_list(selected_pub_format) or self.default_pub_format)
+
             if not selected_programs:
-                # If no programs explicitly selected, show all from this college
                 selected_programs = db_manager.get_unique_values_by("program_id", "college_id", college_id)
-            
-            # Log when interval triggers refresh for debugging
+
             if ctx.triggered and 'data-refresh-interval' in ctx.triggered[0]['prop_id']:
                 print(f"Auto-refresh for user {user_id} at college {college_id} at {datetime.datetime.now().strftime('%H:%M:%S')}")
-            
-            # Update user data in cache
+
             if user_id != 'anonymous':
                 try:
                     self.update_user_specific_data(user_id, college_id, {
@@ -544,22 +555,24 @@ class SDG_Impact_College:
                         "selected_programs": selected_programs,
                         "selected_status": selected_status,
                         "selected_years": selected_years,
-                        "sdg_value": sdg_value
+                        "sdg_value": sdg_value,
+                        "selected_pub_format": selected_pub_format
                     })
                 except Exception as e:
                     print(f"Error updating user data: {e}")
-            
-            # Build the shared data object with explicit college ID
+
             shared_data = {
                 "selected_college": college_id,
                 "selected_programs": selected_programs,
                 "selected_status": selected_status,
                 "selected_years": selected_years,
                 "sdg_value": sdg_value,
+                "selected_pub_format": selected_pub_format,
                 "timestamp": datetime.datetime.now().strftime('%H:%M:%S')
             }
-            
+
             return shared_data
+        
         
         # MAIN CALLBACK for all chart updates
         @self.dash_app.callback(
@@ -587,6 +600,7 @@ class SDG_Impact_College:
             selected_status = shared_data.get('selected_status', self.default_statuses)
             selected_years = shared_data.get('selected_years', self.default_years)
             sdg_dropdown_value = shared_data.get('sdg_value', 'ALL')
+            selected_pub_format = shared_data.get('select_pub_format',self.default_pub_format)
             
             # Ensure values are properly formatted
             selected_status = selected_status if selected_status else self.default_statuses
@@ -595,21 +609,21 @@ class SDG_Impact_College:
             # Generate all chart figures
             try:
                 time_series = create_sdg_plot(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating time series: {e}")
                 time_series = go.Figure()
                 
             try:
                 impact_chart = visualize_sdg_impact(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating impact chart: {e}")
                 impact_chart = go.Figure()
                 
             try:
                 research_type = create_sdg_research_chart(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating research type chart: {e}")
                 research_type = go.Figure()
@@ -644,21 +658,21 @@ class SDG_Impact_College:
                 
             try:
                 word_cloud = get_word_cloud(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating word cloud: {e}")
                 word_cloud = go.Figure()
                 
             try:
                 research_areas = generate_research_area_visualization(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating research areas: {e}")
                 research_areas = go.Figure()
                 
             try:
                 sdg_graph = generate_sdg_bipartite_graph(
-                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college)
+                    selected_programs, selected_status, selected_years, sdg_dropdown_value, college,selected_pub_format)
             except Exception as e:
                 print(f"Error generating SDG graph: {e}")
                 sdg_graph = go.Figure()
@@ -676,6 +690,164 @@ class SDG_Impact_College:
                 research_areas,
                 sdg_graph
             ]
+
+        @self.dash_app.callback(
+            Output("selected-filters-display", "children"),
+            [
+                Input("program", "value"),
+                Input("status", "value"),
+                Input("pub_form", "value"),
+                Input('sdg-dropdown', 'value'),
+                Input("years", "value")
+            ]
+        )
+        def update_selected_filters_display(programs,statuses, pub_formats, sdg_dropdown,years):
+            """
+            Update the selected filters display in a single line format
+            """
+            print("Callback triggered:", programs,  statuses, pub_formats,sdg_dropdown, years)
+
+            if not any([programs, statuses, pub_formats,sdg_dropdown, years]):
+                return html.Div([
+                    html.I(className="fas fa-info-circle me-2"),
+                    html.Span("No specific filters selected. Displaying all data within the selected years."),
+                ], style={
+                    "padding": "10px",
+                    "background-color": "#e9ecef",
+                    "border-left": "4px solid #6c757d",
+                    "border-radius": "4px",
+                    "color": "#495057",
+                    "font-style": "italic"
+                })
+
+            filter_tags = []
+
+            colors = {
+                "colleges": {"bg": "#cfe2ff", "border": "#0d6efd", "text": "#084298"},
+                "programs": {"bg": "#d1e7dd", "border": "#198754", "text": "#0f5132"},
+                "statuses": {"bg": "#fff3cd", "border": "#ffc107", "text": "#664d03"},
+                "pub_formats": {"bg": "#f8d7da", "border": "#dc3545", "text": "#842029"},
+                "sdg_dropdown": {"bg": "#e2e3e5", "border": "#6c757d", "text": "#41464b"},
+                "years": {"bg": "#dff1fb", "border": "#0dcaf0", "text": "#055160"}
+            }
+
+            # Add SDG as tags
+            if sdg_dropdown:
+                if sdg_dropdown=="ALL":
+                    sdg_dropdown="ALL SDG"
+                filter_tags.append(html.Span([
+                    html.I(className="fas fa-bullseye me-1", style={"font-size": "0.75rem"}),
+                    sdg_dropdown
+                ], style={
+                    "background-color": colors["sdg_dropdown"]["bg"],
+                    "border": f"1px solid {colors['sdg_dropdown']['border']}",
+                    "color": colors["sdg_dropdown"]["text"],
+                    "margin": "0 5px 0 0",
+                    "padding": "3px 8px",
+                    "border-radius": "16px",
+                    "display": "inline-block",
+                    "font-size": "0.75rem"
+                }))
+
+
+                       # Add programs as tags
+            if programs:
+                for program in programs:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-graduation-cap me-1", style={"font-size": "0.75rem"}),
+                        program
+                    ], style={
+                        "background-color": colors["programs"]["bg"],
+                        "border": f"1px solid {colors['programs']['border']}",
+                        "color": colors["programs"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+            
+          
+            # Statuses
+            if statuses:
+                for status in statuses:
+                    status_icon = {
+                        "READY": "fas fa-file-import",
+                        "SUBMITTED": "fas fa-file-export",
+                        "ACCEPTED": "fas fa-check-circle",
+                        "PUBLISHED": "fas fa-file-alt",
+                        "PULLOUT": "fas fa-file-excel"
+                    }.get(status, "fas fa-tag")
+
+                    filter_tags.append(html.Span([
+                        html.I(className=f"{status_icon} me-1", style={"font-size": "0.75rem"}),
+                        status
+                    ], style={
+                        "background-color": colors["statuses"]["bg"],
+                        "border": f"1px solid {colors['statuses']['border']}",
+                        "color": colors["statuses"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+
+            # Publication formats
+            if pub_formats:
+                for pub_format in pub_formats:
+                    filter_tags.append(html.Span([
+                        html.I(className="fas fa-book me-1", style={"font-size": "0.75rem"}),
+                        pub_format
+                    ], style={
+                        "background-color": colors["pub_formats"]["bg"],
+                        "border": f"1px solid {colors['pub_formats']['border']}",
+                        "color": colors["pub_formats"]["text"],
+                        "margin": "0 5px 0 0",
+                        "padding": "3px 8px",
+                        "border-radius": "16px",
+                        "display": "inline-block",
+                        "font-size": "0.75rem"
+                    }))
+
+            # Years
+            if years:
+                filter_tags.append(html.Span([
+                    html.I(className="fas fa-clock me-1", style={"font-size": "0.75rem"}),
+                    f"{years[0]} - {years[1]}"
+                ], style={
+                    "background-color": colors["years"]["bg"],
+                    "border": f"1px solid {colors['years']['border']}",
+                    "color": colors["years"]["text"],
+                    "margin": "0 5px 0 0",
+                    "padding": "3px 8px",
+                    "border-radius": "16px",
+                    "display": "inline-block",
+                    "font-size": "0.75rem"
+                }))
+
+            # Final display
+            return html.Div([
+                html.Span([
+                    html.I(className="fas fa-filter me-2", style={"color": "#08397C"}),
+                    "Active Filters: "
+                ], style={"font-weight": "600", "color": "#08397C", "margin-right": "10px", "white-space": "nowrap"}),
+
+                html.Div(filter_tags, style={
+                    "display": "inline-flex",
+                    "flex-wrap": "wrap",
+                    "align-items": "center"
+                })
+            ], style={
+                "display": "flex",
+                "align-items": "center",
+                "padding": "8px 15px",
+                "background-color": "#f8f9fa",
+                "border-radius": "8px",
+                "border": "1px solid #dee2e6",
+                "box-shadow": "0 1px 3px rgba(0,0,0,0.05)"
+            })
+
             
         # Alert message callback
         @self.dash_app.callback(

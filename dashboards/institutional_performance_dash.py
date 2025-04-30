@@ -380,6 +380,14 @@ class Institutional_Performance_Dash:
                     dbc.Col(
                         html.Div([
                             html.Div(id="dynamic-header", style={"margin-bottom": "20px", "padding-top": "10px"}),
+                            html.Div(
+                                id="selected-filters-display",
+                                style={
+                                    "margin-top": "10px",
+                                    "margin-bottom": "10px",
+                                    "width": "100%"
+                                }
+                            ),
                             text_display,
                             html.Div(
                                 id="dashboard-tabs",
@@ -394,14 +402,7 @@ class Institutional_Performance_Dash:
                                 ),
                                 style={"height": "calc(100vh - 50px)", "overflow": "hidden"}
                             ),
-                            html.Div(
-                                id="selected-filters-display",
-                                style={
-                                    "margin-top": "10px",
-                                    "margin-bottom": "10px",
-                                    "width": "100%"
-                                }
-                            ),
+                            
                             # Modals for each button
                             dbc.Modal([
                                 dbc.ModalHeader(dbc.ModalTitle("Research Output(s)")),
