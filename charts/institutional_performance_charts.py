@@ -335,13 +335,13 @@ class ResearchOutputPlot:
         df = pd.DataFrame(get_data_for_scopus_section(*data_func_args, selected_status, selected_years, selected_terms, selected_pub_format))
         if 'scopus' in df.columns:
             df = df[df['scopus'] != 'N/A']  # Remove 'N/A' values
-        
-        # Assign colors for scopus column
-        self.assign_colors(df, 'scopus')
-        
+
         if df.empty:
             return px.bar(title="No data available")
         
+        # Assign colors for scopus column
+        self.assign_colors(df, 'scopus')
+
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
             x_axis, xaxis_title = 'program_id', 'Programs'
             title = f'Scopus vs. Non-Scopus per Program in {selected_colleges[0]}'
@@ -392,12 +392,12 @@ class ResearchOutputPlot:
         df = pd.DataFrame(filtered_data_with_term)
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
-        
-        # Assign colors for scopus column
-        self.assign_colors(df, 'journal')
 
         if df.empty:
             return px.bar(title="No Data Available")
+        
+        # Assign colors for scopus column
+        self.assign_colors(df, 'journal')
         
         # Determine grouping
         if user_id in ["02", "03"] and len(selected_colleges) == 1:
@@ -698,12 +698,12 @@ class ResearchOutputPlot:
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
 
-        # Assign colors to journals before plotting
-        self.assign_colors(df, 'journal')
-
         # Handle empty DataFrame case
         if df.empty:
             return px.line(title="No data available")
+
+        # Assign colors to journals before plotting
+        self.assign_colors(df, 'journal')
         
         # Group data by 'journal' and 'year'
         grouped_df = df.groupby(['journal', 'year']).size().reset_index(name='Count')
@@ -776,12 +776,12 @@ class ResearchOutputPlot:
         if 'journal' in df.columns:
             df = df[(df['journal'] != 'unpublished') & (df['status'] != 'PULLOUT')]
 
-        # Assign colors to journals before plotting
-        self.assign_colors(df, 'journal')
-
         # Handle empty DataFrame case
         if df.empty:
             return px.pie(title="No Data Available", template='plotly_white')
+
+        # Assign colors to journals before plotting
+        self.assign_colors(df, 'journal')
 
         # Group data by 'journal' and sum the counts
         grouped_df = df.groupby(['journal']).size().reset_index(name='Count')
