@@ -504,9 +504,10 @@ def update_paper(research_id):
     finally:
         db.session.close()
 
-def add_footer_to_pdf(input_path, source_url="https://mmcl-researchrepository.com/"):
+def add_footer_to_pdf(input_path, logo_path="static/assets/mmcl-logo.png", source_url="https://mmcl-researchrepository.com/"):
     """
     Adds a footer to each page of a PDF file with source URL and download date
+    Also adds a transparent logo in the center if logo_path is provided
     """
     try:
         # Get current date in Philippine timezone
@@ -518,6 +519,13 @@ def add_footer_to_pdf(input_path, source_url="https://mmcl-researchrepository.co
         
         # Create an in-memory output PDF
         output_buffer = BytesIO()
+        
+        # Check if logo exists (only once)
+        logo_exists = logo_path and os.path.exists(logo_path)
+        if logo_exists:
+            print(f"Using logo from path: {logo_path}")
+        else:
+            print(f"Logo not found at path: {logo_path}")
         
         # Use pikepdf for the operation
         with pikepdf.open(input_path) as pdf:
@@ -535,12 +543,29 @@ def add_footer_to_pdf(input_path, source_url="https://mmcl-researchrepository.co
                 temp_buffer = BytesIO()
                 c = canvas.Canvas(temp_buffer, pagesize=(width, height))
                 
-                # Set font properties for better visibility
-                c.setFont("Helvetica", 10)
-                c.setFillColorRGB(0.3, 0.3, 0.3)  # Darker gray for better visibility
+                # Add transparent logo in the middle if available
+                if logo_exists:
+                    try:
+                        # Calculate center position - make it smaller
+                        logo_width = width * 0.25  # Use 25% of page width
+                        logo_height = logo_width  # Maintain aspect ratio
+                        logo_x = (width - logo_width) / 2
+                        logo_y = (height - logo_height) / 2
+                        
+                        # Draw the image with transparency
+                        c.saveState()
+                        c.setFillAlpha(0.1)  # Set transparency (0.1 = 10% opacity)
+                        c.drawImage(logo_path, logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
+                        c.restoreState()
+                    except Exception as e:
+                        print(f"Failed to add logo: {str(e)}")
                 
-                # Position at bottom of page (higher y value to be visible)
-                y_position = 30  # Higher position from bottom
+                # Set font properties for the footer
+                c.setFont("Helvetica-Bold", 8)  # Smaller bold font
+                
+                # Center the footer text
+                y_position = max(15, height * 0.03)  # Position from bottom
+                c.setFillColorRGB(0.3, 0.3, 0.3)  # Darker gray
                 c.drawCentredString(width/2, y_position, footer_text)
                 c.save()
                 
@@ -580,8 +605,11 @@ def view_manuscript(research_id):
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
 
+        # Path to your logo - ensure this path exists and is accessible
+        logo_path = os.path.join(BASE_DIR, 'static', 'assets', 'mmcl-logo.png')
+
         # Add footer to the PDF
-        pdf_with_footer = add_footer_to_pdf(file_path)
+        pdf_with_footer = add_footer_to_pdf(file_path, logo_path=logo_path)
         
         if pdf_with_footer:
             # Send the modified file with footer
@@ -595,6 +623,7 @@ def view_manuscript(research_id):
             # If footer addition fails, fall back to original file
             return send_file(file_path, as_attachment=False)
     except Exception as e:
+        print(str(e))
         return jsonify({"error": str(e)}), 500
     
 def is_duplicate(group_code):
@@ -741,8 +770,11 @@ def view_extended_abstract(research_id):
         if not os.path.exists(file_path):
             return jsonify({"error": "File not found."}), 404
 
+        # Path to your logo - ensure this path exists and is accessible
+        logo_path = os.path.join(BASE_DIR, 'static', 'assets', 'mmcl-logo.png')
+
         # Add footer to the PDF
-        pdf_with_footer = add_footer_to_pdf(file_path)
+        pdf_with_footer = add_footer_to_pdf(file_path, logo_path=logo_path)
         
         if pdf_with_footer:
             # Send the modified file with footer
