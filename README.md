@@ -12,11 +12,7 @@ This repository contains the backend API for the ResearchRepo-WEB repository. It
 
 ## Notice
 
-This repository is not open for public consumption. Access and use are restricted.
-
-## License
-
-This project is licensed under the MIT License.
+This repository is not open for public modification. Making some changes is prohibited.
 
 ## Acknowledgements
 
