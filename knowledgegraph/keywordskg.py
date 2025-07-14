@@ -471,8 +471,13 @@ def build_network_traces(G, clicked_node):
     if clicked_node:
         pos = nx.kamada_kawai_layout(G)
     else:
-        pos = global_pos if global_pos else nx.spring_layout(G, k=1, iterations=50)
-        global_pos = pos
+        # Check if global_pos has all current nodes, if not recalculate
+        current_nodes = set(G.nodes())
+        if global_pos and set(global_pos.keys()) == current_nodes:
+            pos = global_pos
+        else:
+            pos = nx.spring_layout(G, k=1, iterations=50)
+            global_pos = pos
 
     traces = []
     
@@ -485,21 +490,25 @@ def build_network_traces(G, clicked_node):
             high_usage_programs = G.nodes[node]['program_count']  # This is now correctly counted in build_keyword_network
             keyword_hovertext.append(f"{node}\nUsed {usage_count} times in {high_usage_programs} programs")
 
-        traces.append(go.Scatter(
-            x=[pos[node][0] for node in keyword_nodes],
-            y=[pos[node][1] for node in keyword_nodes],
-            mode='markers+text',
-            text=[node for node in keyword_nodes],
-            hovertext=keyword_hovertext,
-            textposition="bottom center",
-            marker=dict(
-                size=[20 + (G.nodes[node]['program_count'] * 2) for node in keyword_nodes],
-                color=keyword_color,
-                symbol='diamond'
-            ),
-            name='Keywords',
-            hoverinfo='text'
-        ))
+        # Filter nodes that have positions
+        positioned_keyword_nodes = [node for node in keyword_nodes if node in pos]
+        
+        if positioned_keyword_nodes:
+            traces.append(go.Scatter(
+                x=[pos[node][0] for node in positioned_keyword_nodes],
+                y=[pos[node][1] for node in positioned_keyword_nodes],
+                mode='markers+text',
+                text=[node for node in positioned_keyword_nodes],
+                hovertext=[keyword_hovertext[keyword_nodes.index(node)] for node in positioned_keyword_nodes],
+                textposition="bottom center",
+                marker=dict(
+                    size=[20 + (G.nodes[node]['program_count'] * 2) for node in positioned_keyword_nodes],
+                    color=keyword_color,
+                    symbol='diamond'
+                ),
+                name='Keywords',
+                hoverinfo='text'
+            ))
 
     # Create program nodes trace if a keyword is clicked
     program_nodes = [node for node, attr in G.nodes(data=True) if attr['type'] == 'program']
@@ -512,21 +521,29 @@ def build_network_traces(G, clicked_node):
             program_hovertext.append(f"{node}\nUses keyword {usage_count} times")
             node_colors.append(color_code or '#0A438F')  # Default to '#0A438F' if color_code is None
 
-        traces.append(go.Scatter(
-            x=[pos[node][0] for node in program_nodes],
-            y=[pos[node][1] for node in program_nodes],
-            mode='markers+text',
-            text=[node for node in program_nodes],
-            hovertext=program_hovertext,
-            textposition="top center",
-            marker=dict(
-                size=[30 * G.nodes[node]['relative_size'] for node in program_nodes],
-                color=node_colors,
-                symbol='circle'
-            ),
-            name='Programs',
-            hoverinfo='text'
-        ))
+        # Filter nodes that have positions
+        positioned_program_nodes = [node for node in program_nodes if node in pos]
+        
+        if positioned_program_nodes:
+            # Get corresponding colors and hover text for positioned nodes
+            positioned_colors = [node_colors[program_nodes.index(node)] for node in positioned_program_nodes]
+            positioned_hovertext = [program_hovertext[program_nodes.index(node)] for node in positioned_program_nodes]
+            
+            traces.append(go.Scatter(
+                x=[pos[node][0] for node in positioned_program_nodes],
+                y=[pos[node][1] for node in positioned_program_nodes],
+                mode='markers+text',
+                text=[node for node in positioned_program_nodes],
+                hovertext=positioned_hovertext,
+                textposition="top center",
+                marker=dict(
+                    size=[30 * G.nodes[node]['relative_size'] for node in positioned_program_nodes],
+                    color=positioned_colors,
+                    symbol='circle'
+                ),
+                name='Programs',
+                hoverinfo='text'
+            ))
 
     # Add edges if a keyword is clicked
     if clicked_node:
