@@ -201,7 +201,7 @@ def create_sdg_pie_chart(selected_programs, selected_status, selected_years, sdg
             program_distribution,
             names='program_id',  # Changed college_id to program_id
             values='Percentage',
-            title=f'Percentage of Research Outputs by Program{f'({sdg_dropdown_value})' if sdg_dropdown_value != "ALL" else "by (ALL SDG)"}',
+            title=f'Percentage of Research Outputs by Program{("(" + sdg_dropdown_value + ")") if sdg_dropdown_value != "ALL" else "by (ALL SDG)"}',
             labels={'program_id': 'Program', 'Percentage': 'Percentage of Total Outputs'}
         )
 
@@ -502,7 +502,7 @@ def create_geographical_heatmap(selected_programs, selected_status, selected_yea
         hover_name="country",
         hover_data={"research_count": True},
         color_continuous_scale="Viridis",
-        title=f'Geographical Distribution of Research Outputs {"by SDG: " + sdg_dropdown_value if sdg_dropdown_value != "ALL" else "by ALL SDG"}',
+        title=f'Geographical Distribution of Research Outputs {" by SDG: " + sdg_dropdown_value if sdg_dropdown_value != "ALL" else "by ALL SDG"}',
         labels={'research_count': 'Count'}
     )
 
@@ -573,7 +573,7 @@ def create_geographical_treemap(selected_programs, selected_status, selected_yea
             font=dict(size=20, color="gray")
         )
         fig.update_layout(
-            title=f'Top Research Conference Locations{f'({sdg_dropdown_value})' if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
+            title=f'Top Research Conference Locations{("(" + sdg_dropdown_value + ")") if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
             template="plotly_white",
             height=350, width=350,
             xaxis=dict(visible=False),
@@ -664,7 +664,7 @@ def create_conference_participation_bar_chart(selected_programs, selected_status
             font=dict(size=20, color="gray")
         )
         fig.update_layout(
-            title=f'Conference Participation {f'({sdg_dropdown_value})' if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
+            title=f'Conference Participation {("(" + sdg_dropdown_value + ")") if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
             template="plotly_white",
             height=200, width=800,
             xaxis=dict(visible=False),
@@ -796,7 +796,7 @@ def create_local_vs_foreign_donut_chart(selected_programs, selected_status, sele
         names='location_category',
         values='research_count',
         hole=0.4,  # Creates the donut effect
-        title=f'Local vs. Foreign Research Proceedings {f'({sdg_dropdown_value})' if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
+        title=f'Local vs. Foreign Research Proceedings {("(" + sdg_dropdown_value + ")") if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
         color='location_category',
         color_discrete_map={"Local": "blue", "Foreign": "red"}  # Custom colors
     )
@@ -1219,7 +1219,7 @@ def generate_sdg_bipartite_graph(selected_programs, selected_status, selected_ye
     # Create the final figure
     fig = go.Figure(data=[edge_trace, node_trace])
     fig.update_layout(
-        title=f'SDG Research Collaboration Network {f'({sdg_dropdown_value})' if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
+        title=f'SDG Research Collaboration Network {("(" + sdg_dropdown_value + ")") if sdg_dropdown_value != "ALL" else "(ALL SDG)"}',
         showlegend=False,
         margin=dict(l=0, r=0, t=40, b=0),
         height=530, 

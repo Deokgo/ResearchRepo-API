@@ -170,7 +170,6 @@ app.register_blueprint(backup, url_prefix='/backup')
 from dashboards.main_dash import MainDashboard
 from knowledgegraph.knowledgegraph import create_kg_area
 from knowledgegraph.keywordskg import create_research_network
-from knowledgegraph.collectionkg import collection_kg
 from dashboards.college_dash import CollegeDashApp
 from dashboards.program_dash import ProgDashApp
 import dash_bootstrap_components as dbc
@@ -187,7 +186,6 @@ def create_dash_apps(app):
             MainDashboard(app)
             create_kg_area(app)
             create_research_network(app)
-            collection_kg(app)
             CollegeDashApp(app)
             ProgDashApp(app)
             UserEngagementDash(app)
